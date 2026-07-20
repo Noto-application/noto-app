@@ -27,6 +27,7 @@
 
 - ESLint, Prettier, Husky
 - Vitest + React Testing Library
+- Playwright (E2E) — [RFC-006](../rfc/006-e2e-testing.md)
 - Storybook (UI-компоненты)
 - Sentry / Glitchtip (ошибки на фронте; Glitchtip — альтернатива, API совместим с Sentry)
 

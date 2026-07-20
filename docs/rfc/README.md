@@ -13,5 +13,5 @@
 | [003](./003-yjs-provider.md) | Yjs provider | Draft |
 | [004](./004-blog-subdomain.md) | Поддомен `blog.noto.app` | Draft |
 | [005](./005-supplementary-libraries.md) | Дополнительные библиотеки | Draft |
-| [006](./006-e2e-testing.md) | E2E-тестирование | Draft |
+| [006](./006-e2e-testing.md) | E2E-тестирование | Accepted |
 | [007](./007-mvp-scope.md) | MVP scope | Draft |
