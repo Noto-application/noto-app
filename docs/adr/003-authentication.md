@@ -5,7 +5,7 @@
 
 ## Контекст
 
-Приватная зона `/app/*` требует аутентификации. Access token в `localStorage` недоступен middleware на сервере — нужен согласованный flow с refresh token.
+Приватная зона `/app/*` требует аутентификации. Поскольку `Next.js Middleware` работает на сервере и не имеет доступа к `localStorage`, аутентификация должна опираться на cookie, доступные уже на первом запросе.
 
 ## Решение
 
@@ -13,28 +13,31 @@
 
 | Токен | Где хранится | Кто устанавливает |
 |-------|--------------|-------------------|
-| Access token | `localStorage` | Фронтенд после login/refresh |
+| Access token | HttpOnly cookie | Бэкенд (NestJS) |
 | Refresh token | HttpOnly cookie | Бэкенд (NestJS) |
+
+Оба cookie отправляются браузером автоматически. Для production обязательны `Secure`; `SameSite` настраивается в соответствии с финальной схемой доменов и кросс-сайтовых запросов.
 
 ### Защита маршрутов `/app/*`
 
 **Next.js Middleware:**
 
-1. Запрос к `/app/*` → проверяем наличие валидного access token (если передаётся через заголовок/cookie — на этапе реализации уточнить механизм для middleware)
-2. Access token отсутствует или истёк → **пробуем refresh** через HttpOnly cookie (запрос к `/api/auth/refresh`)
-3. Refresh успешен → сохраняем новый access token, пропускаем запрос
-4. Refresh неуспешен → **logout + редирект на `/login`**
+1. Запрос к `/app/*` → middleware проверяет наличие `access token` в cookie
+2. Access token валиден → пропускаем запрос
+3. Access token отсутствует или истёк → пробуем refresh через `refresh token` в HttpOnly cookie
+4. Refresh успешен → бэкенд выставляет новые cookie, middleware пропускает запрос
+5. Refresh неуспешен → очищаем auth-cookie и редиректим на `/login`
 
 ### Обработка 401 от API в `/app`
 
 **Паттерн B (принят):**
 
 1. Любой API-запрос вернул `401`
-2. Пробуем **один** refresh через HttpOnly cookie
+2. Пробуем один refresh через HttpOnly cookie
 3. Refresh успешен → повторяем оригинальный запрос
-4. Refresh неуспешен → **logout, очистка localStorage, редирект на `/login`**
+4. Refresh неуспешен → logout, очистка auth-cookie, редирект на `/login`
 
-Реализация: interceptor в API-клиенте / TanStack Query `queryClient` global handler.
+Реализация: interceptor в API-клиенте / TanStack Query `queryClient` global handler. Все запросы, требующие авторизации, отправляются с `credentials: 'include'`.
 
 ### Страницы auth
 
@@ -45,17 +48,19 @@
 
 | Вариант | Почему отклонён |
 |---------|-----------------|
-| HttpOnly cookie для access token | Сложнее для SPA-like `/app`, выбран localStorage |
+| Access token в `localStorage` + refresh token в cookie | Middleware не видит `localStorage`, сложно надёжно защищать `/app/*` на сервере |
 | JWT в localStorage без refresh | Плохой UX при истечении сессии |
 | Только client-side guard | Flash неавторизованного контента до гидрации |
-| Toast «сессия истекла» без auto-refresh | Хуже UX |
+| Toast "сессия истекла" без auto-refresh | Хуже UX |
 
 ## Последствия
 
-- Бэкенд обязан реализовать `POST /auth/refresh` с HttpOnly cookie
+- Бэкенд обязан выставлять и ротировать `access`/`refresh` cookie при `login`, `refresh`, `logout`
+- Бэкенд обязан реализовать `POST /auth/refresh`, читающий `refresh token` из HttpOnly cookie
 - Фронтенд: единый API client с interceptors в `apps/web`
-- CSRF: refresh endpoint должен быть защищён (SameSite cookie, CSRF token при необходимости)
-- Middleware не имеет прямого доступа к localStorage — refresh flow критичен для первого входа в `/app`
+- Все авторизованные запросы должны отправляться с cookie (`credentials: 'include'`)
+- CSRF-защита обязательна для state-changing endpoint'ов: минимум `SameSite`, при необходимости отдельный CSRF token
+- Middleware может принимать решение по аутентификации уже на первом запросе к `/app`, без зависимости от клиентской гидрации
 
 ## Связанные документы
 
