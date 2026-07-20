@@ -1,55 +1,45 @@
 # RFC-002: Rich-text редактор
 
-**Статус:** Draft  
-**Дата:** 2026-07-14
+**Статус:** Accepted  
+**Дата:** 2026-07-20
 
 ## Контекст
 
-Ядро продукта — Notion-like редактор с блоками, todo, медиа, комментариями, collaborative editing. В [ADR-006](../adr/006-realtime.md) зафиксировано использование Yjs; конкретная библиотека редактора не выбрана.
+Ядро продукта — Notion-like редактор с блоками, todo, медиа, комментариями, collaborative editing. В [ADR-006](../adr/006-realtime.md) зафиксировано использование Yjs; библиотека редактора выбрана в этом RFC.
 
-## Варианты
+## Решение: BlockNote
 
-### A. Tiptap (рекомендация по умолчанию)
+**BlockNote** — block-based редактор на ProseMirror/Tiptap с готовым UI из коробки.
+
+### Почему BlockNote
+
+- **Core + UI сразу** — не нужно собирать Notion-like интерфейс с нуля (slash menu, drag handle, block menu, типографика)
+- **Block-based из коробки** — соответствует модели продукта без отдельного слоя block UI
+- **Быстрый MVP** — меньше кода и spike-работы для учебной команды
+- **TypeScript** — типизированные блоки и API
+- **Yjs** — `@blocknote/core` поддержива collaboration через Yjs (интеграция менее зрелая, чем у Tiptap, но достаточная для MVP)
+
+### Принятые компромиссы
+
+- Меньше низкоуровневого контроля, чем у «голого» Tiptap — кастомные блоки (календарь, embed) потребуют больше усилий
+- Default UI BlockNote — отправная точка; стилизация под shadcn/Tailwind — отдельная задача
+- Collaboration и edge-cases — проверить на spike до prod
+
+## Рассмотренные альтернативы
+
+### A. Tiptap
 
 ProseMirror-обёртка с extension-системой.
 
-**Плюсы:**
+**Плюсы:** зрелая `@tiptap/extension-collaboration` + Yjs, гибкие custom blocks, большое комьюнити.
 
-- `@tiptap/extension-collaboration` + Yjs из коробки
-- Большое комьюнити, много примеров Notion-like UI
-- Гибкие custom blocks (image, video, todo)
-- Хорошо с TypeScript
-
-**Минусы:**
-
-- ProseMirror learning curve для кастомных extension
-- Некоторые advanced фичи — платные (Tiptap Pro), но базовое collaboration — open source
+**Минусы:** Notion-like UI нужно строить самим; выше learning curve для кастомных extension.
 
 ### B. Lexical (Meta)
 
-**Плюсы:**
+**Плюсы:** современная архитектура, `@lexical/yjs`.
 
-- Современная архитектура, хорошая производительность
-- `@lexical/yjs` для collaboration
-
-**Минусы:**
-
-- Сложнее для команды на обучении
-- Меньше готовых Notion-like примеров
-- Больше кода для block-based UI
-
-### C. BlockNote
-
-**Плюсы:**
-
-- Быстрый старт, block-based из коробки
-- Красивый default UI
-
-**Минусы:**
-
-- Меньше контроля над кастомизацией
-- Collaboration менее зрелая чем Tiptap+Yjs
-- Сложнее интегрировать специфичные блоки (календарь, embed)
+**Минусы:** сложнее для команды, мало готовых Notion-like примеров, больше кода для block-based UI.
 
 ## Требования из ТЗ к редактору
 
@@ -63,18 +53,21 @@ ProseMirror-обёртка с extension-системой.
 
 ## Критерии выбора
 
-- [ ] Зрелость Yjs-интеграции
-- [ ] Скорость MVP для учебной команды
-- [ ] Расширяемость под кастомные блоки
-- [ ] Совместимость с [ADR-005](../adr/005-state-management.md) (контент только в Yjs)
+| Критерий | BlockNote |
+|----------|-----------|
+| Зрелость Yjs-интеграции | Достаточно для MVP; Tiptap сильнее, но не критично на старте |
+| Скорость MVP для учебной команды | ✅ Готовый UI снижает объём работ |
+| Расширяемость под кастомные блоки | Приемлемо; Tiptap гибче на длинной дистанции |
+| Совместимость с [ADR-005](../adr/005-state-management.md) | ✅ Контент только в Yjs, editor state в BlockNote |
 
 ## Следующие шаги
 
-1. Spike: Tiptap + Yjs + базовые блоки (text, heading, todo) — 2–3 дня
-2. Оценить UX и сложность кастомных блоков
-3. Принять ADR после spike
+1. Spike: BlockNote + Yjs + базовые блоки (text, heading, todo) — 2–3 дня
+2. Оценить стилизацию под shadcn/Tailwind и сложность кастомных блоков (image, video)
+3. Зафиксировать паттерн интеграции в FSD (`features/editor` или `widgets/editor`)
 
 ## Связанные документы
 
+- [ADR-005](../adr/005-state-management.md) — контент в Yjs + BlockNote
 - [ADR-006](../adr/006-realtime.md)
 - [RFC-003](./003-yjs-provider.md)

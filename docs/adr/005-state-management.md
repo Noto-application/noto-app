@@ -16,11 +16,11 @@
 | **URL** | Текущий контекст навигации | `/app/[pageId]` — открытая страница |
 | **TanStack Query** | Server state с API | проекты, метаданные страниц, поиск, корзина, история, настройки пользователя, комментарии (список) |
 | **Zustand** | UI state только | сайдбар open/collapsed, модалки, theme, размеры панелей |
-| **Yjs + Tiptap** | Контент страницы в редакторе | live-текст, блоки при collaborative editing |
+| **Yjs + BlockNote** | Контент страницы в редакторе | live-текст, блоки при collaborative editing |
 
 ### Правила
 
-1. **Контент редактора не дублировать** в Query и Zustand — только Yjs/Tiptap
+1. **Контент редактора не дублировать** в Query и Zustand — только Yjs/BlockNote
 2. **Zustand — только UI**, не бизнес-данные и не навигация по страницам
 3. **Текущая страница — в URL**, не в Zustand (аналогия с Notion)
 4. Метаданные страницы (title, `updatedAt`, permissions) — **TanStack Query**
@@ -31,7 +31,7 @@
 - Текущий `pageId` / `projectId` (это URL)
 - Список проектов, дерево страниц (это Query)
 - Текст документа (это Yjs)
-- Выделенные блоки редактора (остаётся в Tiptap editor state)
+- Выделенные блоки редактора (остаётся в BlockNote editor state)
 - Черновики форм до отправки (формы — React Hook Form local state)
 
 ## Альтернативы
@@ -40,7 +40,7 @@
 |---------|-----------------|
 | Zustand для навигации | Нет deep links, ломается «назад» в браузере |
 | Query для контента редактора | Не подходит для realtime CRDT |
-| Zustand для selection в редакторе | Tiptap уже держит selection state |
+| Zustand для selection в редакторе | BlockNote уже держит selection state |
 
 ## Последствия
 

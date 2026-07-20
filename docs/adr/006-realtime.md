@@ -27,7 +27,7 @@
 
 ### Планируемый стек редактора
 
-- **Tiptap** — rich-text / block-редактор (финальный выбор — [RFC-002](../rfc/002-rich-text-editor.md))
+- **BlockNote** — rich-text / block-редактор ([RFC-002](../rfc/002-rich-text-editor.md))
 - **Yjs** — collaborative editing
 - **@dnd-kit** — drag-and-drop блоков и дерева страниц
 

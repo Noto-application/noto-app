@@ -45,7 +45,7 @@ Custom websocket gateway на NestJS с y-protocols.
 ## Архитектурная схема (целевая)
 
 ```
-Browser (Tiptap + Yjs)
+Browser (BlockNote + Yjs)
     │
     ├── Yjs WebSocket ──► Hocuspocus / y-websocket ──► PostgreSQL (snapshots)
     │
