@@ -24,7 +24,7 @@
 
 | ID | Название |
 |----|----------|
-| [RFC-001](./rfc/001-api-contract.md) | Контракт API: OpenAPI vs tRPC |
+| [RFC-001](./rfc/001-api-contract.md) | Контракт API: REST + ts-rest + shared contracts |
 | [RFC-002](./rfc/002-rich-text-editor.md) | Выбор rich-text редактора |
 | [RFC-003](./rfc/003-yjs-provider.md) | Yjs provider для collaborative editing |
 | [RFC-004](./rfc/004-blog-subdomain.md) | Вынос публичных статей на `blog.noto.app` |

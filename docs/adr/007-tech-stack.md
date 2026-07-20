@@ -39,7 +39,7 @@
 | БД | PostgreSQL |
 | Кэш / очереди | Redis, BullMQ |
 | ORM | Prisma или TypeORM |
-| API docs | Swagger |
+| API docs | контракты (shared contracts) + опциональная генерация Swagger/OpenAPI |
 | Realtime | Socket.io |
 | Файлы | S3-совместимое хранилище |
 | ИИ | OpenAI API (npm-пакет `openai`) |

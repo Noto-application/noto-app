@@ -1,103 +1,105 @@
-# RFC-001: Контракт API — OpenAPI vs tRPC
+# RFC-001: Контракт API — REST + ts-rest + shared contracts
 
-**Статус:** Draft  
-**Дата:** 2026-07-14
+**Статус:** Draft
+**Дата:** 2026-07-20
 
 ## Контекст
 
-Monorepo с `apps/web`, `apps/api`, `packages/shared`. Нужен способ синхронизации типов между фронтом и бэкендом. В ТЗ указаны NestJS + Swagger. Команда рассматривает также tRPC.
+Monorepo с `apps/web`, `apps/api`, `packages/shared`. Нужен способ синхронизации типов между фронтом и бэкендом без дублирования DTO и ручного поддержания соответствия.
 
-**Решение отложено** — требуется изучение и отдельный ADR после выбора.
+Команда уже обсуждала варианты (OpenAPI/Swagger и tRPC), но текущий RFC устарел. Предлагается обновить подход под:
 
-## Варианты
+- **REST** как основа API (удобно для внешних клиентов и интеграций по HTTP)
+- **ts-rest** как contract-first инструмент
+- **shared contracts** как source of truth для схем и типизации
 
-### A. OpenAPI + codegen (orval)
+## Цели
 
-Генерация TypeScript-типов и React Query hooks из `swagger.json` NestJS.
+1. **Source of truth:** контракты (эндпоинты + request/response + единый shape ошибок) живут в `packages/shared`.
+2. **Типы совпадают с runtime:** контракты собираются из валидаторов (обычно Zod), чтобы и типы, и runtime-валидация следовали одному определению.
+3. **Compile-time безопасность:** при изменении контракта ошибки должны проявляться на фронте/бэке на этапе TypeScript.
+4. **Никакого “двойного описания”:** меньше DTO/сигнатур, больше переиспользования.
+5. **REST сохраняется:** обычные HTTP paths/methods для внешних потребителей.
 
-**Плюсы:**
+## Решение: contract-first на ts-rest + shared
 
-- Уже в ТЗ: Swagger на NestJS
-- Явный контракт — `swagger.json` как source of truth
-- Слабая связность fe/be — удобно при параллельной работе
-- **orval** генерирует типы + TanStack Query hooks из коробки
-- Просто для внешних клиентов (TG-бот, мобилка, интеграции)
+### 1) Контракты в `packages/shared`
 
-**Минусы:**
+В `packages/shared/src/api/` определяем эндпоинты через ts-rest:
 
-- Codegen при каждом изменении API (`pnpm generate:api`)
-- Нет end-to-end type safety в момент написания handler на бэке
-- Дублирование: DTO на бэке + сгенерированные типы
+- методы и пути (`GET/POST/...`, paths);
+- схемы параметров и payload'ов;
+- типизированные ответы;
+- (опционально) единый стандарт ошибок.
 
-**Структура в monorepo:**
+Итог: фронт и бэкенд импортируют один и тот же контракт.
+
+### 2) Реализация на бэкенде (`apps/api`)
+
+`apps/api` подключает адаптер ts-rest для выбранной HTTP платформы (NestJS через соответствующий adapter или обертку).
+
+Далее backend:
+
+- wire контракт -> handlers;
+- применяет contract-валидацию (если это предусмотрено подходом);
+- маппит ошибки в общий shape (если стандартизируем).
+
+### 3) Использование на фронтенде (`apps/web`)
+
+`apps/web` строит typed client из shared контракта.
+
+Дальше возможны 2 режима (выбирается после spike):
+
+- typed client + тонкие wrappers под TanStack Query;
+- прямые hooks из ts-rest интеграции (если выбрана подходящая integration-обвязка).
+
+В обоих случаях auth-cookie логика остаётся совместимой с ADR-003 (credentials/cookies на запросах, refresh flow).
+
+## Структура в monorepo
 
 ```
-packages/shared/src/api/     # сгенерированные типы (orval output)
-apps/web/src/shared/api/     # hooks + кастомный axios/fetch client
-apps/api/                    # Swagger decorators на controllers
+packages/shared/src/api/
+  contract/            # ts-rest контракт: endoints + schemas
+  errors.ts            # единый shape ошибок (если нужен)
+  index.ts
+
+apps/api/
+  src/http/rest/
+    routes.ts          # wire contract -> handlers (ts-rest adapter)
+    index.ts
+
+apps/web/
+  src/shared/api/
+    client.ts          # ts-rest client + baseUrl
+    hooks.ts           # wrappers под TanStack Query (опционально)
 ```
 
-### B. openapi-typescript (только типы)
+## Неизвестные / что нужно подтвердить spike'ом
 
-Только типы из OpenAPI, hooks пишем вручную.
+- Какой именно adapter ts-rest удобнее в контексте NestJS.
+- Нужны ли дополнительные layers для TanStack Query (hooks “из коробки” vs thin wrappers).
+- Как стандартизируем ошибки (например `code/message/details`) и как это маппится на всех слоях.
+- Как поступаем с API-документацией: генерируем ли OpenAPI/Swagger из контракта ts-rest или держим документацию отдельно (это не блокирует основной contract-first подход).
+- Подтвердить, что авторизация и cookies полностью соответствуют схеме из ADR-003.
 
-**Плюсы:** меньше магии codegen, полный контроль над hooks  
-**Минусы:** больше boilerplate на фронте
+## Критерии принятия решения (success criteria)
 
-### C. swagger-typescript-api
-
-Типы + API-клиент, hooks вручную.
-
-**Плюсы:** готовый клиент  
-**Минусы:** менее интегрирован с TanStack Query чем orval
-
-### D. tRPC
-
-Сквозная типизация procedures между fe и be без codegen.
-
-**Плюсы:**
-
-- **End-to-end type safety** — меняешь procedure, TypeScript ругается на фронте сразу
-- Отличный DX в monorepo
-- Меньше boilerplate для CRUD
-
-**Минусы:**
-
-- NestJS + tRPC — **не из коробки**, нужен адаптер (`nestjs-trpc` и др.)
-- Swagger из ТЗ не получаем бесплатно
-- Сложнее для внешних потребителей API (TG-бот, публичные интеграции)
-- Команда должна изучить tRPC; кривая обучения выше
-- Отход от ТЗ (Swagger как primary contract)
-
-### E. Ручные типы в `packages/shared` (временно)
-
-**Плюсы:** быстрый старт, нулевая настройка  
-**Минусы:** рассинхрон fe/be, не масштабируется
-
-## Предварительная рекомендация
-
-Учитывая **NestJS + Swagger в ТЗ** и **monorepo**:
-
-1. **Старт:** ручные типы в `packages/shared` для 3–5 core-сущностей (`User`, `Project`, `Page`)
-2. **После стабилизации API:** orval из Swagger
-3. **tRPC** — только если бэкенд-команда готова менять подход и отказаться от Swagger как primary contract
-
-## Критерии принятия решения
-
-- [ ] Готовность бэкенд-команды к tRPC / адаптерам
-- [ ] Нужен ли публичный REST API для внешних клиентов
-- [ ] Объём codegen vs ручной поддержки приемлем для команды
-- [ ] Соответствие требованиям ТЗ (Swagger)
+- Изменение контракта вызывает ошибку компиляции в местах использования на фронте/бэке.
+- Runtime-валидация согласована с типами из shared контракта.
+- Запросы в `/app/*` корректно отправляют cookie (и refresh flow работает через interceptor/Query handler как в ADR-003).
+- API остаётся доступным как обычный REST через HTTP endpoints (для внешних клиентов).
 
 ## Следующие шаги
 
-1. Бэкенд поднимает базовый Swagger с 2–3 endpoints
-2. Команда пробует orval codegen в ветке spike
-3. Опционально: spike tRPC с `nestjs-trpc`
-4. Принять ADR-010 после сравнения
+1. Spike на 2–3 endpoint'ах (например auth + одна сущность: `projects.list`).
+2. Зафиксировать подход к валидаторам (Zod?) и формат ошибок в `packages/shared`.
+3. Подключить typed client и интеграцию на фронте под TanStack Query.
+4. (Опционально) договориться об источнике API-документации: OpenAPI из контракта vs separate docs.
+5. Принять ADR-010 (или обновить текущий ADR) после оценки с альтернативами (OpenAPI codegen, tRPC).
 
 ## Связанные документы
 
-- [ADR-001](../adr/001-monorepo-structure.md)
+- [ADR-003](../adr/003-authentication.md)
 - [ADR-004](../adr/004-data-fetching.md)
 - [ADR-007](../adr/007-tech-stack.md)
+

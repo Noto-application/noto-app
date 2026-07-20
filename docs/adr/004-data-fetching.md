@@ -62,4 +62,4 @@ export default async function ArticlePage({ params }) {
 ## Связанные документы
 
 - [ADR-005](./005-state-management.md) — что хранить в Query
-- [RFC-001](../rfc/001-api-contract.md) — генерация hooks из OpenAPI
+- [RFC-001](../rfc/001-api-contract.md) — typed client/hooks из contract-first shared contracts (ts-rest)
