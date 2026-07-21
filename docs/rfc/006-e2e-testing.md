@@ -35,13 +35,13 @@
 
 ## Приоритетные сценарии
 
-| # | Сценарий | Почему критично |
-|---|----------|-----------------|
-| 1 | Login → redirect `/app` | [ADR-003](../adr/003-authentication.md) auth flow |
-| 2 | Создать проект → создать страницу | Core CRUD |
-| 3 | Открыть `/app/[pageId]` → редактировать текст | Редактор + URL navigation |
-| 4 | Logout / expired session → `/login` | 401 + refresh flow |
-| 5 | Опубликовать статью → видна на public URL | SEO path |
+| #   | Сценарий                                      | Почему критично                                   |
+| --- | --------------------------------------------- | ------------------------------------------------- |
+| 1   | Login → redirect `/app`                       | [ADR-003](../adr/003-authentication.md) auth flow |
+| 2   | Создать проект → создать страницу             | Core CRUD                                         |
+| 3   | Открыть `/app/[pageId]` → редактировать текст | Редактор + URL navigation                         |
+| 4   | Logout / expired session → `/login`           | 401 + refresh flow                                |
+| 5   | Опубликовать статью → видна на public URL     | SEO path                                          |
 
 ## Collaborative editing в E2E
 

@@ -11,17 +11,17 @@
 
 ### Frontend — `apps/web`
 
-| Категория | Технология |
-|-----------|------------|
-| Framework | Next.js (App Router) |
-| Язык | TypeScript |
-| Server state | TanStack Query |
-| Client state | Zustand |
-| UI | shadcn/ui + Tailwind CSS |
-| Формы | React Hook Form + Zod |
-| Realtime transport | Socket.io (клиент) |
-| Архитектура | Feature-Sliced Design |
-| Пакетный менеджер | pnpm |
+| Категория          | Технология               |
+| ------------------ | ------------------------ |
+| Framework          | Next.js (App Router)     |
+| Язык               | TypeScript               |
+| Server state       | TanStack Query           |
+| Client state       | Zustand                  |
+| UI                 | shadcn/ui + Tailwind CSS |
+| Формы              | React Hook Form + Zod    |
+| Realtime transport | Socket.io (клиент)       |
+| Архитектура        | Feature-Sliced Design    |
+| Пакетный менеджер  | pnpm                     |
 
 #### Инструменты разработки (frontend)
 
@@ -33,17 +33,17 @@
 
 ### Backend — `apps/api`
 
-| Категория | Технология |
-|-----------|------------|
-| Framework | NestJS |
-| Язык | TypeScript |
-| БД | PostgreSQL |
-| Кэш / очереди | Redis, BullMQ |
-| ORM | Prisma или TypeORM |
-| API docs | контракты (shared contracts) + опциональная генерация Swagger/OpenAPI |
-| Realtime | Socket.io |
-| Файлы | S3-совместимое хранилище |
-| ИИ | OpenAI API (npm-пакет `openai`) |
+| Категория     | Технология                                                            |
+| ------------- | --------------------------------------------------------------------- |
+| Framework     | NestJS                                                                |
+| Язык          | TypeScript                                                            |
+| БД            | PostgreSQL                                                            |
+| Кэш / очереди | Redis, BullMQ                                                         |
+| ORM           | Prisma или TypeORM                                                    |
+| API docs      | контракты (shared contracts) + опциональная генерация Swagger/OpenAPI |
+| Realtime      | Socket.io                                                             |
+| Файлы         | S3-совместимое хранилище                                              |
+| ИИ            | OpenAI API (npm-пакет `openai`)                                       |
 
 #### Инструменты разработки (backend)
 

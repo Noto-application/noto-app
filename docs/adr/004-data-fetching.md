@@ -42,11 +42,11 @@ export default async function ArticlePage({ params }) {
 
 ## Альтернативы
 
-| Вариант | Почему отклонён |
-|---------|-----------------|
-| TanStack Query везде | Избыточно для SEO-страниц; усложняет SSR |
-| RSC prefetch + dehydrate в Query на public | Усложнение без выгоды для статей |
-| Server Actions для мутаций | Не выбрано; REST API + Query проще с NestJS |
+| Вариант                                    | Почему отклонён                             |
+| ------------------------------------------ | ------------------------------------------- |
+| TanStack Query везде                       | Избыточно для SEO-страниц; усложняет SSR    |
+| RSC prefetch + dehydrate в Query на public | Усложнение без выгоды для статей            |
+| Server Actions для мутаций                 | Не выбрано; REST API + Query проще с NestJS |
 
 ## Последствия
 

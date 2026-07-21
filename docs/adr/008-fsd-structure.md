@@ -23,14 +23,14 @@ src/
 
 ### Правила слоёв
 
-| Слой | Импортирует из | Не импортирует |
-|------|----------------|----------------|
-| `app` | pages, widgets, features, entities, shared | — |
-| `pages` | widgets, features, entities, shared | app |
-| `widgets` | features, entities, shared | pages, app |
-| `features` | entities, shared | widgets, pages, app |
-| `entities` | shared | features, widgets, pages, app |
-| `shared` | — | всё выше |
+| Слой       | Импортирует из                             | Не импортирует                |
+| ---------- | ------------------------------------------ | ----------------------------- |
+| `app`      | pages, widgets, features, entities, shared | —                             |
+| `pages`    | widgets, features, entities, shared        | app                           |
+| `widgets`  | features, entities, shared                 | pages, app                    |
+| `features` | entities, shared                           | widgets, pages, app           |
+| `entities` | shared                                     | features, widgets, pages, app |
+| `shared`   | —                                          | всё выше                      |
 
 ### Стартовая упрощённая схема
 
