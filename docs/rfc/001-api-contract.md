@@ -95,11 +95,10 @@ apps/web/
 2. Зафиксировать подход к валидаторам (Zod?) и формат ошибок в `packages/shared`.
 3. Подключить typed client и интеграцию на фронте под TanStack Query.
 4. (Опционально) договориться об источнике API-документации: OpenAPI из контракта vs separate docs.
-5. Принять ADR-010 (или обновить текущий ADR) после оценки с альтернативами (OpenAPI codegen, tRPC).
+5. Принять новый ADR (следующий свободный номер) после оценки с альтернативами (OpenAPI codegen, tRPC).
 
 ## Связанные документы
 
 - [ADR-003](../adr/003-authentication.md)
 - [ADR-004](../adr/004-data-fetching.md)
 - [ADR-007](../adr/007-tech-stack.md)
-
