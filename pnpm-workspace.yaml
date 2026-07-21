@@ -1,0 +1,6 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+# unrs-resolver собирает нативный биндинг резолвера для ESLint.
+allowBuilds:
+  unrs-resolver: true
