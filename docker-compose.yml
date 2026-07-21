@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: noto-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: noto
+      POSTGRES_PASSWORD: noto
+      POSTGRES_DB: noto_dev
+    # 5433 снаружи, чтобы не конфликтовать с локально установленным Postgres.
+    ports:
+      - '5433:5432'
+    volumes:
+      - noto-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U noto -d noto_dev']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: noto-redis
+    restart: unless-stopped
+    # 6380 снаружи по той же причине, что и 5433 у Postgres.
+    ports:
+      - '6380:6379'
+    volumes:
+      - noto-redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  noto-postgres-data:
+  noto-redis-data:
