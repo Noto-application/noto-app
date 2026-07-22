@@ -15,3 +15,4 @@
 | [005](./005-supplementary-libraries.md) | Дополнительные библиотеки                       | Draft    |
 | [006](./006-e2e-testing.md)             | E2E-тестирование                                | Accepted |
 | [007](./007-mvp-scope.md)               | MVP scope                                       | Draft    |
+| [008](./008-spec-driven-development.md) | Spec-Driven + Test-First разработка             | Draft    |
