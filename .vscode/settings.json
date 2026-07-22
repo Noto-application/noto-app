@@ -1,0 +1,22 @@
+{
+  // Редактор должен использовать TypeScript из node_modules (5.9.3), а не
+  // встроенный в VSCode — иначе подсветка расходится с тем, что проверяет CI.
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+
+  "files.eol": "\n",
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.turbo": true,
+    "**/pnpm-lock.yaml": true
+  }
+}

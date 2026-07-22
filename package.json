@@ -1,0 +1,30 @@
+{
+  "name": "noto",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.1.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v && docker compose up -d"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.7.0",
+    "eslint-config-prettier": "10.1.8",
+    "prettier": "3.9.6",
+    "turbo": "2.10.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.65.0"
+  }
+}

@@ -9,7 +9,7 @@ Monorepo проекта **Noto** — лёгкой современной аль�
 ```
 noto-app/
 ├── apps/
-│   ├── web/          # Next.js — фронтенд (noto.app)
+│   ├── web/          # Next.js — фронтенд (noto.app), ещё не создан
 │   └── api/          # NestJS — бэкенд
 ├── packages/
 │   └── shared/       # общие типы, утилиты, константы
@@ -17,26 +17,29 @@ noto-app/
 │   ├── adr/          # принятые архитектурные решения
 │   ├── rfc/          # темы на проработку
 │   └── product-requirements.md
+├── docker-compose.yml
+├── turbo.json
 ├── package.json
 └── pnpm-workspace.yaml
 ```
 
-> `apps/` и `packages/` будут созданы при инициализации. Сейчас репозиторий содержит документацию и конфигурацию корня.
+> `apps/web` появится в рамках FE-1.
 
 ## Документация
 
-| Документ | Описание |
-|----------|----------|
-| [docs/README.md](./docs/README.md) | Индекс всей документации |
-| [docs/product-requirements.md](./docs/product-requirements.md) | Продуктовые требования (из ТЗ) |
-| [docs/adr/](./docs/adr/) | **Принятые** архитектурные решения |
-| [docs/rfc/](./docs/rfc/) | Темы, требующие **дальнейшей проработки** |
+| Документ                                                       | Описание                                  |
+| -------------------------------------------------------------- | ----------------------------------------- |
+| [docs/README.md](./docs/README.md)                             | Индекс всей документации                  |
+| [docs/product-requirements.md](./docs/product-requirements.md) | Продуктовые требования (из ТЗ)            |
+| [docs/adr/](./docs/adr/)                                       | **Принятые** архитектурные решения        |
+| [docs/rfc/](./docs/rfc/)                                       | Темы, требующие **дальнейшей проработки** |
 
 ### Ключевые принятые решения (ADR)
 
-- Monorepo: `apps/web` + `apps/api` + `packages/shared`
+- Monorepo: `apps/web` + `apps/api` + `packages/shared` на pnpm workspaces
+- Task runner: Turborepo — граф задач и кэш для CI
 - Маршруты: `/app/*` на `noto.app`, навигация `/app/[pageId]` (как Notion)
-- Auth: access token в `localStorage`, refresh в HttpOnly cookie
+- Auth: access и refresh токены — оба в HttpOnly cookie
 - Данные: RSC на public, TanStack Query в `/app`
 - State: URL → страница, Query → server state, Zustand → UI only, Yjs → контент редактора
 
@@ -44,7 +47,7 @@ noto-app/
 
 ### Открытые темы (RFC)
 
-- Контракт API: OpenAPI vs tRPC
+- Контракт API: направление — REST + ts-rest + shared contracts, ждёт спайка
 - Выбор rich-text редактора
 - Yjs provider
 - MVP scope, E2E, blog-поддомен
@@ -53,25 +56,44 @@ noto-app/
 
 ## Быстрый старт
 
-> Monorepo в стадии инициализации. Apps ещё не созданы.
+Нужны Node.js 24 (`nvm use`), pnpm 11 (`corepack enable`) и Docker.
 
 ```bash
-pnpm install          # после появления pnpm-workspace.yaml
-pnpm dev              # запуск всех apps в dev-режиме
+pnpm install                          # зависимости всего monorepo
+docker compose up -d                  # postgres:5433, redis:6380
+cp apps/api/.env.example apps/api/.env
+pnpm dev                              # все apps в watch-режиме
+
+curl http://localhost:4000/health     # {"status":"ok",...}
 ```
 
-Подробные инструкции появятся в `apps/web/README.md` и `apps/api/README.md` после scaffold.
+Задачи monorepo идут через Turborepo:
+
+| Команда                                           | Что делает                         |
+| ------------------------------------------------- | ---------------------------------- |
+| `pnpm dev`                                        | dev-режим во всех пакетах          |
+| `pnpm build`                                      | сборка с учётом графа зависимостей |
+| `pnpm lint`                                       | ESLint                             |
+| `pnpm test`                                       | тесты                              |
+| `pnpm typecheck`                                  | `tsc --noEmit`                     |
+| `pnpm format`                                     | Prettier                           |
+| `pnpm docker:up` / `docker:down` / `docker:reset` | Postgres + Redis                   |
+
+Один пакет: `pnpm --filter @noto/api <script>`.
+
+Подробнее по бэкенду — [apps/api/README.md](./apps/api/README.md).
 
 ## Статус
 
-| Этап | Статус |
-|------|--------|
-| Репозиторий и документация | ✅ |
-| Архитектурные решения (ADR) | ✅ |
-| RFC / открытые темы | 📝 Draft |
-| Scaffold monorepo (`apps/`, `packages/`) | 🔲 |
-| CI pipeline | 🔲 |
-| Первый рабочий MVP | 🔲 |
+| Этап                                              | Статус   |
+| ------------------------------------------------- | -------- |
+| Репозиторий и документация                        | ✅       |
+| Архитектурные решения (ADR)                       | ✅       |
+| RFC / открытые темы                               | 📝 Draft |
+| Scaffold monorepo (`apps/api`, `packages/shared`) | ✅       |
+| Scaffold `apps/web`                               | 🔲 FE-1  |
+| CI pipeline                                       | 🔲       |
+| Первый рабочий MVP                                | 🔲       |
 
 ## Процессы
 
