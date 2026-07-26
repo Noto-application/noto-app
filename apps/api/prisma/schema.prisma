@@ -1,0 +1,23 @@
+// Prisma schema — источник правды для структуры БД.
+// Документация: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Пользователь. Голая модель под auth (BE-2/BE-3): только идентификация.
+/// Роли, профиль и связи добавляются отдельными миграциями по мере надобности.
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
