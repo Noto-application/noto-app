@@ -9,7 +9,13 @@ export const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   CORS_ORIGIN: z.url().default('http://localhost:3000'),
   DATABASE_URL: z.url(),
-  REDIS_URL: z.url().optional(),
+  REDIS_URL: z.url(),
+
+  // JWT: секреты и время жизни. Refresh хранится в Redis allow-list (см. auth.spec.md).
+  JWT_ACCESS_SECRET: z.string().min(1),
+  JWT_REFRESH_SECRET: z.string().min(1),
+  JWT_ACCESS_TTL: z.string().default('15m'),
+  JWT_REFRESH_TTL: z.string().default('7d'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -2,5 +2,9 @@ packages:
   - 'apps/*'
   - 'packages/*'
 # unrs-resolver собирает нативный биндинг резолвера для ESLint.
+# prisma/@prisma/engines качают нативные query-движки при установке.
 allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true
   unrs-resolver: true

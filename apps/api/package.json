@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
-    "build": "nest build",
+    "build": "prisma generate && nest build",
     "start": "node dist/main.js",
     "start:debug": "nest start --debug --watch",
     "lint": "eslint src test",
@@ -12,14 +12,22 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:e2e": "jest --config test/jest-e2e.json"
+    "test:e2e": "jest --config test/jest-e2e.json",
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@nestjs/common": "11.1.28",
     "@nestjs/config": "4.0.4",
     "@nestjs/core": "11.1.28",
+    "@nestjs/jwt": "11.0.2",
     "@nestjs/platform-fastify": "11.1.28",
     "@noto/shared": "workspace:*",
+    "@prisma/client": "6.19.3",
+    "ioredis": "5.11.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "zod": "4.4.3"
@@ -32,6 +40,7 @@
     "@types/node": "26.1.1",
     "@types/supertest": "7.2.1",
     "jest": "30.4.2",
+    "prisma": "6.19.3",
     "supertest": "7.2.2",
     "ts-jest": "29.4.11",
     "typescript": "5.9.3"
