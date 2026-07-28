@@ -3,4 +3,5 @@ packages:
   - 'packages/*'
 # unrs-resolver собирает нативный биндинг резолвера для ESLint.
 allowBuilds:
+  sharp: set this to true or false
   unrs-resolver: true
