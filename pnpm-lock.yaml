@@ -32,6 +32,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@fastify/cookie':
+        specifier: ^11.1.2
+        version: 11.1.2
       '@nestjs/common':
         specifier: 11.1.28
         version: 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -53,6 +56,9 @@ importers:
       '@prisma/client':
         specifier: 6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      '@ts-rest/nest':
+        specifier: 3.53.0-rc.1
+        version: 3.53.0-rc.1(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@ts-rest/core@3.53.0-rc.1(@types/node@26.1.1))(rxjs@7.8.2)
       ioredis:
         specifier: 5.11.1
         version: 5.11.1
@@ -368,6 +374,9 @@ packages:
 
   '@fastify/ajv-compiler@4.0.5':
     resolution: {integrity: sha512-KoWKW+MhvfTRWL4qrhUwAAZoaChluo0m0vbiJlGMt2GXvL4LVPQEjt8kSpHI3IBq5Rez8fg+XeH3cneztq+C7A==}
+
+  '@fastify/cookie@11.1.2':
+    resolution: {integrity: sha512-Dtrpk/YOGUsbRMvP/8ZqPpwnMRv0qSqodFdoQ2B589Obc7jw4s4Qla+cV72Bsm7WsZJnqlYFX/i7uSBq0xzg6g==}
 
   '@fastify/cors@11.2.0':
     resolution: {integrity: sha512-LbLHBuSAdGdSFZYTLVA3+Ch2t+sA6nq3Ejc6XLAKiQ6ViS2qFnvicpj0htsx03FyYeLs04HfRNBsz/a8SvbcUw==}
@@ -839,6 +848,14 @@ packages:
     peerDependenciesMeta:
       '@types/node':
         optional: true
+
+  '@ts-rest/nest@3.53.0-rc.1':
+    resolution: {integrity: sha512-tiuxTwXElFrAGFiUpqn78HmGgVY848D5s+uz/wCQwzRgPsfEneeZwOnEtxvXyrAp6tS5VtbVIxrI/kD+yR2zjw==}
+    peerDependencies:
+      '@nestjs/common': ^9.0.0 || ^10.0.0 || ^11.0.0
+      '@nestjs/core': ^9.0.0 || ^10.0.0 || ^11.0.0
+      '@ts-rest/core': 3.53.0-rc.1
+      rxjs: ^7.1.0
 
   '@turbo/darwin-64@2.10.5':
     resolution: {integrity: sha512-ENvPwy3x5yS7MwNYHeWjqOBXkwIMp39Pd+/zXC6PoiNzF8EIvvLZOZZ+ny6L9x4WgS5vxUii2LM5gM+zjPdnWw==}
@@ -1507,6 +1524,10 @@ packages:
   cookie@1.1.1:
     resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
     engines: {node: '>=18'}
+
+  cookie@2.0.1:
+    resolution: {integrity: sha512-yuToqVvRrj6pfDXREyQAAv8SkAEk/8GS3jQRTiUMm66TVtBYmqQeoEjL2Lmq8Rpo6271vH76InTChTitEAm65w==}
+    engines: {node: '>=22'}
 
   cookiejar@2.1.4:
     resolution: {integrity: sha512-LDx6oHrK+PhzLKJU9j5S7/Y3jM/mUHvD/DeI1WQmJn652iPC5Y4TBzC9l+5OMOXlyTTA+SmVUPm0HQUwpD5Jqw==}
@@ -3439,6 +3460,11 @@ snapshots:
       ajv-formats: 3.0.1(ajv@8.20.0)
       fast-uri: 3.1.4
 
+  '@fastify/cookie@11.1.2':
+    dependencies:
+      cookie: 2.0.1
+      fastify-plugin: 6.0.0
+
   '@fastify/cors@11.2.0':
     dependencies:
       fastify-plugin: 5.1.0
@@ -4030,6 +4056,13 @@ snapshots:
   '@ts-rest/core@3.53.0-rc.1(@types/node@26.1.1)':
     optionalDependencies:
       '@types/node': 26.1.1
+
+  '@ts-rest/nest@3.53.0-rc.1(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@ts-rest/core@3.53.0-rc.1(@types/node@26.1.1))(rxjs@7.8.2)':
+    dependencies:
+      '@nestjs/common': 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@ts-rest/core': 3.53.0-rc.1(@types/node@26.1.1)
+      rxjs: 7.8.2
 
   '@turbo/darwin-64@2.10.5':
     optional: true
@@ -4716,6 +4749,8 @@ snapshots:
   cookie-signature@1.2.2: {}
 
   cookie@1.1.1: {}
+
+  cookie@2.0.1: {}
 
   cookiejar@2.1.4: {}
 
