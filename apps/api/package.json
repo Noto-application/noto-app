@@ -23,10 +23,7 @@
     "@nestjs/common": "11.1.28",
     "@nestjs/config": "4.0.4",
     "@nestjs/core": "11.1.28",
-<<<<<<< HEAD
     "@nestjs/jwt": "11.0.2",
-=======
->>>>>>> 2560057070ade40c43b9b701325c8b2e8d67f5b8
     "@nestjs/platform-fastify": "11.1.28",
     "@noto/shared": "workspace:*",
     "@prisma/client": "6.19.3",
