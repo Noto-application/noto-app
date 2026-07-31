@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 
 import type { Env } from '../config/env.schema';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { AuthCookieService } from './auth-cookie.service';
 
 /** Access JWT: конфиг из env + guard для защищённых эндпоинтов. */
 @Module({
@@ -19,7 +20,7 @@ import { JwtAuthGuard } from '../guards/jwt-auth.guard';
       }),
     }),
   ],
-  providers: [JwtAuthGuard],
-  exports: [JwtModule, JwtAuthGuard],
+  providers: [AuthCookieService, JwtAuthGuard],
+  exports: [JwtModule, JwtAuthGuard, AuthCookieService],
 })
 export class JwtAuthModule {}

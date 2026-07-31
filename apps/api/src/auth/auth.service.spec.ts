@@ -5,20 +5,9 @@
  * PasswordHasher мокается — @node-rs/argon2 в unit-тестах не нужен.
  */
 import type { Env } from '../config/env.schema';
-import { AuthService, AuthServiceError } from './auth.service';
-
-interface PasswordHasher {
-  hash(password: string): Promise<string>;
-  verify(password: string, passwordHash: string): Promise<boolean>;
-}
-
-interface RefreshTokenStore {
-  store(userId: string, jti: string, ttlSeconds: number): Promise<void>;
-  replace(userId: string, oldJti: string, newJti: string, ttlSeconds: number): Promise<void>;
-  revoke(userId: string, jti: string): Promise<void>;
-  revokeAllForUser(userId: string): Promise<void>;
-  isActive(userId: string, jti: string): Promise<boolean>;
-}
+import { ApiException } from '../lib/errors';
+import type { PasswordHasher, RefreshTokenStore } from '../types/auth.types';
+import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -65,7 +54,7 @@ describe('AuthService', () => {
       prisma as never,
       jwtService as never,
       config as never,
-      refreshTokenStore,
+      refreshTokenStore as never,
       passwordHasher as never,
     );
   });
@@ -150,7 +139,7 @@ describe('AuthService', () => {
 
       await expect(
         service.login({ email: 'missing@example.com', password: 'password123' }),
-      ).rejects.toThrow(AuthServiceError);
+      ).rejects.toThrow(ApiException);
 
       expect(passwordHasher.verify).toHaveBeenCalledWith(
         'password123',

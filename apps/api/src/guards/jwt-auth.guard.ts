@@ -6,15 +6,19 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
+import { AuthCookieService } from '../auth/auth-cookie.service';
 import type { AuthenticatedRequest, AuthRequest, JwtAccessPayload } from '../types/auth.types';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly authCookieService: AuthCookieService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthRequest>();
-    const token = request.cookies?.access_token;
+    const token = this.authCookieService.getAccessToken(request.cookies);
 
     if (!token) {
       throw new UnauthorizedException();
