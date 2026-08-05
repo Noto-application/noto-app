@@ -2,7 +2,7 @@
 
 **Статус:** Направление принято; детали проверяет спайк на auth (#3)
 **Дата:** 2026-07-20
-**Обновлён:** 2026-07-31
+**Обновлён:** 2026-08-05
 
 ## Статус проработки
 
@@ -59,11 +59,12 @@ Monorepo с `apps/web`, `apps/api`, `packages/shared`. Нужен способ �
 
 ### 2) Реализация на бэкенде (`apps/api`)
 
-`apps/api` подключает адаптер ts-rest для выбранной HTTP платформы (NestJS через соответствующий adapter или обертку).
+Бэкенд подключает shared-контракт в **Nest-контроллерах** через `@ts-rest/nest`
+(`@TsRestHandler` + `tsRestHandler`).
 
 Далее backend:
 
-- wire контракт -> handlers;
+- wire контракт -> handlersв controller;
 - применяет contract-валидацию (если это предусмотрено подходом);
 - маппит ошибки в общий shape (если стандартизируем).
 
@@ -80,41 +81,24 @@ Monorepo с `apps/web`, `apps/api`, `packages/shared`. Нужен способ �
 
 ### 4) Версии: `@ts-rest/*` 3.53.0-rc.1
 
-**RC** (Release Candidate) — пререлизная версия: функционально готова, но ещё не
-объявлена стабильной; API и peer dependencies могут измениться до финального релиза.
-
-**Почему RC, а не stable 3.52.x:**
-
-- В monorepo уже **Zod 4** (`zod@4.4.3`): env-схема API, контракты в
-  `packages/shared` (`z.email()`, `z.iso.datetime()` и т.д.).
-- Стабильные `@ts-rest/*` 3.52.x ориентированы на **Zod 3** (peer dependency
-  `^3.22.3`); с Zod 4 — конфликты зависимостей и типов.
-- Поддержка Zod 4 (и Standard Schema) в ts-rest доступна начиная с
-  **`3.53.0-rc.1`** ([changelog](https://ts-rest.com/changelog)).
-
-**Принято на время спайка:**
-
-- `@ts-rest/core@3.53.0-rc.1` в `packages/shared`, `@ts-rest/nest@3.53.0-rc.1` в
-  `apps/api` — **одна и та же версия** в обоих пакетах.
-- Откат на Zod 3 ради stable ts-rest не рассматриваем — лишний churn по всему
-  monorepo без выигрыша.
-
-**Риск и выход:** RC — компромисс «Zod 4 сейчас vs stable ts-rest». После выхода
-stable `3.53+` с поддержкой Zod 4 — обновиться с RC на финальный релиз; зафиксировать
-в ADR после спайка auth.
+`@ts-rest/core` и `@ts-rest/nest` **3.53.0-rc.1** — одна версия в `packages/shared`
+и `apps/api`. RC нужен для **Zod 4**; stable 3.52.x на Zod 3. После выхода stable
+`3.53+` — обновиться и зафиксировать в ADR.
 
 ## Структура в monorepo
 
 ```
 packages/shared/src/api/
-  contract/            # ts-rest контракт: endoints + schemas
-  errors.ts            # единый shape ошибок (если нужен)
+  contract/            # ts-rest контракт: endpoints + schemas
+  errors.ts            # единый shape ошибок
   index.ts
 
-apps/api/
-  src/http/rest/
-    routes.ts          # wire contract -> handlers (ts-rest adapter)
-    index.ts
+apps/api/src/
+  auth/
+    auth.controller.ts # @TsRestHandler(authContract.*) — wire контракт → handlers
+    auth.service.ts
+    auth.module.ts
+  lib/errors/          # ApiException, filter (общий для API)
 
 apps/web/
   src/shared/api/
@@ -129,8 +113,7 @@ apps/web/
 - Как стандартизируем ошибки (например `code/message/details`) и как это маппится на всех слоях.
 - Как поступаем с API-документацией: генерируем ли OpenAPI/Swagger из контракта ts-rest или держим документацию отдельно (это не блокирует основной contract-first подход).
 - Подтвердить, что авторизация и cookies полностью соответствуют схеме из ADR-003.
-- Когда выйдет stable `@ts-rest/*` с Zod 4 — миграция с `3.53.0-rc.1` (сейчас
-  осознанно принят RC, см. выше).
+- Когда выйдет stable `@ts-rest/*` с Zod 4 — миграция с RC (см. §4).
 
 ## Критерии принятия решения (success criteria)
 
