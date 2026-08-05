@@ -1,0 +1,21 @@
+# Code owners — авто-запрос доменного ревьюера на PR.
+# Требуется 1 approve (branch protection), и он должен быть от владельца
+# затронутой области. Синтаксис: последнее совпадение по пути побеждает.
+
+# Дефолт — лиды
+*                    @temich080 @StasKobles
+
+# Бэкенд
+/apps/api/           @StasKobles @terra456
+
+# Общие контракты (source of truth, владеет бек)
+/packages/shared/    @StasKobles @terra456
+
+# CI / инфра
+/.github/            @StasKobles @temich080
+
+# Доки / ADR / RFC
+/docs/               @StasKobles @temich080
+
+# Фронтенд
+/apps/web/           @MAChapurin @aestheticwar @daria-z
