@@ -1,0 +1,55 @@
+# CI: гоняет lint / test / build / typecheck на каждый PR в main.
+# Версии Node/pnpm не хардкодятся — берутся из .nvmrc и поля packageManager.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  # Push в main держит основную ветку зелёной и прогревает turbo-кэш.
+  push:
+    branches: [main]
+
+# Новый пуш в тот же PR отменяет предыдущий прогон — не жжём раннеры.
+# На push в main не отменяем: каждый коммит основной ветки должен верифицироваться.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Least-privilege: job'у нужен только read репозитория.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # Страховка от зависшего прогона — не жжём минуты бесконечно.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Ставит pnpm по версии из packageManager (pnpm@11.x) — без дублирования версии.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      # Node из .nvmrc; cache: pnpm кэширует pnpm store между прогонами.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # Локальный кэш Turborepo — повторный прогон без изменений почти мгновенный.
+      - name: Cache turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Один прогон: turbo сам строит граф (^build перед lint/test/typecheck) и дедупит build.
+      - name: Lint / Test / Build / Typecheck
+        run: pnpm turbo run lint test build typecheck
