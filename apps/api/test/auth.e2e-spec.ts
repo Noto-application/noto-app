@@ -2,6 +2,8 @@ import type { Server } from 'node:http';
 import request from 'supertest';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import type { ApiError, AuthCredentials, AuthUserResponse } from '@noto/shared';
+import { apiErrorSchema, authUserResponseSchema } from '@noto/shared';
 
 import type { Env } from '../src/config/env.schema';
 import { createTestApp, resetAuthState } from './helpers/test-app';
@@ -9,9 +11,17 @@ import { createTestApp, resetAuthState } from './helpers/test-app';
 const credentials = {
   email: 'auth-test@example.com',
   password: 'password123',
-};
+} satisfies AuthCredentials;
 
-function expectNoTokensInBody(body: Record<string, unknown>): void {
+function parseAuthUserBody(body: unknown): AuthUserResponse {
+  return authUserResponseSchema.parse(body);
+}
+
+function parseApiErrorBody(body: unknown): ApiError {
+  return apiErrorSchema.parse(body);
+}
+
+function expectNoTokensInBody(body: AuthUserResponse | Record<string, unknown>): void {
   expect(body).not.toHaveProperty('accessToken');
   expect(body).not.toHaveProperty('refreshToken');
   expect(body).not.toHaveProperty('access_token');
@@ -47,11 +57,13 @@ describe('Auth (e2e)', () => {
         .send(credentials)
         .expect(201);
 
-      expect(response.body.user).toMatchObject({
+      const body = parseAuthUserBody(response.body);
+
+      expect(body.user).toMatchObject({
         email: credentials.email,
       });
-      expect(response.body.user).not.toHaveProperty('passwordHash');
-      expectNoTokensInBody(response.body);
+      expect(body.user).not.toHaveProperty('passwordHash');
+      expectNoTokensInBody(body);
 
       const cookieHeader = response.headers['set-cookie'];
       expect(cookieHeader).toEqual(
@@ -75,7 +87,7 @@ describe('Auth (e2e)', () => {
         .send(credentials)
         .expect(409);
 
-      expect(response.body).toMatchObject({
+      expect(parseApiErrorBody(response.body)).toMatchObject({
         code: 'EMAIL_TAKEN',
       });
 
@@ -88,7 +100,7 @@ describe('Auth (e2e)', () => {
         .send({ email: 'short@example.com', password: 'short' })
         .expect(400);
 
-      expect(response.body.code).toBe('VALIDATION_ERROR');
+      expect(parseApiErrorBody(response.body).code).toBe('VALIDATION_ERROR');
       expect(await prisma.user.count()).toBe(0);
     });
 
@@ -98,7 +110,7 @@ describe('Auth (e2e)', () => {
         .send({ email: 'not-an-email', password: 'password123' })
         .expect(400);
 
-      expect(response.body.code).toBe('VALIDATION_ERROR');
+      expect(parseApiErrorBody(response.body).code).toBe('VALIDATION_ERROR');
     });
   });
 
@@ -113,8 +125,10 @@ describe('Auth (e2e)', () => {
         .send(credentials)
         .expect(200);
 
-      expect(response.body.user.email).toBe(credentials.email);
-      expectNoTokensInBody(response.body);
+      const body = parseAuthUserBody(response.body);
+
+      expect(body.user.email).toBe(credentials.email);
+      expectNoTokensInBody(body);
       expect(response.headers['set-cookie']).toEqual(
         expect.arrayContaining([
           expect.stringContaining('access_token='),
@@ -129,7 +143,7 @@ describe('Auth (e2e)', () => {
         .send({ email: credentials.email, password: 'wrong-password' })
         .expect(401);
 
-      expect(response.body).toEqual({
+      expect(parseApiErrorBody(response.body)).toEqual({
         code: 'INVALID_CREDENTIALS',
         message: 'Invalid email or password',
       });
@@ -146,7 +160,7 @@ describe('Auth (e2e)', () => {
         .send({ email: 'missing@example.com', password: 'password123' })
         .expect(401);
 
-      expect(missingEmail.body).toEqual(wrongPassword.body);
+      expect(parseApiErrorBody(missingEmail.body)).toEqual(parseApiErrorBody(wrongPassword.body));
     });
 
     it('возвращает 400 при невалидном теле', async () => {
@@ -155,7 +169,7 @@ describe('Auth (e2e)', () => {
         .send({ email: 'bad', password: '123' })
         .expect(400);
 
-      expect(response.body.code).toBe('VALIDATION_ERROR');
+      expect(parseApiErrorBody(response.body).code).toBe('VALIDATION_ERROR');
     });
   });
 
@@ -163,7 +177,7 @@ describe('Auth (e2e)', () => {
     it('возвращает 401 без refresh cookie', async () => {
       const response = await request(server).post('/api/auth/refresh').expect(401);
 
-      expect(response.body.code).toBe('UNAUTHORIZED');
+      expect(parseApiErrorBody(response.body).code).toBe('UNAUTHORIZED');
     });
 
     it('обновляет cookie и не возвращает токены в теле', async () => {
@@ -172,7 +186,7 @@ describe('Auth (e2e)', () => {
 
       const response = await agent.post('/api/auth/refresh').expect(200);
 
-      expectNoTokensInBody(response.body ?? {});
+      expectNoTokensInBody(response.body as Record<string, unknown>);
       expect(response.headers['set-cookie']).toEqual(
         expect.arrayContaining([
           expect.stringContaining('access_token='),
@@ -187,7 +201,7 @@ describe('Auth (e2e)', () => {
         .set('Cookie', 'refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.tampered')
         .expect(401);
 
-      expect(response.body.code).toBe('UNAUTHORIZED');
+      expect(parseApiErrorBody(response.body).code).toBe('UNAUTHORIZED');
     });
 
     it('возвращает 401 для истёкшего refresh-токена', async () => {
@@ -208,7 +222,7 @@ describe('Auth (e2e)', () => {
         .set('Cookie', `refresh_token=${expired}`)
         .expect(401);
 
-      expect(response.body.code).toBe('UNAUTHORIZED');
+      expect(parseApiErrorBody(response.body).code).toBe('UNAUTHORIZED');
     });
 
     it('возвращает 401 после logout (jti удалён из Redis)', async () => {
@@ -224,7 +238,7 @@ describe('Auth (e2e)', () => {
         .set('Cookie', `refresh_token=${refreshCookie}`)
         .expect(401);
 
-      expect(response.body.code).toBe('UNAUTHORIZED');
+      expect(parseApiErrorBody(response.body).code).toBe('UNAUTHORIZED');
     });
   });
 
@@ -258,15 +272,18 @@ describe('Auth (e2e)', () => {
 
       const response = await agent.get('/api/auth/me').expect(200);
 
-      expect(response.body.user.id).toBe(register.body.user.id);
-      expect(response.body.user.email).toBe(credentials.email);
-      expect(response.body.user).not.toHaveProperty('passwordHash');
+      const registerBody = parseAuthUserBody(register.body);
+      const body = parseAuthUserBody(response.body);
+
+      expect(body.user.id).toBe(registerBody.user.id);
+      expect(body.user.email).toBe(credentials.email);
+      expect(body.user).not.toHaveProperty('passwordHash');
     });
 
     it('возвращает 401 без access cookie', async () => {
       const response = await request(server).get('/api/auth/me').expect(401);
 
-      expect(response.body.code).toBe('UNAUTHORIZED');
+      expect(parseApiErrorBody(response.body).code).toBe('UNAUTHORIZED');
     });
 
     it('возвращает 401 при невалидном access cookie', async () => {
@@ -275,7 +292,7 @@ describe('Auth (e2e)', () => {
         .set('Cookie', 'access_token=invalid.token.value')
         .expect(401);
 
-      expect(response.body.code).toBe('UNAUTHORIZED');
+      expect(parseApiErrorBody(response.body).code).toBe('UNAUTHORIZED');
     });
   });
 });

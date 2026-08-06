@@ -34,17 +34,28 @@ describe('AuthService', () => {
     }),
   };
 
+  const storeMock = jest.fn() as jest.MockedFunction<RefreshTokenStore['store']>;
+  const replaceMock = jest.fn() as jest.MockedFunction<RefreshTokenStore['replace']>;
+  const revokeMock = jest.fn() as jest.MockedFunction<RefreshTokenStore['revoke']>;
+  const revokeAllForUserMock = jest.fn() as jest.MockedFunction<
+    RefreshTokenStore['revokeAllForUser']
+  >;
+  const isActiveMock = jest.fn() as jest.MockedFunction<RefreshTokenStore['isActive']>;
+
   const refreshTokenStore: jest.Mocked<RefreshTokenStore> = {
-    store: jest.fn(),
-    replace: jest.fn(),
-    revoke: jest.fn(),
-    revokeAllForUser: jest.fn(),
-    isActive: jest.fn(),
+    store: storeMock,
+    replace: replaceMock,
+    revoke: revokeMock,
+    revokeAllForUser: revokeAllForUserMock,
+    isActive: isActiveMock,
   };
 
+  const hashMock = jest.fn() as jest.MockedFunction<PasswordHasher['hash']>;
+  const verifyMock = jest.fn() as jest.MockedFunction<PasswordHasher['verify']>;
+
   const passwordHasher: jest.Mocked<PasswordHasher> = {
-    hash: jest.fn(),
-    verify: jest.fn(),
+    hash: hashMock,
+    verify: verifyMock,
   };
 
   beforeEach(() => {
@@ -55,14 +66,14 @@ describe('AuthService', () => {
       jwtService as never,
       config as never,
       refreshTokenStore as never,
-      passwordHasher as never,
+      passwordHasher,
     );
   });
 
   describe('register', () => {
     it('создаёт пользователя и выдаёт токены', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      passwordHasher.hash.mockResolvedValue('hash');
+      hashMock.mockResolvedValue('hash');
       prisma.user.create.mockResolvedValue({
         id: 'user-1',
         email: 'user@example.com',
@@ -85,7 +96,7 @@ describe('AuthService', () => {
         createdAt: '2026-01-01T00:00:00.000Z',
       });
       expect(result.tokens.accessToken).toBe('access-token');
-      expect(refreshTokenStore.store).toHaveBeenCalledWith(
+      expect(storeMock).toHaveBeenCalledWith(
         'user-1',
         expect.any(String),
         604_800,
@@ -112,7 +123,7 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      passwordHasher.verify.mockResolvedValue(false);
+      verifyMock.mockResolvedValue(false);
 
       await expect(
         service.login({ email: 'user@example.com', password: 'wrong-pass' }),
@@ -121,8 +132,8 @@ describe('AuthService', () => {
 
     it('бросает INVALID_CREDENTIALS для несуществующего email с тем же сообщением', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      passwordHasher.hash.mockResolvedValue('dummy-hash');
-      passwordHasher.verify.mockResolvedValue(false);
+      hashMock.mockResolvedValue('dummy-hash');
+      verifyMock.mockResolvedValue(false);
 
       await expect(
         service.login({ email: 'missing@example.com', password: 'password123' }),
@@ -134,14 +145,14 @@ describe('AuthService', () => {
 
     it('вызывает verify пароля даже если пользователь не найден (timing-safe)', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      passwordHasher.hash.mockResolvedValue('dummy-hash');
-      passwordHasher.verify.mockResolvedValue(false);
+      hashMock.mockResolvedValue('dummy-hash');
+      verifyMock.mockResolvedValue(false);
 
       await expect(
         service.login({ email: 'missing@example.com', password: 'password123' }),
       ).rejects.toThrow(ApiException);
 
-      expect(passwordHasher.verify).toHaveBeenCalledWith(
+      expect(verifyMock).toHaveBeenCalledWith(
         'password123',
         'dummy-hash',
       );
@@ -165,7 +176,7 @@ describe('AuthService', () => {
 
     it('бросает UNAUTHORIZED если jti отсутствует в Redis', async () => {
       jwtService.verifyAsync.mockResolvedValue({ sub: 'user-1', jti: 'jti-old' });
-      refreshTokenStore.isActive.mockResolvedValue(false);
+      isActiveMock.mockResolvedValue(false);
 
       await expect(service.refresh('valid.token')).rejects.toMatchObject({
         code: 'UNAUTHORIZED',
@@ -174,14 +185,14 @@ describe('AuthService', () => {
 
     it('ротирует refresh jti при успешном refresh', async () => {
       jwtService.verifyAsync.mockResolvedValue({ sub: 'user-1', jti: 'jti-old' });
-      refreshTokenStore.isActive.mockResolvedValue(true);
+      isActiveMock.mockResolvedValue(true);
       jwtService.signAsync
         .mockResolvedValueOnce('new-access')
         .mockResolvedValueOnce('new-refresh');
 
       const result = await service.refresh('valid.token');
 
-      expect(refreshTokenStore.replace).toHaveBeenCalledWith(
+      expect(replaceMock).toHaveBeenCalledWith(
         'user-1',
         'jti-old',
         expect.any(String),
@@ -197,7 +208,7 @@ describe('AuthService', () => {
 
       await service.logout('refresh-token');
 
-      expect(refreshTokenStore.revoke).toHaveBeenCalledWith('user-1', 'jti-1');
+      expect(revokeMock).toHaveBeenCalledWith('user-1', 'jti-1');
     });
 
     it('отзывает все refresh по access, если refresh cookie недоступен (Path=/api/auth/refresh)', async () => {
@@ -205,13 +216,13 @@ describe('AuthService', () => {
 
       await service.logout(undefined, 'access-token');
 
-      expect(refreshTokenStore.revokeAllForUser).toHaveBeenCalledWith('user-1');
+      expect(revokeAllForUserMock).toHaveBeenCalledWith('user-1');
     });
 
     it('идемпотентен без cookie', async () => {
       await expect(service.logout(undefined)).resolves.toBeUndefined();
-      expect(refreshTokenStore.revoke).not.toHaveBeenCalled();
-      expect(refreshTokenStore.revokeAllForUser).not.toHaveBeenCalled();
+      expect(revokeMock).not.toHaveBeenCalled();
+      expect(revokeAllForUserMock).not.toHaveBeenCalled();
     });
   });
 });
