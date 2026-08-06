@@ -1,7 +1,30 @@
 # RFC-001: Контракт API — REST + ts-rest + shared contracts
 
-**Статус:** Draft
+**Статус:** Направление принято; детали проверяет спайк на auth (#3)
 **Дата:** 2026-07-20
+**Обновлён:** 2026-08-05
+
+## Статус проработки
+
+Направление зафиксировано и не меняется — по нему можно начинать работу.
+Детали реализации проверяются **спайком на auth-эндпоинтах** (#3), после чего
+подход закрепляется отдельным ADR.
+
+**Принято (твёрдо):**
+
+- REST снаружи + **ts-rest** как contract-first инструмент
+- Контракты живут в `packages/shared` — единый source of truth
+- Схемы на **Zod**: типы и runtime-валидация из одного определения
+- Единый shape ошибок `{ code, message, details? }` (`code` — машиночитаемый enum)
+
+**Проверяет спайк auth (#3), затем ADR:**
+
+- Adapter ts-rest под NestJS **в связке с Fastify** (перешли на Fastify — [#12](https://github.com/Noto-application/noto-app/pull/12))
+- Как ошибки маппятся в общий shape на всех слоях
+- Генерируем ли Swagger/OpenAPI из контракта (`@ts-rest/open-api`) или держим отдельно
+
+Пока эти три пункта не обкатаны на реальных эндпоинтах, ADR не пишем — иначе
+зафиксируем непроверенное.
 
 ## Контекст
 
@@ -36,11 +59,12 @@ Monorepo с `apps/web`, `apps/api`, `packages/shared`. Нужен способ �
 
 ### 2) Реализация на бэкенде (`apps/api`)
 
-`apps/api` подключает адаптер ts-rest для выбранной HTTP платформы (NestJS через соответствующий adapter или обертку).
+Бэкенд подключает shared-контракт в **Nest-контроллерах** через `@ts-rest/nest`
+(`@TsRestHandler` + `tsRestHandler`).
 
 Далее backend:
 
-- wire контракт -> handlers;
+- wire контракт -> handlersв controller;
 - применяет contract-валидацию (если это предусмотрено подходом);
 - маппит ошибки в общий shape (если стандартизируем).
 
@@ -55,18 +79,26 @@ Monorepo с `apps/web`, `apps/api`, `packages/shared`. Нужен способ �
 
 В обоих случаях auth-cookie логика остаётся совместимой с ADR-003 (credentials/cookies на запросах, refresh flow).
 
+### 4) Версии: `@ts-rest/*` 3.53.0-rc.1
+
+`@ts-rest/core` и `@ts-rest/nest` **3.53.0-rc.1** — одна версия в `packages/shared`
+и `apps/api`. RC нужен для **Zod 4**; stable 3.52.x на Zod 3. После выхода stable
+`3.53+` — обновиться и зафиксировать в ADR.
+
 ## Структура в monorepo
 
 ```
 packages/shared/src/api/
-  contract/            # ts-rest контракт: endoints + schemas
-  errors.ts            # единый shape ошибок (если нужен)
+  contract/            # ts-rest контракт: endpoints + schemas
+  errors.ts            # единый shape ошибок
   index.ts
 
-apps/api/
-  src/http/rest/
-    routes.ts          # wire contract -> handlers (ts-rest adapter)
-    index.ts
+apps/api/src/
+  auth/
+    auth.controller.ts # @TsRestHandler(authContract.*) — wire контракт → handlers
+    auth.service.ts
+    auth.module.ts
+  lib/errors/          # ApiException, filter (общий для API)
 
 apps/web/
   src/shared/api/
@@ -81,6 +113,7 @@ apps/web/
 - Как стандартизируем ошибки (например `code/message/details`) и как это маппится на всех слоях.
 - Как поступаем с API-документацией: генерируем ли OpenAPI/Swagger из контракта ts-rest или держим документацию отдельно (это не блокирует основной contract-first подход).
 - Подтвердить, что авторизация и cookies полностью соответствуют схеме из ADR-003.
+- Когда выйдет stable `@ts-rest/*` с Zod 4 — миграция с RC (см. §4).
 
 ## Критерии принятия решения (success criteria)
 
@@ -88,6 +121,8 @@ apps/web/
 - Runtime-валидация согласована с типами из shared контракта.
 - Запросы в `/app/*` корректно отправляют cookie (и refresh flow работает через interceptor/Query handler как в ADR-003).
 - API остаётся доступным как обычный REST через HTTP endpoints (для внешних клиентов).
+
+
 
 ## Следующие шаги
 

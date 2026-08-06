@@ -5,9 +5,9 @@
 
 ## Co-located (рядом с модулем)
 
-| Фича       | Спека | Статус |
-| ---------- | ----- | ------ |
-| _пока нет_ |       |        |
+| Фича | Спека | Статус |
+| ---- | ----- | ------ |
+| Auth (register/login/refresh/logout/me) | [apps/api/src/auth/auth.spec.md](../../apps/api/src/auth/auth.spec.md) | Ready |
 
 ## Кросс-модульные (в `docs/specs/`)
 
