@@ -7,4 +7,6 @@ allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
   prisma: true
+  # sharp ставится prebuilt-бинарниками (@img/sharp-*), build-скрипт не нужен.
+  sharp: false
   unrs-resolver: true

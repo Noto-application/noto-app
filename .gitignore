@@ -4,6 +4,8 @@ build/
 coverage/
 .turbo/
 *.tsbuildinfo
+.next/
+.pnpm-store/
 
 .env
 .env.local

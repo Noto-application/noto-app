@@ -9,7 +9,7 @@ Monorepo проекта **Noto** — лёгкой современной аль�
 ```
 noto-app/
 ├── apps/
-│   ├── web/          # Next.js — фронтенд (noto.app), ещё не создан
+│   ├── web/          # Next.js — фронтенд (noto.app)
 │   └── api/          # NestJS — бэкенд
 ├── packages/
 │   └── shared/       # общие типы, утилиты, константы
@@ -22,8 +22,6 @@ noto-app/
 ├── package.json
 └── pnpm-workspace.yaml
 ```
-
-> `apps/web` появится в рамках FE-1.
 
 ## Документация
 
@@ -79,9 +77,10 @@ curl http://localhost:4000/health     # {"status":"ok",...}
 | `pnpm format`                                     | Prettier                           |
 | `pnpm docker:up` / `docker:down` / `docker:reset` | Postgres + Redis                   |
 
-Один пакет: `pnpm --filter @noto/api <script>`.
+Один пакет: `pnpm --filter @noto/api <script>` или `pnpm --filter web <script>`.
 
 Подробнее по бэкенду — [apps/api/README.md](./apps/api/README.md).
+Подробнее по фронтенду — [apps/web/README.md](./apps/web/README.md).
 
 ## Статус
 
@@ -91,7 +90,7 @@ curl http://localhost:4000/health     # {"status":"ok",...}
 | Архитектурные решения (ADR)                       | ✅       |
 | RFC / открытые темы                               | 📝 Draft |
 | Scaffold monorepo (`apps/api`, `packages/shared`) | ✅       |
-| Scaffold `apps/web`                               | 🔲 FE-1  |
+| Scaffold `apps/web`                               | ✅       |
 | CI pipeline                                       | 🔲       |
 | Первый рабочий MVP                                | 🔲       |
 
