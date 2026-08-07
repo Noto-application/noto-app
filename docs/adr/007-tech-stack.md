@@ -39,7 +39,7 @@
 | Язык          | TypeScript                                                            |
 | БД            | PostgreSQL                                                            |
 | Кэш / очереди | Redis, BullMQ                                                         |
-| ORM           | Prisma или TypeORM                                                    |
+| ORM           | Prisma (принято; TypeORM отклонён)                                    |
 | API docs      | контракты (shared contracts) + опциональная генерация Swagger/OpenAPI |
 | Realtime      | Socket.io                                                             |
 | Файлы         | S3-совместимое хранилище                                              |
