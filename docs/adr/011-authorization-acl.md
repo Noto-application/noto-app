@@ -39,14 +39,14 @@ Projects CRUD. Без неё нельзя спроектировать ни то
 
 ### 3. Хранение (Prisma)
 
-Явные записи-гранты. Владелец — тоже участник с `role = owner`.
+Явные записи-гранты. Владелец — участник с `role = owner`; отдельного
+`ownerId` на проекте не держим, чтобы не плодить второй источник правды.
+Инвариант «ровно один owner, его нельзя удалить/понизить» держим в сервисе.
 
 ```prisma
 model Project {
   id        String          @id @default(uuid())
   name      String
-  ownerId   String
-  owner     User            @relation("ProjectOwner", fields: [ownerId], references: [id])
   members   ProjectMember[]
   pages     Page[]
   createdAt DateTime        @default(now())
