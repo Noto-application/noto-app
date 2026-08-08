@@ -32,16 +32,11 @@ jobs:
         uses: pnpm/action-setup@v4
 
       # Node из .nvmrc; cache: pnpm кэширует pnpm store между прогонами.
-      # cache-dependency-path обязателен: без него actions/setup-node не всегда
-      # верно хэширует lockfile monorepo и может подсунуть чужой устаревший
-      # store через restore-keys (см. PR #26 — гонка ложного ERR_PNPM_LOCKFILE_
-      # MISSING_DEPENDENCY при абсолютно исправном lockfile).
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
 
       # Локальный кэш Turborepo — повторный прогон без изменений почти мгновенный.
       - name: Cache turbo
