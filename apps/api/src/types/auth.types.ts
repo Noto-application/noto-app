@@ -1,0 +1,51 @@
+import type { User } from '@noto/shared';
+
+/** Payload access JWT: `sub` — id пользователя. */
+export interface JwtAccessPayload {
+  sub: string;
+}
+
+/** Payload refresh JWT: `sub` + `jti` для Redis allow-list. */
+export interface JwtRefreshPayload {
+  sub: string;
+  jti: string;
+}
+
+/** Минимальный контракт Fastify-запроса с cookie (@fastify/cookie). */
+export interface AuthRequest {
+  cookies?: Record<string, string | undefined>;
+}
+
+/** Запрос после успешной проверки JwtAuthGuard. */
+export interface AuthenticatedRequest extends AuthRequest {
+  user: JwtAccessPayload;
+};
+
+/** Контракт хеширования паролей (мокается в unit-тестах). */
+export interface PasswordHasher {
+  hash(password: string): Promise<string>;
+  verify(password: string, passwordHash: string): Promise<boolean>;
+}
+
+/** Allow-list refresh-токенов (Redis или мок в тестах). */
+export interface RefreshTokenStore {
+  store(userId: string, jti: string, ttlSeconds: number): Promise<void>;
+  replace(userId: string, oldJti: string, newJti: string, ttlSeconds: number): Promise<void>;
+  revoke(userId: string, jti: string): Promise<void>;
+  revokeAllForUser(userId: string): Promise<void>;
+  isActive(userId: string, jti: string): Promise<boolean>;
+}
+
+/** Пара access + refresh JWT, выдаваемая сервисом (не уходит клиенту в теле). */
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+  refreshJti: string;
+  userId: string;
+}
+
+/** Результат register/login — публичный user + токены для cookie. */
+export interface AuthResult {
+  user: User;
+  tokens: AuthTokens;
+}

@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { HealthService } from './health.service';
-import type { HealthResponse } from './health.service';
+import type { HealthResponse } from '../types/health.types';
 
 /**
  * Health-check вне глобального префикса /api — так его ждут healthcheck'и
