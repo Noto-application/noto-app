@@ -73,7 +73,10 @@
 
   --primary: #3b82f6;
   --primary-hover: #60a5fa;
-  --primary-foreground: #ffffff;
+  /* Белый на #3b82f6 даёт 3.68:1 — ниже WCAG AA (4.5:1) для обычного текста.
+     --background тёмной темы на том же фоне даёт 4.74:1. --primary не меняем:
+     он уже используется как текст (variant="link") и там контраст в порядке. */
+  --primary-foreground: var(--background);
 
   --destructive: #ef4444;
   --warning: #f59e0b;
@@ -176,6 +179,11 @@
   --radius-lg: 8px;
   --radius-xl: 12px;
 
+  /* --- Анимации ---
+     Ступенчатое вращение спиннера: 8 шагов по 45° под 8 лучей иконки.
+     ВНИМАНИЕ: в макете характер анимации не задан, значения предложены нами. */
+  --animate-spinner: spinner 0.8s steps(8) infinite;
+
   /* --- Тени --- */
   --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px 0 rgb(0 0 0 / 0.04);
   --shadow-md: 0 4px 12px 0 rgb(0 0 0 / 0.1), 0 2px 6px 0 rgb(0 0 0 / 0.06);
@@ -186,6 +194,39 @@
      совпадает с дефолтной шкалой Tailwind при --spacing: 4px
      (0.5 / 1 / 1.5 / 2 / 3 / 4 / 5 / 6 / 8 / 10 / 12 / 16).
      Переопределять нечего. */
+}
+
+@keyframes spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@layer components {
+  /* Восемь лучей звёздочки одинаковы, поэтому поворот ровно на 45° накладывает
+     фигуру саму на себя — без затухания ступенчатая анимация выглядит как
+     застывшая иконка. Градиент прозрачности даёт бегущий по кругу «хвост». */
+  .spinner > path {
+    opacity: 0.2;
+  }
+  .spinner > path:nth-child(1) {
+    opacity: 1;
+  }
+  .spinner > path:nth-child(2) {
+    opacity: 0.85;
+  }
+  .spinner > path:nth-child(3) {
+    opacity: 0.7;
+  }
+  .spinner > path:nth-child(4) {
+    opacity: 0.55;
+  }
+  .spinner > path:nth-child(5) {
+    opacity: 0.4;
+  }
+  .spinner > path:nth-child(6) {
+    opacity: 0.3;
+  }
 }
 
 @layer base {
