@@ -45,6 +45,24 @@
   --warning-foreground: #ffffff;
   --success-foreground: #ffffff;
 
+  /* --- Статусы, мягкая заливка (Components → Badges, узел 1:1766) ---
+     Отдельная тройка от --destructive/--warning/--success выше: те —
+     сплошной цвет действия (кнопки), эти — bg/border/text под badge/toast/
+     inline-alert. У «нейтрального» варианта своих токенов нет — он и так
+     собирается из --surface/--border/--muted-foreground. */
+  --status-info-bg: #dbeafe;
+  --status-info-border: #bfdbfe;
+  --status-info-text: #1d4ed8;
+  --status-success-bg: #dcfce7;
+  --status-success-border: #bbf7d0;
+  --status-success-text: #15803d;
+  --status-danger-bg: #fee2e2;
+  --status-danger-border: #fecaca;
+  --status-danger-text: #b91c1c;
+  --status-warning-bg: #fef3c7;
+  --status-warning-border: #fde68a;
+  --status-warning-text: #92400e;
+
   /* --- Псевдонимы, которых ждёт shadcn ---
      В Foundations этих ролей нет, они выражены через токены выше. */
   --card: var(--background);
@@ -89,6 +107,22 @@
   --warning: #f59e0b;
   --success: #22c55e;
 
+  /* Мягкая заливка для тёмной темы не задана нигде в Figma (файл светлый
+     целиком) — значения подобраны с запасом по контрасту (6.4–9.1:1
+     текст/фон), не подтверждены дизайнером. */
+  --status-info-bg: #1e3a5f;
+  --status-info-border: #2c5282;
+  --status-info-text: #93c5fd;
+  --status-success-bg: #1a3a2a;
+  --status-success-border: #276749;
+  --status-success-text: #86efac;
+  --status-danger-bg: #3f1d1d;
+  --status-danger-border: #7f1d1d;
+  --status-danger-text: #fca5a5;
+  --status-warning-bg: #3f2d0f;
+  --status-warning-border: #78350f;
+  --status-warning-text: #fcd34d;
+
   --card: var(--surface);
   --popover: var(--surface);
 }
@@ -121,6 +155,19 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+
+  --color-status-info-bg: var(--status-info-bg);
+  --color-status-info-border: var(--status-info-border);
+  --color-status-info-text: var(--status-info-text);
+  --color-status-success-bg: var(--status-success-bg);
+  --color-status-success-border: var(--status-success-border);
+  --color-status-success-text: var(--status-success-text);
+  --color-status-danger-bg: var(--status-danger-bg);
+  --color-status-danger-border: var(--status-danger-border);
+  --color-status-danger-text: var(--status-danger-text);
+  --color-status-warning-bg: var(--status-warning-bg);
+  --color-status-warning-border: var(--status-warning-border);
+  --color-status-warning-text: var(--status-warning-text);
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
