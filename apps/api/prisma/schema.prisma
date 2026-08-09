@@ -19,5 +19,42 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  memberships ProjectMember[]
+
   @@map("users")
+}
+
+/// Роли участника проекта (ADR-011). Иерархия: owner > editor > viewer.
+enum ProjectRole {
+  owner
+  editor
+  viewer
+}
+
+/// Проект — единица доступа (ADR-011). Владелец выражен через ProjectMember
+/// с role=owner, отдельного ownerId нет. Удаление мягкое: deletedAt.
+model Project {
+  id        String          @id @default(uuid())
+  name      String
+  members   ProjectMember[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  deletedAt DateTime?
+
+  @@map("projects")
+}
+
+/// Явный грант доступа: (проект, пользователь) → роль. Источник правды по
+/// владению и правам (ADR-011).
+model ProjectMember {
+  projectId String
+  userId    String
+  role      ProjectRole
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
 }
