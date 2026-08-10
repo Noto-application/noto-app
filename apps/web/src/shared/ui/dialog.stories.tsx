@@ -1,7 +1,16 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 
 import { Button } from './button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './dialog';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from './dialog';
 
 const meta: Meta<typeof Dialog> = {
   title: 'UI/Dialog',
@@ -24,7 +33,7 @@ export const Default: Story = {
           <DialogDescription>Новое имя будет видно в сайдбаре и во всех ссылках.</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="secondary">Отмена</Button>
+          <DialogClose render={<Button variant="secondary">Отмена</Button>} />
           <Button>Сохранить</Button>
         </DialogFooter>
       </DialogContent>
