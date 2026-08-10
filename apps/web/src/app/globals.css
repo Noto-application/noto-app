@@ -63,6 +63,15 @@
   --status-warning-border: #fde68a;
   --status-warning-text: #92400e;
 
+  /* --- Статусы, ещё более мягкая заливка (Toast / Alerts, узел 1:2137) ---
+     У success/danger/info фон в этом узле светлее, чем --status-*-bg выше
+     (у warning совпадает, отдельный токен не нужен) — рамка и цвет иконки
+     идентичны. Расхождение идёт из самого макета, не наша правка: заведено
+     отдельным токеном, а не подогнано под badge. */
+  --status-success-bg-soft: #f0fdf4;
+  --status-danger-bg-soft: #fef2f2;
+  --status-info-bg-soft: #eff6ff;
+
   /* --- Псевдонимы, которых ждёт shadcn ---
      В Foundations этих ролей нет, они выражены через токены выше. */
   --card: var(--background);
@@ -123,6 +132,13 @@
   --status-warning-border: #78350f;
   --status-warning-text: #fcd34d;
 
+  /* Не заданы в Figma (файл светлый целиком) — приглушены на 40% к фону
+     темы, тот же приём, что и у --status-*-bg выше. Не подтверждено
+     дизайнером. */
+  --status-success-bg-soft: #1a2d23;
+  --status-danger-bg-soft: #301c1b;
+  --status-info-bg-soft: #1c2d43;
+
   --card: var(--surface);
   --popover: var(--surface);
 }
@@ -168,6 +184,10 @@
   --color-status-warning-bg: var(--status-warning-bg);
   --color-status-warning-border: var(--status-warning-border);
   --color-status-warning-text: var(--status-warning-text);
+
+  --color-status-success-bg-soft: var(--status-success-bg-soft);
+  --color-status-danger-bg-soft: var(--status-danger-bg-soft);
+  --color-status-info-bg-soft: var(--status-info-bg-soft);
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
