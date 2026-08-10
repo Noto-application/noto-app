@@ -15,8 +15,12 @@ const DialogTrigger = DialogPrimitive.Trigger;
 
 /** Общие с `AlertDialogContent` классы — держать в одном месте, чтобы визуальный язык обоих не разъезжался. */
 const dialogBackdropClassName = 'fixed inset-0 z-50 bg-black/50';
+// bg-surface, не bg-background: в тёмной теме страница и модалка на
+// bg-background почти сливаются (контраст ~1.1:1) — backdrop дополнительно
+// затемняет уже тёмный фон, а не даёт панели выделиться. surface на ступень
+// светлее и в тёмной теме, и почти не отличается в светлой.
 const dialogPopupClassName =
-  'fixed top-1/2 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border border-border bg-background p-6 shadow-lg outline-none';
+  'fixed top-1/2 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border border-border bg-surface p-6 shadow-lg outline-none';
 
 function DialogContent({ className, children, ...props }: DialogPrimitive.Popup.Props) {
   return (
