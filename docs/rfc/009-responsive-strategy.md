@@ -1,7 +1,10 @@
 # RFC-009: Адаптивность / responsive-стратегия
 
-**Статус:** Draft
+**Статус:** Superseded by [ADR-014](../adr/014-responsive-strategy.md)
 **Дата:** 2026-08-10
+
+> Обсуждено на созвоне, решение вынесено в
+> [ADR-014](../adr/014-responsive-strategy.md). Этот RFC оставлен как история.
 
 ## Контекст
 
