@@ -19,7 +19,7 @@
 | [008](./008-fsd-structure.md)       | FSD                                 | Accepted |
 | [009](./009-development-process.md) | Процессы разработки, коммиты, ветки | Accepted |
 | [010](./010-task-runner.md)         | Task runner — Turborepo             | Accepted |
-| [011](./011-authorization-acl.md)   | Авторизация и модель доступа (ACL)   | Proposed |
+| [011](./011-authorization-acl.md)   | Авторизация и модель доступа (ACL)   | Accepted |
 
 Новый ADR получает следующий свободный номер в момент принятия. Номера заранее
 не резервируются: RFC ссылается на будущий ADR словами, а не номером.
