@@ -1,6 +1,6 @@
 import { Toast as ToastPrimitive } from '@base-ui/react/toast';
 import { cva } from 'class-variance-authority';
-import { Check, CircleAlert, Info, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 import { cn } from '@/src/shared/lib/utils';
 
@@ -39,7 +39,7 @@ const toastVariants = cva(
 );
 
 const toastIconVariants = cva(
-  "flex size-[18px] shrink-0 items-center justify-center rounded-full text-white [&_svg]:size-2.5 [&_svg]:stroke-[3]",
+  'flex size-[18px] shrink-0 items-center justify-center rounded-full text-[10px] leading-none font-bold text-white',
   {
     variants: {
       type: {
@@ -51,20 +51,18 @@ const toastIconVariants = cva(
   },
 );
 
-// danger не X: конфликтует по глифу с кнопкой закрытия правее.
-const toastIcons = { success: Check, danger: CircleAlert, info: Info };
+const toastGlyphs = { success: '✓', danger: '!', info: 'i' };
 
 function ToastList() {
   const { toasts } = ToastPrimitive.useToastManager();
 
   return toasts.map((t) => {
     const type = (t.type ?? 'info') as ToastVariant;
-    const Icon = toastIcons[type];
 
     return (
       <ToastPrimitive.Root key={t.id} toast={t} data-slot="toast" className={cn(toastVariants({ type }))}>
-        <span className={cn(toastIconVariants({ type }))}>
-          <Icon />
+        <span className={cn(toastIconVariants({ type }))} aria-hidden="true">
+          {toastGlyphs[type]}
         </span>
         <ToastPrimitive.Title className="flex-1 text-body-compact text-foreground" />
         <ToastPrimitive.Close
