@@ -6,6 +6,7 @@ coverage/
 *.tsbuildinfo
 .next/
 .pnpm-store/
+storybook-static/
 
 .env
 .env.local
