@@ -259,6 +259,10 @@
      ВНИМАНИЕ: в макете характер анимации не задан, значения предложены нами. */
   --animate-spinner: spinner 0.8s steps(8) infinite;
 
+  /* Skeleton: в макете статичный градиент (muted → surface-hover → muted),
+     подразумевающий бегущий блик — сама анимация не задана, добавлена нами. */
+  --animate-shimmer: shimmer 1.5s ease-in-out infinite;
+
   /* --- Тени --- */
   --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px 0 rgb(0 0 0 / 0.04);
   --shadow-md: 0 4px 12px 0 rgb(0 0 0 / 0.1), 0 2px 6px 0 rgb(0 0 0 / 0.06);
@@ -274,6 +278,15 @@
 @keyframes spinner {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
   }
 }
 
