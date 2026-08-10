@@ -1,7 +1,10 @@
 # RFC-008: Spec-Driven + Test-First разработка
 
-**Статус:** Draft
+**Статус:** Superseded by [ADR-013](../adr/013-spec-driven-development.md)
 **Дата:** 2026-07-22
+
+> Решение принято и вынесено в [ADR-013](../adr/013-spec-driven-development.md).
+> Этот RFC оставлен как история проработки.
 
 ## Контекст
 
