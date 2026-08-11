@@ -103,17 +103,19 @@ describe('Projects (e2e)', () => {
       expect(parseError(response.body).code).toBe('VALIDATION_ERROR');
     });
 
-    it('слишком длинное имя → 400', async () => {
+    it('слишком длинное имя → 400 с кодом VALIDATION_ERROR', async () => {
       const { agent } = await registerUser('create-long@example.com');
-      await agent
+      const response = await agent
         .post('/api/projects')
         .send({ name: 'x'.repeat(101) })
         .expect(400);
+      expect(parseError(response.body).code).toBe('VALIDATION_ERROR');
     });
 
-    it('без поля name → 400', async () => {
+    it('без поля name → 400 с кодом VALIDATION_ERROR', async () => {
       const { agent } = await registerUser('create-noname@example.com');
-      await agent.post('/api/projects').send({}).expect(400);
+      const response = await agent.post('/api/projects').send({}).expect(400);
+      expect(parseError(response.body).code).toBe('VALIDATION_ERROR');
     });
 
     it('успех → 201, возвращает проект', async () => {
@@ -144,8 +146,9 @@ describe('Projects (e2e)', () => {
   });
 
   describe('GET /api/projects', () => {
-    it('без авторизации → 401', async () => {
-      await request(server).get('/api/projects').expect(401);
+    it('без авторизации → 401 с кодом UNAUTHORIZED', async () => {
+      const response = await request(server).get('/api/projects').expect(401);
+      expect(parseError(response.body).code).toBe('UNAUTHORIZED');
     });
 
     it('возвращает только проекты, где пользователь — участник', async () => {
@@ -212,6 +215,15 @@ describe('Projects (e2e)', () => {
       const id = await seedProject('Gone', [{ userId, role: 'owner' }], { deleted: true });
       await agent.get(`/api/projects/${id}`).expect(404);
     });
+
+    it('не участник + удалённый проект → 404, не 403', async () => {
+      const { userId: ownerId } = await registerUser('get-deleted-owner@example.com');
+      const { agent } = await registerUser('get-deleted-stranger@example.com');
+      const id = await seedProject('Gone', [{ userId: ownerId, role: 'owner' }], {
+        deleted: true,
+      });
+      await agent.get(`/api/projects/${id}`).expect(404);
+    });
   });
 
   describe('PATCH /api/projects/:id', () => {
@@ -235,7 +247,11 @@ describe('Projects (e2e)', () => {
     it('owner переименовывает → 200', async () => {
       const { agent, userId } = await registerUser('patch-owner@example.com');
       const id = await seedProject('Old', [{ userId, role: 'owner' }]);
-      await agent.patch(`/api/projects/${id}`).send({ name: 'Renamed' }).expect(200);
+      const response = await agent
+        .patch(`/api/projects/${id}`)
+        .send({ name: 'Renamed' })
+        .expect(200);
+      expect(parseProject(response.body).project.name).toBe('Renamed');
     });
 
     it('viewer → 403', async () => {
