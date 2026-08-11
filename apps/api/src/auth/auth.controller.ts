@@ -1,10 +1,10 @@
-import { Controller, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
+import { Controller, Req, Res, UseGuards } from '@nestjs/common';
 import type { AppRoute } from '@ts-rest/core';
 import { TsRestHandler, tsRestHandler } from '@ts-rest/nest';
 import type { ApiErrorCode } from '@noto/shared';
 import { authContract } from '@noto/shared';
 
-import { ApiExceptionFilter, toTsRestException } from '../lib/errors';
+import { toTsRestException } from '../lib/errors';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import type { AuthenticatedRequest, AuthRequest } from '../types/auth.types';
 import type { CookieReply } from '../types/http.types';
@@ -17,7 +17,6 @@ const AUTH_ERROR_ROUTES: Partial<Record<ApiErrorCode, AppRoute>> = {
 };
 
 @Controller()
-@UseFilters(ApiExceptionFilter)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
