@@ -45,6 +45,12 @@
   --warning-foreground: #ffffff;
   --success-foreground: #ffffff;
 
+  /* --- Interaction states (hover) ---
+     Не из Figma (макет не покрывает hover). --foreground-hover получен
+     сдвигом на 25% от --foreground. */
+  --foreground-hover: #535352;
+  --destructive-hover: #b91c1c;
+
   /* --- Статусы, мягкая заливка (Components → Badges, узел 1:1766) ---
      Отдельная тройка от --destructive/--warning/--success выше: те —
      сплошной цвет действия (кнопки), эти — bg/border/text под badge/toast/
