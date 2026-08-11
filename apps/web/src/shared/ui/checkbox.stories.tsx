@@ -2,39 +2,52 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 
 import { Checkbox } from './checkbox';
 
-const meta = {
+const meta: Meta<typeof Checkbox> = {
   title: 'UI/Checkbox',
   component: Checkbox,
   parameters: { layout: 'centered' },
-} satisfies Meta<typeof Checkbox>;
+};
 
 export default meta;
 
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Checkbox>;
 
-export const Playground: Story = {};
+export const Default: Story = {
+  render: (args) => (
+    <label className="flex items-center gap-2 text-body text-foreground">
+      <Checkbox {...args} />
+      Не отмечено
+    </label>
+  ),
+};
 
-/** Состояния из макета: отмечено / не отмечено, плюс disabled. */
-export const States: Story = {
-  name: 'Состояния',
-  render: () => (
-    <div className="flex flex-col gap-3">
-      <label className="flex items-center gap-2 text-body text-foreground">
-        <Checkbox defaultChecked />
-        Отмечено
-      </label>
-      <label className="flex items-center gap-2 text-body text-foreground">
-        <Checkbox />
-        Не отмечено
-      </label>
-      <label className="flex items-center gap-2 text-body text-foreground opacity-60">
-        <Checkbox disabled />
-        Disabled
-      </label>
-      <label className="flex items-center gap-2 text-body text-foreground opacity-60">
-        <Checkbox disabled defaultChecked />
-        Disabled + checked
-      </label>
-    </div>
+export const Checked: Story = {
+  args: { defaultChecked: true },
+  render: (args) => (
+    <label className="flex items-center gap-2 text-body text-foreground">
+      <Checkbox {...args} />
+      Отмечено
+    </label>
+  ),
+};
+
+export const Disabled: Story = {
+  args: { disabled: true },
+  render: (args) => (
+    <label className="flex items-center gap-2 text-body text-foreground opacity-60">
+      <Checkbox {...args} />
+      Disabled
+    </label>
+  ),
+};
+
+export const DisabledChecked: Story = {
+  name: 'Disabled + выбрано',
+  args: { disabled: true, defaultChecked: true },
+  render: (args) => (
+    <label className="flex items-center gap-2 text-body text-foreground opacity-60">
+      <Checkbox {...args} />
+      Disabled + выбрано
+    </label>
   ),
 };
