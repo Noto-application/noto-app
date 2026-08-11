@@ -53,3 +53,6 @@ jobs:
       # Один прогон: turbo сам строит граф (^build перед lint/test/typecheck) и дедупит build.
       - name: Lint / Test / Build / Typecheck
         run: pnpm turbo run lint test build typecheck
+
+      - name: Build Storybook
+        run: pnpm turbo run build-storybook
