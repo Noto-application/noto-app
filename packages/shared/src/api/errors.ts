@@ -6,6 +6,9 @@ export const apiErrorCodeSchema = z.enum([
   'EMAIL_TAKEN',
   'UNAUTHORIZED',
   'VALIDATION_ERROR',
+  // Fallback для необработанных ошибок (не HttpException): catch-all фильтр
+  // отдаёт его вместо голого 500 вне общего shape.
+  'INTERNAL',
 ]);
 
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
