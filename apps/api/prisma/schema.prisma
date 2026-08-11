@@ -53,6 +53,7 @@ model ProjectMember {
   project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 
   @@id([projectId, userId])
   @@index([userId])

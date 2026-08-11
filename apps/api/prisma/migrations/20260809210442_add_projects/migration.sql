@@ -18,6 +18,7 @@ CREATE TABLE "project_members" (
     "userId" TEXT NOT NULL,
     "role" "ProjectRole" NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "project_members_pkey" PRIMARY KEY ("projectId","userId")
 );
