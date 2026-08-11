@@ -64,7 +64,12 @@ function ToastList() {
         <span className={cn(toastIconVariants({ type }))} aria-hidden="true">
           {toastGlyphs[type]}
         </span>
-        <ToastPrimitive.Title className="flex-1 text-body-compact text-foreground" />
+        <div className="flex-1">
+          <ToastPrimitive.Title className="text-body-compact text-foreground" />
+          {t.description ? (
+            <ToastPrimitive.Description className="text-body-compact text-muted-foreground" />
+          ) : null}
+        </div>
         <ToastPrimitive.Close
           aria-label="Закрыть"
           className="text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/35 [&_svg]:size-3.5"

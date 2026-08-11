@@ -32,7 +32,12 @@ function InlineAlert({ className, variant = 'info', children, ...props }: Inline
   const Icon = inlineAlertIcons[variant ?? 'info'];
 
   return (
-    <div data-slot="inline-alert" className={cn(inlineAlertVariants({ variant }), className)} {...props}>
+    <div
+      data-slot="inline-alert"
+      role={variant === 'danger' ? 'alert' : 'status'}
+      className={cn(inlineAlertVariants({ variant }), className)}
+      {...props}
+    >
       <Icon className="mt-0.5 size-3.5 shrink-0" />
       <div className="flex-1">{children}</div>
     </div>

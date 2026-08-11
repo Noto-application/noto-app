@@ -2,15 +2,15 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 
 import { RadioGroup, RadioGroupItem } from './radio-group';
 
-const meta = {
+const meta: Meta<typeof RadioGroup> = {
   title: 'UI/RadioGroup',
   component: RadioGroup,
   parameters: { layout: 'centered' },
-} satisfies Meta<typeof RadioGroup>;
+};
 
 export default meta;
 
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof RadioGroup>;
 
 /** Обычное использование: группа из нескольких вариантов, один выбран. */
 export const Default: Story = {

@@ -12,6 +12,7 @@ function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="skeleton"
+      aria-hidden="true"
       className={cn(
         'animate-shimmer rounded-[4px] bg-[length:200%_100%] bg-gradient-to-r from-muted via-surface-hover to-muted',
         className,
