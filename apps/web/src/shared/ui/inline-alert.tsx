@@ -6,8 +6,8 @@ import { cn } from '@/src/shared/lib/utils';
 
 /**
  * Строчный alert (Figma «NoTo» → Components → Toast / Alerts → Inline
- * alerts, узел 1:2170). Не было в исходном списке issue #18/#32 — найден
- * по ходу работы над toast, тот же узел покрывает оба компонента.
+ * alerts, узел 1:2170 — тот же узел, что и у Toast). Не входил в исходный
+ * список issue #18/#32.
  *
  * Фон info/danger — та же soft-заливка, что у Toast (`--status-*-bg-soft`).
  * У warning в макете фон совпадает с обычным `--status-warning-bg` —
