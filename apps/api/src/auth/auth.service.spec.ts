@@ -4,6 +4,8 @@
  *
  * PasswordHasher мокается — @node-rs/argon2 в unit-тестах не нужен.
  */
+import { Prisma } from '@prisma/client';
+
 import type { Env } from '../config/env.schema';
 import { ApiException } from '../lib/errors';
 import type { PasswordHasher, RefreshTokenStore } from '../types/auth.types';
@@ -111,6 +113,33 @@ describe('AuthService', () => {
       ).rejects.toMatchObject({ code: 'EMAIL_TAKEN' });
 
       expect(prisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('маппит гонку (P2002 на create) в EMAIL_TAKEN, а не 500', async () => {
+      // findUnique прошёл (null), но параллельный register вставился первым —
+      // create упирается в уникальный индекс.
+      prisma.user.findUnique.mockResolvedValue(null);
+      hashMock.mockResolvedValue('hash');
+      prisma.user.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
+
+      await expect(
+        service.register({ email: 'user@example.com', password: 'password123' }),
+      ).rejects.toMatchObject({ code: 'EMAIL_TAKEN' });
+    });
+
+    it('пробрасывает прочие ошибки create как есть', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      hashMock.mockResolvedValue('hash');
+      prisma.user.create.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.register({ email: 'user@example.com', password: 'password123' }),
+      ).rejects.toThrow('db down');
     });
   });
 
