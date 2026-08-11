@@ -23,6 +23,8 @@
 | [012](./012-api-contract.md)            | Контракт API — REST + ts-rest       | Accepted |
 | [013](./013-spec-driven-development.md) | Spec-Driven + Test-First            | Accepted |
 | [014](./014-responsive-strategy.md)     | Адаптивность / responsive-стратегия | Accepted |
+| [015](./015-rich-text-editor.md)        | Rich-text редактор — BlockNote      | Accepted |
+| [016](./016-e2e-testing.md)             | E2E-тестирование — Playwright       | Accepted |
 
 Новый ADR получает следующий свободный номер в момент принятия. Номера заранее
 не резервируются: RFC ссылается на будущий ADR словами, а не номером.
