@@ -7,6 +7,7 @@ export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
   INVALID_CREDENTIALS: HttpStatus.UNAUTHORIZED,
   EMAIL_TAKEN: HttpStatus.CONFLICT,
   UNAUTHORIZED: HttpStatus.UNAUTHORIZED,
+  INTERNAL: HttpStatus.INTERNAL_SERVER_ERROR,
 };
 
 export interface ApiExceptionOptions {
@@ -56,5 +57,9 @@ export const ApiErrors = {
 
   validation(message = 'Validation failed', details?: unknown): ApiException {
     return new ApiException('VALIDATION_ERROR', message, { details });
+  },
+
+  internal(message = 'Internal server error'): ApiException {
+    return new ApiException('INTERNAL', message);
   },
 } as const;
