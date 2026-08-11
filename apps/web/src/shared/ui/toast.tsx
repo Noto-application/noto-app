@@ -67,7 +67,7 @@ function ToastList() {
         <ToastPrimitive.Title className="flex-1 text-body-compact text-foreground" />
         <ToastPrimitive.Close
           aria-label="Закрыть"
-          className="text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 [&_svg]:size-3.5"
+          className="text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/35 [&_svg]:size-3.5"
         >
           <X />
         </ToastPrimitive.Close>

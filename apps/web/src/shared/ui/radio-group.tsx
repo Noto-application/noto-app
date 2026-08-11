@@ -31,7 +31,7 @@ function RadioGroupItem({ className, ...props }: Radio.Root.Props) {
     <Radio.Root
       data-slot="radio-group-item"
       className={cn(
-        'flex size-[15px] shrink-0 items-center justify-center rounded-full border border-control-border bg-background outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[checked]:border-primary',
+        'flex size-[15px] shrink-0 items-center justify-center rounded-full border border-control-border bg-background outline-none transition-colors hover:border-2 hover:border-foreground hover:ring-4 hover:ring-surface-selected focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[checked]:border-primary',
         className,
       )}
       {...props}

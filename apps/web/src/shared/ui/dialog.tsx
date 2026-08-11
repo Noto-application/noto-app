@@ -52,7 +52,7 @@ function DialogContent({ className, children, ...props }: DialogPrimitive.Popup.
         {children}
         <DialogPrimitive.Close
           data-slot="dialog-close"
-          className="absolute top-4 right-4 rounded-sm p-1 text-muted-foreground outline-none transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&_svg]:size-4"
+          className="absolute top-4 right-4 rounded-sm p-1 text-muted-foreground outline-none transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:border-foreground focus-visible:ring-3 focus-visible:ring-foreground/35 [&_svg]:size-4"
         >
           <X />
         </DialogPrimitive.Close>
