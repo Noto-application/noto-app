@@ -65,11 +65,13 @@ Noto — лёгкая современная альтернатива Notion д�
 
 ## API-контракт
 
-См. [RFC-001](docs/rfc/001-api-contract.md). **Статус: Draft — не финал.**
+См. [ADR-012](docs/adr/012-api-contract.md). **Принято.**
 
-- Направление: REST + ts-rest, контракты в `packages/shared` как source of truth,
+- REST + ts-rest, контракты в `packages/shared` как source of truth,
   валидаторы на Zod (типы и runtime из одного определения)
-- Подход ещё не зафиксирован ADR (ждёт спайка) — не выдавай за окончательное решение
+- Единый shape ошибок `{ code, message, details? }`, `code` — enum
+- Бэкенд: `@ts-rest/nest` + Fastify, роутинг на контроллерах (не `routes.ts`)
+- OpenAPI/Swagger — по потребности через `@ts-rest/open-api`, сейчас не строим
 
 ## Аутентификация
 
@@ -96,10 +98,13 @@ Noto — лёгкая современная альтернатива Notion д�
 - `scope` обязателен для кода: `web` / `api` / `shared` / `docs` / `root`
 - `description` — императив, lowercase, без точки в конце
 - Trunk-based; прямой push в `main` запрещён, только PR с код-ревью
+- **Одна задача = один PR = один мёрдж.** Ветку заводи **от задачи** (linked
+  branch), PR связывай `Closes #N` (не `Refs`, не прозой). Крупную задачу дроби
+  на подзадачи, а не на несколько PR под одну issue.
 
 ## Порядок работы над фичей
 
-См. [RFC-008](docs/rfc/008-spec-driven-development.md), [docs/specs/](docs/specs/).
+См. [ADR-013](docs/adr/013-spec-driven-development.md), [docs/specs/](docs/specs/).
 Spec-Driven + Test-First: для значимой фичи сначала спецификация, затем тесты,
 затем код.
 
