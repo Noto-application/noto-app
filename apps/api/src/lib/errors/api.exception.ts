@@ -61,6 +61,14 @@ export const ApiErrors = {
     return new ApiException('VALIDATION_ERROR', message, { details });
   },
 
+  forbidden(message = 'Forbidden'): ApiException {
+    return new ApiException('FORBIDDEN', message);
+  },
+
+  notFound(message = 'Not found'): ApiException {
+    return new ApiException('NOT_FOUND', message);
+  },
+
   internal(message = 'Internal server error'): ApiException {
     return new ApiException('INTERNAL', message);
   },

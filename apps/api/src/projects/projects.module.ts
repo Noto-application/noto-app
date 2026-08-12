@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
 
-/**
- * Projects CRUD — минимальный стаб под test-first (RFC-008).
- * Контроллер/сервис/guard добавляются отдельной задачей после ревью тестов
- * (спека: projects.spec.md). Пока модуль пустой: эндпоинты ещё не смонтированы,
- * e2e-тесты красные (404), пока реализация не готова.
- */
-@Module({})
+import { JwtAuthModule } from '../auth/jwt-auth.module';
+import { ProjectAccessGuard } from '../guards/project-access.guard';
+import { ProjectsController } from './projects.controller';
+import { ProjectsService } from './projects.service';
+
+@Module({
+  imports: [JwtAuthModule],
+  controllers: [ProjectsController],
+  providers: [ProjectsService, ProjectAccessGuard],
+})
 export class ProjectsModule {}
