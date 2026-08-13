@@ -24,17 +24,19 @@
 | [ADR-012](./adr/012-api-contract.md)            | Контракт API — REST + ts-rest              |
 | [ADR-013](./adr/013-spec-driven-development.md) | Spec-Driven + Test-First                   |
 | [ADR-014](./adr/014-responsive-strategy.md)     | Адаптивность / responsive-стратегия        |
+| [ADR-015](./adr/015-rich-text-editor.md)        | Rich-text редактор — BlockNote             |
+| [ADR-016](./adr/016-e2e-testing.md)             | E2E-тестирование — Playwright              |
 
 ## RFC — на проработку
 
 | ID                                              | Название                                  |
 | ----------------------------------------------- | ----------------------------------------- |
 | [RFC-001](./rfc/001-api-contract.md)            | Контракт API (→ ADR-012)                  |
-| [RFC-002](./rfc/002-rich-text-editor.md)        | Выбор rich-text редактора                 |
+| [RFC-002](./rfc/002-rich-text-editor.md)        | Выбор rich-text редактора (→ ADR-015)     |
 | [RFC-003](./rfc/003-yjs-provider.md)            | Yjs provider для collaborative editing    |
 | [RFC-004](./rfc/004-blog-subdomain.md)          | Вынос публичных статей на `blog.noto.app` |
 | [RFC-005](./rfc/005-supplementary-libraries.md) | Календарь, upload, поиск                  |
-| [RFC-006](./rfc/006-e2e-testing.md)             | E2E-стратегия                             |
+| [RFC-006](./rfc/006-e2e-testing.md)             | E2E-стратегия (→ ADR-016)                 |
 | [RFC-007](./rfc/007-mvp-scope.md)               | Scope первого релиза                      |
 | [RFC-008](./rfc/008-spec-driven-development.md) | Spec-Driven + Test-First (→ ADR-013)      |
 | [RFC-009](./rfc/009-responsive-strategy.md)     | Адаптивность / responsive (→ ADR-014)     |
