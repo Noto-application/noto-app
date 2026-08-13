@@ -1,4 +1,5 @@
-# CI: гоняет lint / test / build / typecheck на каждый PR в main.
+# CI: гоняет lint / test / build / typecheck на каждый PR в main + отдельной
+# джобой api e2e (Postgres + Redis как service containers).
 # Версии Node/pnpm не хардкодятся — берутся из .nvmrc и поля packageManager.
 name: CI
 
@@ -56,3 +57,73 @@ jobs:
 
       - name: Build Storybook
         run: pnpm turbo run build-storybook
+
+  # E2e бэкенда изолированы от verify: им нужны живые Postgres и Redis, поэтому
+  # отдельная джоба с service containers. verify (unit/lint/build) остаётся
+  # быстрым и без сервисов; падение e2e делает PR красным независимо.
+  api-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      # Версии совпадают с docker-compose.yml. На раннере конфликтовать не с чем —
+      # порты стандартные (5432/6379), не сдвинутые, как в локальной разработке.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: noto
+          POSTGRES_PASSWORD: noto
+          POSTGRES_DB: noto_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U noto -d noto_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # Тестовые значения, не секреты: сервисы поднимаются здесь же и живут только
+    # на время джобы. CORS_ORIGIN берётся из дефолта схемы.
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://noto:noto@localhost:5432/noto_test
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # install дёргает postinstall apps/api → prisma generate (клиент под e2e).
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # e2e импортируют @noto/shared из dist (main пакета) — собрать до прогона.
+      - name: Build shared
+        run: pnpm --filter @noto/shared build
+
+      # Схема БД до тестов. migrate deploy применяет уже закоммиченные миграции
+      # (без dev-генерации и без вопросов), как и положено в CI.
+      - name: Apply migrations
+        run: pnpm --filter @noto/api exec prisma migrate deploy
+
+      - name: E2E (api)
+        run: pnpm --filter @noto/api test:e2e
