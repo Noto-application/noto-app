@@ -2,30 +2,31 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 
 import { Badge } from './badge';
 
-const meta = {
+const meta: Meta<typeof Badge> = {
   title: 'UI/Badge',
   component: Badge,
   parameters: { layout: 'centered' },
-} satisfies Meta<typeof Badge>;
+  args: { children: 'Черновик' },
+};
 
 export default meta;
 
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Badge>;
 
-export const Playground: Story = {
-  args: { children: 'Готово', variant: 'success' },
+export const Default: Story = {};
+
+export const Info: Story = {
+  args: { variant: 'info', children: 'В работе' },
 };
 
-/** Пять вариантов из макета: Черновик / В работе / Готово / Ошибка / На ревью. */
-export const Variants: Story = {
-  name: 'Варианты',
-  render: () => (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <Badge variant="neutral">Черновик</Badge>
-      <Badge variant="info">В работе</Badge>
-      <Badge variant="success">Готово</Badge>
-      <Badge variant="danger">Ошибка</Badge>
-      <Badge variant="warning">На ревью</Badge>
-    </div>
-  ),
+export const Success: Story = {
+  args: { variant: 'success', children: 'Готово' },
+};
+
+export const Danger: Story = {
+  args: { variant: 'danger', children: 'Ошибка' },
+};
+
+export const Warning: Story = {
+  args: { variant: 'warning', children: 'На ревью' },
 };

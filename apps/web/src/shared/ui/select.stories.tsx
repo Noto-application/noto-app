@@ -2,15 +2,16 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
 
-const meta = {
+const meta: Meta<typeof Select> = {
   title: 'UI/Select',
   component: Select,
   parameters: { layout: 'centered' },
-} satisfies Meta<typeof Select>;
+  decorators: [(Story) => <div className="w-[180px]">{Story()}</div>],
+};
 
 export default meta;
 
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Select>;
 
 const languages = [
   { value: 'ru', label: 'Русский' },
@@ -19,7 +20,7 @@ const languages = [
 ];
 
 /** Как в макете: язык интерфейса, выбрано «Русский». */
-export const Playground: Story = {
+export const Default: Story = {
   render: () => (
     <Select defaultValue="ru" items={languages}>
       <SelectTrigger>
@@ -37,7 +38,6 @@ export const Playground: Story = {
 };
 
 export const Disabled: Story = {
-  name: 'Disabled',
   render: () => (
     <Select defaultValue="ru" items={languages} disabled>
       <SelectTrigger>

@@ -45,6 +45,12 @@
   --warning-foreground: #ffffff;
   --success-foreground: #ffffff;
 
+  /* --- Interaction states (hover) ---
+     Не из Figma (макет не покрывает hover). --foreground-hover получен
+     сдвигом на 25% от --foreground. */
+  --foreground-hover: #535352;
+  --destructive-hover: #b91c1c;
+
   /* --- Статусы, мягкая заливка (Components → Badges, узел 1:1766) ---
      Отдельная тройка от --destructive/--warning/--success выше: те —
      сплошной цвет действия (кнопки), эти — bg/border/text под badge/toast/
@@ -62,6 +68,15 @@
   --status-warning-bg: #fef3c7;
   --status-warning-border: #fde68a;
   --status-warning-text: #92400e;
+
+  /* --- Статусы, ещё более мягкая заливка (Toast / Alerts, узел 1:2137) ---
+     У success/danger/info фон в этом узле светлее, чем --status-*-bg выше
+     (у warning совпадает, отдельный токен не нужен) — рамка и цвет иконки
+     идентичны. Расхождение идёт из самого макета, не наша правка: заведено
+     отдельным токеном, а не подогнано под badge. */
+  --status-success-bg-soft: #f0fdf4;
+  --status-danger-bg-soft: #fef2f2;
+  --status-info-bg-soft: #eff6ff;
 
   /* --- Псевдонимы, которых ждёт shadcn ---
      В Foundations этих ролей нет, они выражены через токены выше. */
@@ -123,6 +138,13 @@
   --status-warning-border: #78350f;
   --status-warning-text: #fcd34d;
 
+  /* Не заданы в Figma (файл светлый целиком) — приглушены на 40% к фону
+     темы, тот же приём, что и у --status-*-bg выше. Не подтверждено
+     дизайнером. */
+  --status-success-bg-soft: #1a2d23;
+  --status-danger-bg-soft: #301c1b;
+  --status-info-bg-soft: #1c2d43;
+
   --card: var(--surface);
   --popover: var(--surface);
 }
@@ -168,6 +190,10 @@
   --color-status-warning-bg: var(--status-warning-bg);
   --color-status-warning-border: var(--status-warning-border);
   --color-status-warning-text: var(--status-warning-text);
+
+  --color-status-success-bg-soft: var(--status-success-bg-soft);
+  --color-status-danger-bg-soft: var(--status-danger-bg-soft);
+  --color-status-info-bg-soft: var(--status-info-bg-soft);
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -239,6 +265,10 @@
      ВНИМАНИЕ: в макете характер анимации не задан, значения предложены нами. */
   --animate-spinner: spinner 0.8s steps(8) infinite;
 
+  /* Skeleton: в макете статичный градиент (muted → surface-hover → muted),
+     подразумевающий бегущий блик — сама анимация не задана, добавлена нами. */
+  --animate-shimmer: shimmer 1.5s ease-in-out infinite;
+
   /* --- Тени --- */
   --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px 0 rgb(0 0 0 / 0.04);
   --shadow-md: 0 4px 12px 0 rgb(0 0 0 / 0.1), 0 2px 6px 0 rgb(0 0 0 / 0.06);
@@ -254,6 +284,15 @@
 @keyframes spinner {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
   }
 }
 
