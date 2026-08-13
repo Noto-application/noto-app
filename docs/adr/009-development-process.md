@@ -16,7 +16,7 @@
 - **Код-ревью на каждую задачу** — перекрёстное, не только тимлид
 - **Тесты** — хотя бы на основной функционал:
   - Frontend: Vitest + React Testing Library
-  - E2E: Playwright — см. [RFC-006](../rfc/006-e2e-testing.md)
+  - E2E: Playwright — см. [ADR-016](./016-e2e-testing.md)
 - **Storybook** — UI-компоненты shadcn-обёрток и форм
 - **Минимум кастомных стилей** — через разработанный UI kit
 

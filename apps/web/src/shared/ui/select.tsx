@@ -12,12 +12,13 @@ import { cn } from '@/src/shared/lib/utils';
  */
 const Select = SelectPrimitive.Root;
 
+/** Ширина — `w-full`, задаётся контейнером снаружи (ADR-014: хардкод размеров запрещён). */
 function SelectTrigger({ className, children, ...props }: SelectPrimitive.Trigger.Props) {
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       className={cn(
-        "flex h-[35px] w-[180px] items-center justify-between gap-2 rounded-md border border-input bg-background px-4 text-body text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[popup-open]:border-ring [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-2.5",
+        "flex h-[35px] w-full min-w-0 items-center justify-between gap-2 rounded-md border border-input bg-background px-4 text-body text-foreground outline-none transition-colors hover:bg-surface-hover focus-visible:border-foreground focus-visible:ring-3 focus-visible:ring-foreground/35 disabled:cursor-not-allowed disabled:opacity-50 data-[popup-open]:border-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-2.5",
         className,
       )}
       {...props}
