@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 
 import { buttonVariants } from '@/src/shared/ui/button';
 
-/** Навигация лендинга не отвлекает на экранах аутентификации. */
 export function PublicNav() {
   const pathname = usePathname();
 

@@ -2,7 +2,6 @@ import Link from 'next/link';
 
 import { AuthLayout } from './auth-layout';
 
-/** Временный экран до появления API восстановления пароля. */
 export function ForgotPasswordForm() {
   return (
     <AuthLayout>
