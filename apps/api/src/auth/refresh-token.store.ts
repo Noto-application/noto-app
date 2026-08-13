@@ -30,9 +30,17 @@ export class RedisRefreshTokenStore implements RefreshTokenStore {
   }
 
   async revokeAllForUser(userId: string): Promise<void> {
-    const keys = await this.redis.client.keys(`refresh:${userId}:*`);
-    if (keys.length > 0) {
-      await this.redis.client.del(...keys);
+    // SCAN, не KEYS: KEYS блокирует однопоточный Redis на обход всего кейспейса.
+    // SCAN идёт курсором порциями, между которыми клиент обслуживает других.
+    const stream = this.redis.client.scanStream({
+      match: `refresh:${userId}:*`,
+      count: 100,
+    }) as AsyncIterable<string[]>;
+
+    for await (const keys of stream) {
+      if (keys.length > 0) {
+        await this.redis.client.del(...keys);
+      }
     }
   }
 
