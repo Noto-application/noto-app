@@ -5,6 +5,8 @@ export const apiErrorCodeSchema = z.enum([
   'INVALID_CREDENTIALS',
   'EMAIL_TAKEN',
   'UNAUTHORIZED',
+  'FORBIDDEN',
+  'NOT_FOUND',
   'VALIDATION_ERROR',
   // Fallback для необработанных ошибок (не HttpException): catch-all фильтр
   // отдаёт его вместо голого 500 вне общего shape.
