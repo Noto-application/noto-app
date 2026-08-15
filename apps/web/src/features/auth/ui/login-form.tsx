@@ -72,15 +72,10 @@ export function LoginForm() {
           {...form.register('password')}
         />
 
-        <div className="flex items-center justify-between gap-3">
-          <label className="flex items-center gap-2 text-body-compact text-muted-foreground">
-            <Checkbox disabled id="login-remember-me" />
-            Запомнить меня
-          </label>
-          <Link className="text-body-compact text-primary hover:underline" href="/forgot-password">
-            Забыли пароль?
-          </Link>
-        </div>
+        <label className="flex items-center gap-2 text-body-compact text-muted-foreground">
+          <Checkbox disabled id="login-remember-me" />
+          Запомнить меня
+        </label>
 
         <Button className="w-full" loading={form.formState.isSubmitting} type="submit">
           Войти

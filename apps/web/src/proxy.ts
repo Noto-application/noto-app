@@ -4,17 +4,7 @@ const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:40
 const apiBaseUrl = `${configuredApiUrl.replace(/\/$/, '')}/api`;
 
 function getSetCookies(headers: Headers): string[] {
-  const headersWithGetSetCookie = headers as Headers & {
-    getSetCookie?: () => string[];
-  };
-  const cookies = headersWithGetSetCookie.getSetCookie?.();
-
-  if (cookies?.length) {
-    return cookies;
-  }
-
-  const header = headers.get('set-cookie');
-  return header ? header.split(/,(?=[^;]+?=)/) : [];
+  return headers.getSetCookie();
 }
 
 function copySetCookies(target: NextResponse, source: Response): void {
