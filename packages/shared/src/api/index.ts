@@ -46,4 +46,5 @@ export type {
   ProjectResponse,
   ProjectsResponse,
   UpdatePageInput,
+  UpdateProjectInput,
 } from './types';
