@@ -5,10 +5,11 @@
 
 ## Co-located (рядом с модулем)
 
-| Фича | Спека | Статус |
-| ---- | ----- | ------ |
-| Auth (register/login/refresh/logout/me) | [apps/api/src/auth/auth.spec.md](../../apps/api/src/auth/auth.spec.md) | Ready |
-| Projects CRUD | [apps/api/src/projects/projects.spec.md](../../apps/api/src/projects/projects.spec.md) | Draft |
+| Фича                                    | Спека                                                                                  | Статус |
+| --------------------------------------- | -------------------------------------------------------------------------------------- | ------ |
+| Auth (register/login/refresh/logout/me) | [apps/api/src/auth/auth.spec.md](../../apps/api/src/auth/auth.spec.md)                 | Ready  |
+| Projects CRUD                           | [apps/api/src/projects/projects.spec.md](../../apps/api/src/projects/projects.spec.md) | Draft  |
+| Pages CRUD                              | [apps/api/src/pages/pages.spec.md](../../apps/api/src/pages/pages.spec.md)             | Draft  |
 
 ## Кросс-модульные (в `docs/specs/`)
 
