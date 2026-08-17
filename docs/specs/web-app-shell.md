@@ -28,19 +28,22 @@
 
 **Роуты** (ADR-002):
 ```
-apps/web/src/app/app/layout.tsx        — приватный layout: QueryClientProvider, проверка авторизации
+apps/web/src/app/app/layout.tsx        — приватный layout: QueryProvider (PR #44)
 apps/web/src/app/app/[pageId]/page.tsx — текущая страница
 ```
-`QueryClientProvider` — обвязка TanStack Query (провайдер из библиотеки),
-без которой хуки `useProjects()`/`useProject()` не будут работать ни в одном
-вложенном компоненте.
+`QueryProvider` — обвязка TanStack Query (`shared/api/query-provider.tsx`,
+PR #44), без которой хуки `useProjects()`/`useProject()` не будут работать
+ни в одном вложенном компоненте. Проверка авторизации живёт не в layout, а в
+`apps/web/src/proxy.ts` (Next.js middleware, матчер `/app/:path*`, PR #44) —
+редиректит на `/login` раньше, чем layout вообще начнёт рендериться.
 
 Проект не участвует в URL — выводится из данных страницы (родитель/путь до страницы).
 
-**`entities/project`** — тип `Project` + read-only хуки `useProjects()`,
-`useProject(id)` поверх фикстур. Форма (`id`, `name`, `deletedAt`) — по
-backend-спеке [`projects.spec.md`](../../apps/api/src/projects/projects.spec.md)
-(issue #27), чтобы не переписывать типы при переходе на реальный API.
+**`entities/project`** — read-only хуки `useProjects()`, `useProject(id)`
+поверх фикстур. Тип `Project` — реэкспорт из `@noto/shared` (уже есть в коде,
+PR #30): `id`, `name`, `createdAt`, `updatedAt` (без `deletedAt` — публичное
+представление намеренно его не показывает). Паттерн реэкспорта — как в уже
+существующем `entities/user` (PR #44).
 
 **`entities/page`** — тип `Page` (`id`, `title`, `projectId`,
 `parentPageId`) + аналогичные read-only хуки поверх фикстур. Backend-спеки
