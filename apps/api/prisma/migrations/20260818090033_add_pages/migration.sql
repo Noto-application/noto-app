@@ -3,6 +3,7 @@ CREATE TABLE "pages" (
     "id" TEXT NOT NULL,
     "projectId" TEXT NOT NULL,
     "parentId" TEXT,
+    "createdById" TEXT,
     "title" TEXT NOT NULL,
     "content" JSONB NOT NULL DEFAULT '[]',
     "position" INTEGER NOT NULL DEFAULT 0,
@@ -24,3 +25,6 @@ ALTER TABLE "pages" ADD CONSTRAINT "pages_projectId_fkey" FOREIGN KEY ("projectI
 
 -- AddForeignKey
 ALTER TABLE "pages" ADD CONSTRAINT "pages_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "pages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "pages" ADD CONSTRAINT "pages_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
