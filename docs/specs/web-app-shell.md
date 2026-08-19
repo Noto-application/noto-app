@@ -5,6 +5,41 @@
 **Дата:** 2026-08-11
 **Связанные:** [ADR-002](../adr/002-routing-and-domains.md), [ADR-005](../adr/005-state-management.md), [ADR-008](../adr/008-fsd-structure.md), [ADR-014](../adr/014-responsive-strategy.md), issue #19
 
+## Обновление скоупа (2026-08-19)
+
+Часть поведения, описанного ниже, задним числом переопределена отдельным
+спринтом **Pages CRUD** — issues
+[#45](https://github.com/Noto-application/noto-app/issues/45)–[#49](https://github.com/Noto-application/noto-app/issues/49),
+[#53](https://github.com/Noto-application/noto-app/issues/53)–[#57](https://github.com/Noto-application/noto-app/issues/57),
+[#62](https://github.com/Noto-application/noto-app/issues/62) — заведены
+14–17.08, позже этой спеки (11.08) и самого issue #19 (05.08), но границу с
+FE-3 фиксируют только в своём тексте, не здесь и не в issue #19.
+
+- **Дерево проектов/страниц в сайдбаре** (описано ниже в «Контракт» и
+  «Поведение» как часть `widgets/sidebar`) реализуется отдельно в
+  [FE-P1 #53](https://github.com/Noto-application/noto-app/issues/53)
+  (сборка дерева из плоского списка, `entities/page/lib/build-page-tree.ts`)
+  и [FE-P2 #54](https://github.com/Noto-application/noto-app/issues/54)
+  (сам `PageTree` в `widgets/sidebar`, создание страниц). Модель данных там
+  отличается от описанной ниже: страницы подгружаются по `projectId` из
+  метаданных **уже открытой страницы** (`usePage(pageId).projectId`), а не
+  перебором всех проектов сразу, как предполагает «дерево ПРОЕКТОВ» ниже.
+- **Строка дерева** (`SidebarTreeItem`, presentational) — отдельная задача
+  [FE-ONB-3 #62](https://github.com/Noto-application/noto-app/issues/62),
+  живёт в `shared/ui/`, а не в `widgets/sidebar/ui/`.
+- **Хлебные крошки топбара** (подъём пути от `pageId` к проекту, п.4 в
+  «Поведение») зависят от той же логики дерева — довяжутся в
+  [FE-P1 #53](https://github.com/Noto-application/noto-app/issues/53)/
+  [FE-P3 #55](https://github.com/Noto-application/noto-app/issues/55).
+  `widgets/topbar` реализован как presentational-компонент, принимающий
+  готовый путь через props, а не вычисляющий его сам.
+
+**Изменения контракта (типы, крайние случаи, поведение хуков) в этой части
+будут вноситься в перечисленных issues, не в этом файле.** Ниже — исходное
+намерение issue #19 по состоянию на 11.08, оставлено для истории и для
+частей, которые изменение не затронуло (layout приватной зоны, `widgets/topbar`
+кроме крошек, статичные заглушки сайдбара, `useSidebarStore`).
+
 ## Цель
 
 Каркас приватной рабочей зоны `/app`: пользователь видит дерево своих проектов
@@ -45,9 +80,11 @@ PR #30): `id`, `name`, `createdAt`, `updatedAt` (без `deletedAt` — публ
 представление намеренно его не показывает). Паттерн реэкспорта — как в уже
 существующем `entities/user` (PR #44).
 
-**`entities/page`** — тип `Page` (`id`, `title`, `projectId`,
-`parentPageId`) + аналогичные read-only хуки поверх фикстур. Backend-спеки
-для Pages нет — форма предварительная.
+**`entities/page`** — тип `Page` (`id`, `title`, `projectId`, `parentId`) +
+аналогичные read-only хуки поверх фикстур. Backend-спеки для Pages нет, но
+поле называется `parentId`, а не `parentPageId`, заранее — под будущую
+backend-модель Pages (issue #45), чтобы не переименовывать при переходе на
+реальный API.
 
 **`widgets/sidebar`** — переключатель рабочего пространства (заглушка, одно
 рабочее пространство), поиск (⌘K, заглушка), Входящие/Календарь
@@ -127,6 +164,12 @@ type SidebarState = {
   спеки по процессу проекта, ADR-013) — backend уже смёржен, PR #30.
 - Путь до страницы — без обрезки в v1, `overflow-x: auto` при переполнении
   (умная обрезка — «Открытые вопросы» №1).
+- **Единая семантика «не найдено» на моках и на реальном API.**
+  `getProject`/`getPage` возвращают `undefined` для неизвестного id, не
+  бросают исключение. При переходе на реальный API (второй шаг) обработчик
+  404 должен маппиться туда же в `undefined`, а не пробрасываться как
+  ошибка — иначе консьюмеры (сайдбар, путь до страницы), уже завязанные на
+  `undefined`, сломаются при переключении на реальные данные.
 
 ## Открытые вопросы
 
