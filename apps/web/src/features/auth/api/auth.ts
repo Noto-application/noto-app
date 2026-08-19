@@ -21,3 +21,11 @@ export async function register(credentials: AuthCredentials): Promise<AuthUserRe
 
   return response.body;
 }
+
+export async function logout(): Promise<void> {
+  const response = await apiClient.auth.logout();
+
+  if (response.status !== 200) {
+    throw toApiClientError(response.body);
+  }
+}
