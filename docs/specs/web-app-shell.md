@@ -7,38 +7,31 @@
 
 ## Обновление скоупа (2026-08-19)
 
-Часть поведения, описанного ниже, задним числом переопределена отдельным
-спринтом **Pages CRUD** — issues
-[#45](https://github.com/Noto-application/noto-app/issues/45)–[#49](https://github.com/Noto-application/noto-app/issues/49),
+Дерево проектов/страниц в сайдбаре, его строка (`SidebarTreeItem`) и
+хлебные крошки топбара (зависят от того же дерева) реализуются не здесь, а
+в issues [#45](https://github.com/Noto-application/noto-app/issues/45)–[#49](https://github.com/Noto-application/noto-app/issues/49),
 [#53](https://github.com/Noto-application/noto-app/issues/53)–[#57](https://github.com/Noto-application/noto-app/issues/57),
 [#62](https://github.com/Noto-application/noto-app/issues/62) — заведены
-14–17.08, позже этой спеки (11.08) и самого issue #19 (05.08), но границу с
-FE-3 фиксируют только в своём тексте, не здесь и не в issue #19.
+14–17.08, позже этой спеки (11.08) и issue #19 (05.08), и переопределяют
+границу FE-3 только в своём тексте, не здесь и не в issue #19.
 
-- **Дерево проектов/страниц в сайдбаре** (описано ниже в «Контракт» и
-  «Поведение» как часть `widgets/sidebar`) реализуется отдельно в
-  [FE-P1 #53](https://github.com/Noto-application/noto-app/issues/53)
-  (сборка дерева из плоского списка, `entities/page/lib/build-page-tree.ts`)
-  и [FE-P2 #54](https://github.com/Noto-application/noto-app/issues/54)
-  (сам `PageTree` в `widgets/sidebar`, создание страниц). Модель данных там
-  отличается от описанной ниже: страницы подгружаются по `projectId` из
-  метаданных **уже открытой страницы** (`usePage(pageId).projectId`), а не
-  перебором всех проектов сразу, как предполагает «дерево ПРОЕКТОВ» ниже.
-- **Строка дерева** (`SidebarTreeItem`, presentational) — отдельная задача
-  [FE-ONB-3 #62](https://github.com/Noto-application/noto-app/issues/62),
-  живёт в `shared/ui/`, а не в `widgets/sidebar/ui/`.
-- **Хлебные крошки топбара** (подъём пути от `pageId` к проекту, п.4 в
-  «Поведение») зависят от той же логики дерева — довяжутся в
-  [FE-P1 #53](https://github.com/Noto-application/noto-app/issues/53)/
-  [FE-P3 #55](https://github.com/Noto-application/noto-app/issues/55).
-  `widgets/topbar` реализован как presentational-компонент, принимающий
-  готовый путь через props, а не вычисляющий его сам.
+- **Дерево**: [FE-P1 #53](https://github.com/Noto-application/noto-app/issues/53)
+  (сборка из плоского списка, `entities/page/lib/build-page-tree.ts`) +
+  [FE-P2 #54](https://github.com/Noto-application/noto-app/issues/54)
+  (`PageTree` в `widgets/sidebar`, создание страниц). Модель данных другая:
+  страницы подгружаются по `projectId` **уже открытой страницы**
+  (`usePage(pageId).projectId`), а не перебором всех проектов, как ниже.
+- **Строка дерева**: [FE-ONB-3 #62](https://github.com/Noto-application/noto-app/issues/62),
+  в `shared/ui/`, не в `widgets/sidebar/ui/`.
+- **Крошки**: [FE-P1 #53](https://github.com/Noto-application/noto-app/issues/53)/
+  [FE-P3 #55](https://github.com/Noto-application/noto-app/issues/55);
+  `widgets/topbar` реализован как presentational — принимает путь через
+  props, не вычисляет сам.
 
-**Изменения контракта (типы, крайние случаи, поведение хуков) в этой части
-будут вноситься в перечисленных issues, не в этом файле.** Ниже — исходное
-намерение issue #19 по состоянию на 11.08, оставлено для истории и для
-частей, которые изменение не затронуло (layout приватной зоны, `widgets/topbar`
-кроме крошек, статичные заглушки сайдбара, `useSidebarStore`).
+Правки контракта для этой части — в перечисленных issues, не в этом файле.
+Ниже — исходное намерение issue #19 на 11.08, актуально для остального:
+layout приватной зоны, `widgets/topbar` кроме крошек, статичные заглушки
+сайдбара, `useSidebarStore`.
 
 ## Цель
 
