@@ -25,7 +25,7 @@ export async function register(credentials: AuthCredentials): Promise<AuthUserRe
 export async function logout(): Promise<void> {
   const response = await apiClient.auth.logout();
 
-  if (response.status !== 200) {
+  if (response.status !== 200 && response.status !== 204) {
     throw toApiClientError(response.body);
   }
 }

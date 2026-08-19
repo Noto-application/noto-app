@@ -13,19 +13,11 @@ function copySetCookies(target: NextResponse, source: Response): void {
   }
 }
 
-async function logoutAndRedirect(
-  request: NextRequest,
-): Promise<NextResponse> {
-  const response = NextResponse.redirect(
-    new URL('/login', request.url),
-  );
+async function logoutAndRedirect(request: NextRequest): Promise<NextResponse> {
+  const response = NextResponse.redirect(new URL('/login', request.url));
 
   try {
-    const logoutResponse = await apiRequest(
-      request,
-      '/auth/logout',
-      'POST',
-    );
+    const logoutResponse = await apiRequest(request, '/auth/logout', 'POST');
 
     copySetCookies(response, logoutResponse);
   } catch {

@@ -3,7 +3,7 @@ import { apiContract } from '@noto/shared/api';
 
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-const apiBaseUrl = `${configuredApiUrl.replace(/\/$/, '')}/api`;
+export const apiBaseUrl = `${configuredApiUrl.replace(/\/$/, '')}/api`;
 
 const cookieApiFetcher: ApiFetcher = async (args) => {
   const response = await tsRestFetchApi(args);
@@ -74,5 +74,3 @@ async function clearAuthSession(): Promise<void> {
     // добавить логирование.
   }
 }
-
-
