@@ -25,4 +25,15 @@ describe('useProject', () => {
 
     expect(result.current.data).toEqual(await getProject(target.id));
   });
+
+  it('резолвится в null для неизвестного id, не в ошибку', async () => {
+    const { result } = renderHook(() => useProject('unknown-project-id'), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toBeNull();
+    expect(result.current.isError).toBe(false);
+  });
 });

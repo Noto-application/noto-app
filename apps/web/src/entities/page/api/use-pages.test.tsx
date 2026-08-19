@@ -23,4 +23,14 @@ describe('usePages', () => {
 
     expect(result.current.data).toEqual(await getPagesByProject('project-1'));
   });
+
+  it('резолвится в пустой список для проекта без страниц', async () => {
+    const { result } = renderHook(() => usePages('a-project-id-with-no-pages'), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toEqual([]);
+  });
 });

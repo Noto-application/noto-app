@@ -25,4 +25,13 @@ describe('usePage', () => {
 
     expect(result.current.data).toEqual(await getPage(target.id));
   });
+
+  it('резолвится в null для неизвестного id, не в ошибку', async () => {
+    const { result } = renderHook(() => usePage('unknown-page-id'), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toBeNull();
+    expect(result.current.isError).toBe(false);
+  });
 });

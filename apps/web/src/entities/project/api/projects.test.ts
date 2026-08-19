@@ -8,12 +8,10 @@ describe('getProjects', () => {
 
     expect(projects.length).toBeGreaterThan(0);
     for (const project of projects) {
-      expect(project).toMatchObject({
-        id: expect.any(String),
-        name: expect.any(String),
-        createdAt: expect.any(String),
-        updatedAt: expect.any(String),
-      });
+      expect(typeof project.id).toBe('string');
+      expect(typeof project.name).toBe('string');
+      expect(typeof project.createdAt).toBe('string');
+      expect(typeof project.updatedAt).toBe('string');
     }
   });
 });
