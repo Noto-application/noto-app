@@ -15,16 +15,21 @@ import { cn } from '@/src/shared/lib/utils';
  * и кольца фокуса.
  */
 const buttonVariants = cva(
-  'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-transparent font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-[0.48] [&_svg]:pointer-events-none [&_svg]:shrink-0',
+  'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-transparent font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'bg-foreground text-background hover:bg-foreground/90',
-        secondary: 'border-border bg-surface text-foreground hover:bg-surface-hover',
-        outline: 'border-border bg-background text-foreground hover:bg-surface-hover',
-        ghost: 'text-foreground hover:bg-surface-hover',
-        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        link: 'text-primary underline-offset-4 hover:underline',
+        default:
+          'bg-foreground text-background hover:bg-foreground-hover focus-visible:border-foreground focus-visible:ring-foreground/35',
+        secondary:
+          'border-border bg-surface text-foreground hover:bg-surface-hover focus-visible:border-foreground focus-visible:ring-foreground/35',
+        outline:
+          'border-border bg-background text-foreground hover:bg-surface-hover focus-visible:border-foreground focus-visible:ring-foreground/35',
+        ghost:
+          'text-foreground hover:bg-surface-hover focus-visible:border-foreground focus-visible:ring-foreground/35',
+        destructive:
+          'bg-destructive text-destructive-foreground hover:bg-destructive-hover focus-visible:border-destructive focus-visible:ring-destructive/50',
+        link: 'text-primary underline-offset-4 hover:text-primary-hover hover:underline focus-visible:border-ring focus-visible:ring-ring/50',
       },
       size: {
         sm: "h-7 px-2.5 text-label [&_svg:not([class*='size-'])]:size-3",

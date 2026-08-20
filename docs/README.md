@@ -8,27 +8,35 @@
 
 ## ADR — принятые решения
 
-| ID                                          | Название                                   |
-| ------------------------------------------- | ------------------------------------------ |
-| [ADR-001](./adr/001-monorepo-structure.md)  | Структура monorepo                         |
-| [ADR-002](./adr/002-routing-and-domains.md) | Маршруты, домены, навигация                |
-| [ADR-003](./adr/003-authentication.md)      | Аутентификация и защита `/app`             |
-| [ADR-004](./adr/004-data-fetching.md)       | Загрузка данных (RSC vs TanStack Query)    |
-| [ADR-005](./adr/005-state-management.md)    | Границы URL / Query / Zustand / Yjs        |
-| [ADR-006](./adr/006-realtime.md)            | Realtime: Yjs vs Socket.io                 |
-| [ADR-007](./adr/007-tech-stack.md)          | Технологический стек                       |
-| [ADR-008](./adr/008-fsd-structure.md)       | Feature-Sliced Design                      |
-| [ADR-009](./adr/009-development-process.md) | Процессы разработки, CI/CD, коммиты, ветки |
-| [ADR-010](./adr/010-task-runner.md)         | Task runner — Turborepo                    |
+| ID                                              | Название                                   |
+| ----------------------------------------------- | ------------------------------------------ |
+| [ADR-001](./adr/001-monorepo-structure.md)      | Структура monorepo                         |
+| [ADR-002](./adr/002-routing-and-domains.md)     | Маршруты, домены, навигация                |
+| [ADR-003](./adr/003-authentication.md)          | Аутентификация и защита `/app`             |
+| [ADR-004](./adr/004-data-fetching.md)           | Загрузка данных (RSC vs TanStack Query)    |
+| [ADR-005](./adr/005-state-management.md)        | Границы URL / Query / Zustand / Yjs        |
+| [ADR-006](./adr/006-realtime.md)                | Realtime: Yjs vs Socket.io                 |
+| [ADR-007](./adr/007-tech-stack.md)              | Технологический стек                       |
+| [ADR-008](./adr/008-fsd-structure.md)           | Feature-Sliced Design                      |
+| [ADR-009](./adr/009-development-process.md)     | Процессы разработки, CI/CD, коммиты, ветки |
+| [ADR-010](./adr/010-task-runner.md)             | Task runner — Turborepo                    |
+| [ADR-011](./adr/011-authorization-acl.md)       | Авторизация и модель доступа (ACL)         |
+| [ADR-012](./adr/012-api-contract.md)            | Контракт API — REST + ts-rest              |
+| [ADR-013](./adr/013-spec-driven-development.md) | Spec-Driven + Test-First                   |
+| [ADR-014](./adr/014-responsive-strategy.md)     | Адаптивность / responsive-стратегия        |
+| [ADR-015](./adr/015-rich-text-editor.md)        | Rich-text редактор — BlockNote             |
+| [ADR-016](./adr/016-e2e-testing.md)             | E2E-тестирование — Playwright              |
 
 ## RFC — на проработку
 
-| ID                                              | Название                                        |
-| ----------------------------------------------- | ----------------------------------------------- |
-| [RFC-001](./rfc/001-api-contract.md)            | Контракт API: REST + ts-rest + shared contracts |
-| [RFC-002](./rfc/002-rich-text-editor.md)        | Выбор rich-text редактора                       |
-| [RFC-003](./rfc/003-yjs-provider.md)            | Yjs provider для collaborative editing          |
-| [RFC-004](./rfc/004-blog-subdomain.md)          | Вынос публичных статей на `blog.noto.app`       |
-| [RFC-005](./rfc/005-supplementary-libraries.md) | Календарь, upload, поиск                        |
-| [RFC-006](./rfc/006-e2e-testing.md)             | E2E-стратегия                                   |
-| [RFC-007](./rfc/007-mvp-scope.md)               | Scope первого релиза                            |
+| ID                                              | Название                                  |
+| ----------------------------------------------- | ----------------------------------------- |
+| [RFC-001](./rfc/001-api-contract.md)            | Контракт API (→ ADR-012)                  |
+| [RFC-002](./rfc/002-rich-text-editor.md)        | Выбор rich-text редактора (→ ADR-015)     |
+| [RFC-003](./rfc/003-yjs-provider.md)            | Yjs provider для collaborative editing    |
+| [RFC-004](./rfc/004-blog-subdomain.md)          | Вынос публичных статей на `blog.noto.app` |
+| [RFC-005](./rfc/005-supplementary-libraries.md) | Календарь, upload, поиск                  |
+| [RFC-006](./rfc/006-e2e-testing.md)             | E2E-стратегия (→ ADR-016)                 |
+| [RFC-007](./rfc/007-mvp-scope.md)               | Scope первого релиза                      |
+| [RFC-008](./rfc/008-spec-driven-development.md) | Spec-Driven + Test-First (→ ADR-013)      |
+| [RFC-009](./rfc/009-responsive-strategy.md)     | Адаптивность / responsive (→ ADR-014)     |

@@ -7,6 +7,9 @@ export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
   INVALID_CREDENTIALS: HttpStatus.UNAUTHORIZED,
   EMAIL_TAKEN: HttpStatus.CONFLICT,
   UNAUTHORIZED: HttpStatus.UNAUTHORIZED,
+  FORBIDDEN: HttpStatus.FORBIDDEN,
+  NOT_FOUND: HttpStatus.NOT_FOUND,
+  INTERNAL: HttpStatus.INTERNAL_SERVER_ERROR,
 };
 
 export interface ApiExceptionOptions {
@@ -56,5 +59,17 @@ export const ApiErrors = {
 
   validation(message = 'Validation failed', details?: unknown): ApiException {
     return new ApiException('VALIDATION_ERROR', message, { details });
+  },
+
+  forbidden(message = 'Forbidden'): ApiException {
+    return new ApiException('FORBIDDEN', message);
+  },
+
+  notFound(message = 'Not found'): ApiException {
+    return new ApiException('NOT_FOUND', message);
+  },
+
+  internal(message = 'Internal server error'): ApiException {
+    return new ApiException('INTERNAL', message);
   },
 } as const;

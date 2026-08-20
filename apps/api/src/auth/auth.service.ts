@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { Prisma } from '@prisma/client';
+import type { User as UserRecord } from '@prisma/client';
 import type { AuthCredentials, User } from '@noto/shared';
 
 import type { Env } from '../config/env.schema';
@@ -35,12 +37,25 @@ export class AuthService {
     }
 
     const passwordHash = await this.passwordHasher.hash(credentials.password);
-    const user = await this.prisma.user.create({
-      data: {
-        email: credentials.email,
-        passwordHash,
-      },
-    });
+
+    let user: UserRecord;
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          email: credentials.email,
+          passwordHash,
+        },
+      });
+    } catch (error) {
+      // Гонка: параллельный register с тем же email прошёл findUnique выше и
+      // вставился первым — уникальный индекс отдаёт P2002. Без этого маппинга
+      // ошибка не ApiException, фильтр её не ловит и клиент получает 500
+      // вместо 409 EMAIL_TAKEN.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw ApiErrors.emailTaken();
+      }
+      throw error;
+    }
 
     const tokens = await this.issueTokenPair(user.id);
     return { user: toPublicUser(user), tokens };

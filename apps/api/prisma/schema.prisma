@@ -19,5 +19,72 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  memberships  ProjectMember[]
+  createdPages Page[]          @relation("PageAuthor")
+
   @@map("users")
+}
+
+/// Роли участника проекта (ADR-011). Иерархия: owner > editor > viewer.
+enum ProjectRole {
+  owner
+  editor
+  viewer
+}
+
+/// Проект — единица доступа (ADR-011). Владелец выражен через ProjectMember
+/// с role=owner, отдельного ownerId нет. Удаление мягкое: deletedAt.
+model Project {
+  id        String          @id @default(uuid())
+  name      String
+  members   ProjectMember[]
+  pages     Page[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  deletedAt DateTime?
+
+  @@map("projects")
+}
+
+/// Страница внутри проекта (спека apps/api/src/pages/pages.spec.md). Дерево —
+/// через parentId (self-relation). Контент — BlockNote-док (Json). Права
+/// наследуются от проекта, своей записи доступа у страницы нет. Удаление мягкое.
+model Page {
+  id          String   @id @default(uuid())
+  projectId   String
+  parentId    String?
+  createdById String?
+  title       String
+  content     Json     @default("[]")
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    Page?   @relation("PageTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Page[]  @relation("PageTree")
+  // Автор (создатель) — для будущего байлайна при публикации. Не в публичном DTO.
+  // При удалении пользователя страница остаётся, автор обнуляется.
+  createdBy User?   @relation("PageAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([parentId])
+  @@map("pages")
+}
+
+/// Явный грант доступа: (проект, пользователь) → роль. Источник правды по
+/// владению и правам (ADR-011).
+model ProjectMember {
+  projectId String
+  userId    String
+  role      ProjectRole
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
 }
