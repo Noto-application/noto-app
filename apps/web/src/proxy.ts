@@ -13,10 +13,17 @@ function copySetCookies(target: NextResponse, source: Response): void {
   }
 }
 
-function redirectToLogin(request: NextRequest): NextResponse {
+async function logoutAndRedirect(request: NextRequest): Promise<NextResponse> {
   const response = NextResponse.redirect(new URL('/login', request.url));
-  response.cookies.set('access_token', '', { maxAge: 0, path: '/' });
-  response.cookies.set('refresh_token', '', { maxAge: 0, path: '/' });
+
+  try {
+    const logoutResponse = await apiRequest(request, '/auth/logout', 'POST');
+
+    copySetCookies(response, logoutResponse);
+  } catch {
+    // logging
+  }
+
   return response;
 }
 
@@ -53,7 +60,7 @@ export async function proxy(request: NextRequest) {
     const refreshResponse = await apiRequest(request, '/auth/refresh', 'POST');
 
     if (!refreshResponse.ok) {
-      return redirectToLogin(request);
+      return logoutAndRedirect(request);
     }
 
     const response = NextResponse.next();

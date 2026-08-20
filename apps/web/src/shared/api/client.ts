@@ -3,7 +3,29 @@ import { apiContract } from '@noto/shared/api';
 
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-export const apiBaseUrl = `${configuredApiUrl}/api`;
+export const apiBaseUrl = `${configuredApiUrl.replace(/\/$/, '')}/api`;
+
+const cookieApiFetcher: ApiFetcher = async (args) => {
+  const response = await tsRestFetchApi(args);
+
+  if (response.status !== 401 || routesWithoutRefresh.has(args.route.path)) {
+    return response;
+  }
+
+  if (await refreshAccessToken()) {
+    return tsRestFetchApi(args);
+  }
+
+  await clearAuthSession();
+  redirectToLogin();
+  return response;
+};
+
+export const apiClient = initClient(apiContract, {
+  api: cookieApiFetcher,
+  baseUrl: apiBaseUrl,
+  credentials: 'include',
+});
 
 const routesWithoutRefresh = new Set([
   '/auth/login',
@@ -47,28 +69,8 @@ async function clearAuthSession(): Promise<void> {
       credentials: 'include',
     });
   } catch {
-    // Редирект всё равно нужен: ошибка сети не должна оставлять пользователя в /app.
+    // Редирект всё равно нужен: ошибка сети
+    // не должна оставлять пользователя в /app.
+    // добавить логирование.
   }
 }
-
-const cookieApiFetcher: ApiFetcher = async (args) => {
-  const response = await tsRestFetchApi(args);
-
-  if (response.status !== 401 || routesWithoutRefresh.has(args.route.path)) {
-    return response;
-  }
-
-  if (await refreshAccessToken()) {
-    return tsRestFetchApi(args);
-  }
-
-  await clearAuthSession();
-  redirectToLogin();
-  return response;
-};
-
-export const apiClient = initClient(apiContract, {
-  api: cookieApiFetcher,
-  baseUrl: apiBaseUrl,
-  credentials: 'include',
-});
