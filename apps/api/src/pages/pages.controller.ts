@@ -3,6 +3,7 @@ import { TsRestHandler, tsRestHandler } from '@ts-rest/nest';
 import { pagesContract } from '@noto/shared';
 
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { PageAccessGuard } from '../guards/page-access.guard';
 import { ProjectAccessGuard } from '../guards/project-access.guard';
 import { RequireProjectRole } from '../guards/require-project-role.decorator';
 import { toTsRestException } from '../lib/errors';
@@ -37,6 +38,34 @@ export class PagesController {
         return { status: 200 as const, body: { pages } };
       } catch (error) {
         throw toTsRestException(error, pagesContract.list);
+      }
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, PageAccessGuard)
+  @RequireProjectRole('viewer')
+  @TsRestHandler(pagesContract.get)
+  get() {
+    return tsRestHandler(pagesContract.get, async ({ params }) => {
+      try {
+        const page = await this.pagesService.getById(params.id);
+        return { status: 200 as const, body: { page } };
+      } catch (error) {
+        throw toTsRestException(error, pagesContract.get);
+      }
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, PageAccessGuard)
+  @RequireProjectRole('editor')
+  @TsRestHandler(pagesContract.update)
+  update() {
+    return tsRestHandler(pagesContract.update, async ({ params, body }) => {
+      try {
+        const page = await this.pagesService.update(params.id, body);
+        return { status: 200 as const, body: { page } };
+      } catch (error) {
+        throw toTsRestException(error, pagesContract.update);
       }
     });
   }

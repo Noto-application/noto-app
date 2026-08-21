@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { CreatePageInput, Page } from '@noto/shared';
+import type { CreatePageInput, Page, UpdatePageInput } from '@noto/shared';
 
 import { ApiErrors } from '../lib/errors';
 import { toPublicPage } from '../lib/utils';
@@ -37,6 +37,40 @@ export class PagesService {
     });
 
     return pages.map(toPublicPage);
+  }
+
+  /** Одна живая страница по id. Доступ уже проверил PageAccessGuard. */
+  async getById(id: string): Promise<Page> {
+    const page = await this.prisma.page.findFirst({
+      where: { id, deletedAt: null },
+    });
+
+    if (!page) {
+      throw ApiErrors.notFound('Page not found');
+    }
+
+    return toPublicPage(page);
+  }
+
+  /**
+   * Частичный апдейт: только `title` и/или `content` (автосейв). Перемещение
+   * (`parentId`/`position`) — задача #47, здесь игнорируется, чтобы не сделать
+   * move без гардов на циклы/глубину.
+   */
+  async update(id: string, input: UpdatePageInput): Promise<Page> {
+    const data: Prisma.PageUpdateInput = {};
+
+    if (input.title !== undefined) {
+      data.title = input.title;
+    }
+
+    if (input.content !== undefined) {
+      data.content = input.content as Prisma.InputJsonValue;
+    }
+
+    const page = await this.prisma.page.update({ where: { id }, data });
+
+    return toPublicPage(page);
   }
 
   /**
