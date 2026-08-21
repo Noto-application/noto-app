@@ -8,12 +8,13 @@ import type { AuthenticatedRequest } from '../types/auth.types';
 import { hasMinimumProjectRole } from './project-role.utils';
 import { REQUIRE_PROJECT_ROLE_KEY } from './require-project-role.decorator';
 
-/** Имя path-параметра с id проекта в projectsContract. */
-const PROJECT_ID_PARAM = 'id';
+type RequestWithParams = AuthenticatedRequest & { params?: Record<string, string> };
 
 /**
  * Проверяет доступ к проекту по ProjectMember (ADR-011).
  * Сначала существование (404), затем членство и роль (403).
+ *
+ * `projectId` берётся из `:projectId` (коллекция pages) или `:id` (item projects).
  */
 @Injectable()
 export class ProjectAccessGuard implements CanActivate {
@@ -32,13 +33,22 @@ export class ProjectAccessGuard implements CanActivate {
       throw ApiErrors.internal('ProjectAccessGuard requires @RequireProjectRole');
     }
 
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest & { params?: Record<string, string> }>();
-    const projectId = request.params?.[PROJECT_ID_PARAM];
+    const request = context.switchToHttp().getRequest<RequestWithParams>();
+    const projectId = request.params?.projectId ?? request.params?.id;
 
     if (!projectId) {
       throw ApiErrors.validation('Project id is missing');
     }
 
+    await this.assertMemberRole(projectId, request.user.sub, requiredRole);
+    return true;
+  }
+
+  private async assertMemberRole(
+    projectId: string,
+    userId: string,
+    requiredRole: ProjectRole,
+  ): Promise<void> {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
       select: { deletedAt: true },
@@ -50,7 +60,7 @@ export class ProjectAccessGuard implements CanActivate {
 
     const membership = await this.prisma.projectMember.findUnique({
       where: {
-        projectId_userId: { projectId, userId: request.user.sub },
+        projectId_userId: { projectId, userId },
       },
       select: { role: true },
     });
@@ -62,7 +72,5 @@ export class ProjectAccessGuard implements CanActivate {
     if (!hasMinimumProjectRole(membership.role, requiredRole)) {
       throw ApiErrors.forbidden('Insufficient project role');
     }
-
-    return true;
   }
 }
