@@ -285,6 +285,37 @@ describe('Pages (e2e)', () => {
       expect(parsePage(response.body).page.position).toBe(3);
     });
 
+    it('create со сдвигом: вставка на занятую позицию двигает сиблингов', async () => {
+      const { agent, userId } = await registerUser('p-create-shift@example.com');
+      const projectId = await seedProject([{ userId, role: 'editor' }]);
+      await seedPage({ projectId, title: 'A', position: 0 });
+      await seedPage({ projectId, title: 'B', position: 1 });
+
+      await agent
+        .post(`/api/projects/${projectId}/pages`)
+        .send({ title: 'C', position: 0 })
+        .expect(201);
+
+      const response = await agent.get(`/api/projects/${projectId}/pages`).expect(200);
+      const { pages } = parsePages(response.body);
+      expect(pages.map((p) => p.title)).toEqual(['C', 'A', 'B']);
+      expect(pages.map((p) => p.position)).toEqual([0, 1, 2]);
+    });
+
+    it('стабильный порядок нескольких страниц без position (append)', async () => {
+      const { agent, userId } = await registerUser('p-create-order@example.com');
+      const projectId = await seedProject([{ userId, role: 'editor' }]);
+
+      for (const title of ['First', 'Second', 'Third']) {
+        await agent.post(`/api/projects/${projectId}/pages`).send({ title }).expect(201);
+      }
+
+      const response = await agent.get(`/api/projects/${projectId}/pages`).expect(200);
+      const { pages } = parsePages(response.body);
+      expect(pages.map((p) => p.title)).toEqual(['First', 'Second', 'Third']);
+      expect(pages.map((p) => p.position)).toEqual([0, 1, 2]);
+    });
+
     it('превышение глубины дерева (>10) → 400', async () => {
       const { agent, userId } = await registerUser('p-create-deep@example.com');
       const projectId = await seedProject([{ userId, role: 'editor' }]);
@@ -488,8 +519,7 @@ describe('Pages (e2e)', () => {
       await agent.patch(`/api/pages/${pageId}`).send({ title: 'New' }).expect(404);
     });
 
-    // move — #47 (в #48 parentId/position игнорируются)
-    it.skip('move: смена parentId → 200', async () => {
+    it('move: смена parentId → 200', async () => {
       const { agent, userId } = await registerUser('p-patch-move@example.com');
       const projectId = await seedProject([{ userId, role: 'editor' }]);
       const newParent = await seedPage({ projectId, title: 'Parent' });
@@ -502,16 +532,14 @@ describe('Pages (e2e)', () => {
       expect(parsePage(response.body).page.parentId).toBe(newParent);
     });
 
-    // move — #47 (в #48 parentId/position игнорируются)
-    it.skip('move в себя (цикл) → 400', async () => {
+    it('move в себя (цикл) → 400', async () => {
       const { agent, userId } = await registerUser('p-patch-self@example.com');
       const projectId = await seedProject([{ userId, role: 'editor' }]);
       const pageId = await seedPage({ projectId });
       await agent.patch(`/api/pages/${pageId}`).send({ parentId: pageId }).expect(400);
     });
 
-    // move — #47 (в #48 parentId/position игнорируются)
-    it.skip('move под собственного потомка (цикл) → 400', async () => {
+    it('move под собственного потомка (цикл) → 400', async () => {
       const { agent, userId } = await registerUser('p-patch-cycle@example.com');
       const projectId = await seedProject([{ userId, role: 'editor' }]);
       const parentId = await seedPage({ projectId, title: 'Parent' });
@@ -520,8 +548,7 @@ describe('Pages (e2e)', () => {
       await agent.patch(`/api/pages/${parentId}`).send({ parentId: childId }).expect(400);
     });
 
-    // move — #47 (в #48 parentId/position игнорируются)
-    it.skip('move под родителя из другого проекта → 400/404', async () => {
+    it('move под родителя из другого проекта → 400/404', async () => {
       const { agent, userId } = await registerUser('p-patch-crossmove@example.com');
       const projectId = await seedProject([{ userId, role: 'editor' }]);
       const otherProjectId = await seedProject([{ userId, role: 'editor' }]);
@@ -536,7 +563,10 @@ describe('Pages (e2e)', () => {
       const { agent, userId } = await registerUser('p-patch-badcontent@example.com');
       const projectId = await seedProject([{ userId, role: 'editor' }]);
       const pageId = await seedPage({ projectId });
-      await agent.patch(`/api/pages/${pageId}`).send({ content: { not: 'array' } }).expect(400);
+      await agent
+        .patch(`/api/pages/${pageId}`)
+        .send({ content: { not: 'array' } })
+        .expect(400);
     });
 
     it('слишком длинный title (>200) → 400', async () => {
@@ -549,21 +579,66 @@ describe('Pages (e2e)', () => {
         .expect(400);
     });
 
-    // move — #47 (в #48 parentId/position игнорируются)
-    it.skip('move: смена position → 200', async () => {
+    it('move: смена position → 200', async () => {
       const { agent, userId } = await registerUser('p-patch-position@example.com');
       const projectId = await seedProject([{ userId, role: 'editor' }]);
       const pageId = await seedPage({ projectId, position: 0 });
 
-      const response = await agent
-        .patch(`/api/pages/${pageId}`)
-        .send({ position: 5 })
-        .expect(200);
+      const response = await agent.patch(`/api/pages/${pageId}`).send({ position: 5 }).expect(200);
       expect(parsePage(response.body).page.position).toBe(5);
     });
 
-    // move — #47 (в #48 parentId/position игнорируются)
-    it.skip('move под потомка глубже лимита (>10) → 400', async () => {
+    it('move со сдвигом: вставка на позицию двигает сиблингов', async () => {
+      const { agent, userId } = await registerUser('p-patch-shift@example.com');
+      const projectId = await seedProject([{ userId, role: 'editor' }]);
+      await seedPage({ projectId, title: 'A', position: 0 });
+      await seedPage({ projectId, title: 'B', position: 1 });
+      const cId = await seedPage({ projectId, title: 'C', position: 2 });
+
+      await agent.patch(`/api/pages/${cId}`).send({ position: 0 }).expect(200);
+
+      const response = await agent.get(`/api/projects/${projectId}/pages`).expect(200);
+      const { pages } = parsePages(response.body);
+      expect(pages.map((p) => p.title)).toEqual(['C', 'A', 'B']);
+      expect(pages.map((p) => p.position)).toEqual([0, 1, 2]);
+    });
+
+    it('move поддерева (высота > 1) под глубокого родителя → 400', async () => {
+      const { agent, userId } = await registerUser('p-patch-subtree-depth@example.com');
+      const projectId = await seedProject([{ userId, role: 'editor' }]);
+
+      // Цепочка 9 уровней (L0..L8); L8 — глубина 9.
+      let parentId: string | null = null;
+      for (let depth = 0; depth < 9; depth += 1) {
+        parentId = await seedPage({ projectId, parentId, title: `L${depth}` });
+      }
+      const deepest = parentId;
+
+      // Переносимое поддерево высотой 2: P с ребёнком Q. 9 + 2 = 11 > 10 → 400
+      // (проверяет формулу с высотой поддерева, а не только перенос листа).
+      const pId = await seedPage({ projectId, title: 'P' });
+      await seedPage({ projectId, parentId: pId, title: 'Q' });
+
+      await agent.patch(`/api/pages/${pId}`).send({ parentId: deepest }).expect(400);
+    });
+
+    it('повторный move без изменений не меняет порядок (идемпотентность)', async () => {
+      const { agent, userId } = await registerUser('p-patch-noop@example.com');
+      const projectId = await seedProject([{ userId, role: 'editor' }]);
+      await seedPage({ projectId, title: 'A', position: 0 });
+      const bId = await seedPage({ projectId, title: 'B', position: 1 });
+      await seedPage({ projectId, title: 'C', position: 2 });
+
+      // B уже на position 1 — PATCH не должен сдвигать сиблингов.
+      await agent.patch(`/api/pages/${bId}`).send({ position: 1 }).expect(200);
+
+      const response = await agent.get(`/api/projects/${projectId}/pages`).expect(200);
+      const { pages } = parsePages(response.body);
+      expect(pages.map((p) => p.title)).toEqual(['A', 'B', 'C']);
+      expect(pages.map((p) => p.position)).toEqual([0, 1, 2]);
+    });
+
+    it('move под потомка глубже лимита (>10) → 400', async () => {
       const { agent, userId } = await registerUser('p-patch-deepmove@example.com');
       const projectId = await seedProject([{ userId, role: 'editor' }]);
 
