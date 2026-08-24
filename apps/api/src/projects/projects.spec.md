@@ -25,9 +25,9 @@ ts-rest контракт в `@noto/shared`. Единый shape ошибок `{ c
 | ------ | --------------- | -------------------------------- | ----------------- |
 | POST   | `/projects`     | любой авторизованный (→ `owner`) | `201 { project }` |
 | GET    | `/projects`     | участник                         | `200 { projects[] }` |
-| GET    | `/projects/:id` | участник (любая роль)            | `200 { project }` |
-| PATCH  | `/projects/:id` | `editor`+                        | `200 { project }` |
-| DELETE | `/projects/:id` | `owner`                          | `204`             |
+| GET    | `/projects/:projectId` | участник (любая роль)            | `200 { project }` |
+| PATCH  | `/projects/:projectId` | `editor`+                        | `200 { project }` |
+| DELETE | `/projects/:projectId` | `owner`                          | `204`             |
 
 Коды ошибок: `UNAUTHORIZED` 401, `FORBIDDEN` 403 (новый код), `NOT_FOUND` 404,
 `VALIDATION_ERROR` 400.
@@ -77,7 +77,7 @@ ts-rest контракт в `@noto/shared`. Единый shape ошибок `{ c
   запрашивающий удалённый проект, получает `404`, а не `403` — не раскрываем факт
   существования.
 - **Восстановление удалённого — вне scope этого модуля.** Корзина (restore) —
-  отдельная фича с выделенным эндпоинтом (`POST /projects/:id/restore` или
+  отдельная фича с выделенным эндпоинтом (`POST /projects/:projectId/restore` или
   trash-namespace) и своим доступом; обычные `get` / `patch` над удалённым
   остаются `404`.
 
