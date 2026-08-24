@@ -11,7 +11,7 @@ import { REQUIRE_PROJECT_ROLE_KEY } from './require-project-role.decorator';
 type RequestWithParams = AuthenticatedRequest & { params?: Record<string, string> };
 
 /**
- * Доступ к странице по item-роуту (`/pages/:id`). Страница наследует права от
+ * Доступ к странице по item-роуту (`/pages/:pageId`). Страница наследует права от
  * проекта (ADR-011): сначала существование (404 — нет страницы, страница или
  * её проект удалены), затем членство и роль (403). Такой порядок скрывает факт
  * существования удалённой/чужой страницы от не-участника.
@@ -36,7 +36,7 @@ export class PageAccessGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<RequestWithParams>();
-    const pageId = request.params?.id;
+    const pageId = request.params?.pageId;
 
     if (!pageId) {
       throw ApiErrors.validation('Page id is missing');
