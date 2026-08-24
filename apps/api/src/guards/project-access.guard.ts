@@ -14,7 +14,8 @@ type RequestWithParams = AuthenticatedRequest & { params?: Record<string, string
  * Проверяет доступ к проекту по ProjectMember (ADR-011).
  * Сначала существование (404), затем членство и роль (403).
  *
- * `projectId` берётся из `:projectId` (коллекция pages) или `:id` (item projects).
+ * `projectId` берётся из path-параметра `:projectId` (единое имя во всём
+ * контракте — и projects, и вложенная коллекция pages).
  */
 @Injectable()
 export class ProjectAccessGuard implements CanActivate {
@@ -34,7 +35,7 @@ export class ProjectAccessGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<RequestWithParams>();
-    const projectId = request.params?.projectId ?? request.params?.id;
+    const projectId = request.params?.projectId;
 
     if (!projectId) {
       throw ApiErrors.validation('Project id is missing');

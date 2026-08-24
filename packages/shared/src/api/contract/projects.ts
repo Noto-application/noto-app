@@ -11,7 +11,7 @@ import {
 
 const c = initContract();
 
-const idParamSchema = z.object({ id: z.uuid() });
+const projectIdParamSchema = z.object({ projectId: z.uuid() });
 
 /**
  * Projects CRUD (ADR-011; спека apps/api/src/projects/projects.spec.md).
@@ -41,8 +41,8 @@ export const projectsContract = c.router({
   },
   get: {
     method: 'GET',
-    path: '/projects/:id',
-    pathParams: idParamSchema,
+    path: '/projects/:projectId',
+    pathParams: projectIdParamSchema,
     responses: {
       200: projectResponseSchema,
       400: apiErrorSchema,
@@ -54,8 +54,8 @@ export const projectsContract = c.router({
   },
   update: {
     method: 'PATCH',
-    path: '/projects/:id',
-    pathParams: idParamSchema,
+    path: '/projects/:projectId',
+    pathParams: projectIdParamSchema,
     body: updateProjectSchema,
     responses: {
       200: projectResponseSchema,
@@ -68,8 +68,8 @@ export const projectsContract = c.router({
   },
   delete: {
     method: 'DELETE',
-    path: '/projects/:id',
-    pathParams: idParamSchema,
+    path: '/projects/:projectId',
+    pathParams: projectIdParamSchema,
     body: c.noBody(),
     responses: {
       204: c.noBody(),

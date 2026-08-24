@@ -48,7 +48,7 @@ export class PagesController {
   get() {
     return tsRestHandler(pagesContract.get, async ({ params }) => {
       try {
-        const page = await this.pagesService.getById(params.id);
+        const page = await this.pagesService.getById(params.pageId);
         return { status: 200 as const, body: { page } };
       } catch (error) {
         throw toTsRestException(error, pagesContract.get);
@@ -62,7 +62,7 @@ export class PagesController {
   update() {
     return tsRestHandler(pagesContract.update, async ({ params, body }) => {
       try {
-        const page = await this.pagesService.update(params.id, body);
+        const page = await this.pagesService.update(params.pageId, body);
         return { status: 200 as const, body: { page } };
       } catch (error) {
         throw toTsRestException(error, pagesContract.update);
