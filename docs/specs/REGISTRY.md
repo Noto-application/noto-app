@@ -11,6 +11,7 @@
 | Projects CRUD | [apps/api/src/projects/projects.spec.md](../../apps/api/src/projects/projects.spec.md) | Draft |
 | Pages CRUD | [apps/api/src/pages/pages.spec.md](../../apps/api/src/pages/pages.spec.md) | Draft |
 | Дерево страниц в сайдбаре (PageTree) | [apps/web/src/widgets/sidebar/page-tree.spec.md](../../apps/web/src/widgets/sidebar/page-tree.spec.md) | Draft |
+| Строка дерева страниц (SidebarTreeItem) | [apps/web/src/shared/ui/sidebar-tree-item.spec.md](../../apps/web/src/shared/ui/sidebar-tree-item.spec.md) | Draft |
 | Создание страницы | [apps/web/src/features/create-page/create-page.spec.md](../../apps/web/src/features/create-page/create-page.spec.md) | Draft |
 
 ## Кросс-модульные (в `docs/specs/`)
