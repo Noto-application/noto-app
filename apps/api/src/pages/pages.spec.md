@@ -29,9 +29,9 @@ ts-rest контракт в `@noto/shared` ([ADR-012](../../../../docs/adr/012-a
 | ------ | ---------------------------- | --------- | ----------------- |
 | POST   | `/projects/:projectId/pages` | `editor`+ | `201 { page }`    |
 | GET    | `/projects/:projectId/pages` | `viewer`+ | `200 { pages[] }` |
-| GET    | `/pages/:id`                 | `viewer`+ | `200 { page }`    |
-| PATCH  | `/pages/:id`                 | `editor`+ | `200 { page }`    |
-| DELETE | `/pages/:id`                 | `editor`+ | `204`             |
+| GET    | `/pages/:pageId`                 | `viewer`+ | `200 { page }`    |
+| PATCH  | `/pages/:pageId`                 | `editor`+ | `200 { page }`    |
+| DELETE | `/pages/:pageId`                 | `editor`+ | `204`             |
 
 Коды ошибок: `UNAUTHORIZED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404,
 `VALIDATION_ERROR` 400.
@@ -50,7 +50,7 @@ ts-rest контракт в `@noto/shared` ([ADR-012](../../../../docs/adr/012-a
 | `updatedAt` | `string` (ISO)   |                                                        |
 
 **Роуты — форма (решение):** коллекция вложена в проект
-(`/projects/:projectId/pages`), item — плоско (`/pages/:id`). Для item-роутов
+(`/projects/:projectId/pages`), item — плоско (`/pages/:pageId`). Для item-роутов
 `ProjectAccessGuard` резолвит `projectId` из страницы (`pageId` → `page.projectId`)
 и дальше проверяет членство/роль как в Projects.
 
@@ -139,7 +139,7 @@ guard достаёт `projectId` из страницы, находит `ProjectM
 - **Каскадный soft-delete поддерева.** Удаление страницы помечает `deletedAt` у
   неё и всех потомков; выдача их скрывает. Реперентинг детей вверх не делаем.
 - **Роуты:** коллекция вложена (`/projects/:projectId/pages`), item плоско
-  (`/pages/:id`) с резолвом проекта из страницы в guard.
+  (`/pages/:pageId`) с резолвом проекта из страницы в guard.
 - **Контент — непрозрачный JSON**, валидируем shape (массив) + размер (≤ 1 MB),
   не блоки. Лимит пересматриваемый.
 - **Автор (`createdById`) фиксируем при create**, в БД, не в публичном DTO —

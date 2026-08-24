@@ -45,7 +45,7 @@ export class ProjectsController {
   get() {
     return tsRestHandler(projectsContract.get, async ({ params }) => {
       try {
-        const project = await this.projectsService.getById(params.id);
+        const project = await this.projectsService.getById(params.projectId);
         return { status: 200 as const, body: { project } };
       } catch (error) {
         throw toTsRestException(error, projectsContract.get);
@@ -59,7 +59,7 @@ export class ProjectsController {
   update() {
     return tsRestHandler(projectsContract.update, async ({ params, body }) => {
       try {
-        const project = await this.projectsService.update(params.id, body);
+        const project = await this.projectsService.update(params.projectId, body);
         return { status: 200 as const, body: { project } };
       } catch (error) {
         throw toTsRestException(error, projectsContract.update);
@@ -73,7 +73,7 @@ export class ProjectsController {
   delete() {
     return tsRestHandler(projectsContract.delete, async ({ params }) => {
       try {
-        await this.projectsService.softDelete(params.id);
+        await this.projectsService.softDelete(params.projectId);
         return { status: 204 as const, body: undefined };
       } catch (error) {
         throw toTsRestException(error, projectsContract.delete);

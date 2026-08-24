@@ -12,7 +12,7 @@ import {
 const c = initContract();
 
 const projectIdParamSchema = z.object({ projectId: z.uuid() });
-const idParamSchema = z.object({ id: z.uuid() });
+const pageIdParamSchema = z.object({ pageId: z.uuid() });
 
 /**
  * Pages CRUD (ADR-011; спека apps/api/src/pages/pages.spec.md). Страница живёт
@@ -48,8 +48,8 @@ export const pagesContract = c.router({
   },
   get: {
     method: 'GET',
-    path: '/pages/:id',
-    pathParams: idParamSchema,
+    path: '/pages/:pageId',
+    pathParams: pageIdParamSchema,
     responses: {
       200: pageResponseSchema,
       400: apiErrorSchema,
@@ -61,8 +61,8 @@ export const pagesContract = c.router({
   },
   update: {
     method: 'PATCH',
-    path: '/pages/:id',
-    pathParams: idParamSchema,
+    path: '/pages/:pageId',
+    pathParams: pageIdParamSchema,
     body: updatePageSchema,
     responses: {
       200: pageResponseSchema,
@@ -75,8 +75,8 @@ export const pagesContract = c.router({
   },
   delete: {
     method: 'DELETE',
-    path: '/pages/:id',
-    pathParams: idParamSchema,
+    path: '/pages/:pageId',
+    pathParams: pageIdParamSchema,
     body: c.noBody(),
     responses: {
       204: c.noBody(),
