@@ -661,8 +661,7 @@ describe('Pages (e2e)', () => {
     });
   });
 
-  // DELETE — soft-delete, реализуется в #49. Скип до её мёржа.
-  describe.skip('DELETE /api/pages/:id', () => {
+  describe('DELETE /api/pages/:id', () => {
     it('без авторизации → 401', async () => {
       const { userId } = await registerUser('p-del-noauth@example.com');
       const projectId = await seedProject([{ userId, role: 'owner' }]);
