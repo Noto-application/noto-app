@@ -69,4 +69,18 @@ export class PagesController {
       }
     });
   }
+
+  @UseGuards(JwtAuthGuard, PageAccessGuard)
+  @RequireProjectRole('editor')
+  @TsRestHandler(pagesContract.delete)
+  delete() {
+    return tsRestHandler(pagesContract.delete, async ({ params }) => {
+      try {
+        await this.pagesService.softDelete(params.pageId);
+        return { status: 204 as const, body: undefined };
+      } catch (error) {
+        throw toTsRestException(error, pagesContract.delete);
+      }
+    });
+  }
 }

@@ -111,6 +111,32 @@ export class PagesService {
     return this.runInSerializableTx((tx) => this.moveInTree(tx, id, input));
   }
 
+  /**
+   * Soft-delete страницы и всего её поддерева. Сбор id + updateMany — в
+   * serializable-транзакции, иначе конкурентный create/move может оставить
+   * живого ребёнка под уже удалённым родителем.
+   * Доступ уже проверил PageAccessGuard.
+   */
+  async softDelete(id: string): Promise<void> {
+    await this.runInSerializableTx(async (tx) => {
+      const page = await tx.page.findFirst({
+        where: { id, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (!page) {
+        throw ApiErrors.notFound('Page not found');
+      }
+
+      const ids = await this.collectSubtreeIds(tx, id);
+
+      await tx.page.updateMany({
+        where: { id: { in: ids }, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+    });
+  }
+
   /** Обновление без перемещения (title/content, автосейв). */
   private async applyContentUpdate(id: string, input: UpdatePageInput): Promise<Page> {
     const data: Prisma.PageUncheckedUpdateInput = {};
@@ -270,6 +296,26 @@ export class PagesService {
     });
 
     return (last._max.position ?? -1) + 1;
+  }
+
+  /** Id корня и всех живых потомков (BFS вниз по parentId). */
+  private async collectSubtreeIds(
+    tx: Prisma.TransactionClient,
+    rootId: string,
+  ): Promise<string[]> {
+    const ids = [rootId];
+    let frontier = [rootId];
+
+    while (frontier.length > 0) {
+      const children = await tx.page.findMany({
+        where: { parentId: { in: frontier }, deletedAt: null },
+        select: { id: true },
+      });
+      frontier = children.map((child) => child.id);
+      ids.push(...frontier);
+    }
+
+    return ids;
   }
 
   /** Высота поддерева (число уровней; лист = 1), обход вниз по parentId. */
