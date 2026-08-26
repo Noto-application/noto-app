@@ -1,6 +1,6 @@
 # Spec: Pages data layer
 
-**Статус:** Draft  
+**Статус:** Ready
 **Дата:** 2026-08-25  
 **Связанные:** [ADR-003](../../../../../docs/adr/003-authentication.md), [ADR-004](../../../../../docs/adr/004-data-fetching.md), [ADR-005](../../../../../docs/adr/005-state-management.md), [ADR-012](../../../../../docs/adr/012-api-contract.md), [ADR-013](../../../../../docs/adr/013-spec-driven-development.md), issue #53
 
@@ -52,13 +52,13 @@ ADR-003. Новый HTTP-клиент не создаётся.
 вызывают методы `apiClient.pages.*`. Они извлекают тела успешных ts-rest
 ответов и не дублируют контракт или транспорт.
 
-| Функция | ts-rest маршрут | Результат |
-| --- | --- | --- |
-| `getPagesList(projectId: string)` | `pages.list` (`GET /projects/:projectId/pages`) | `Promise<Page[]>` |
-| `getPage(id: string)` | `pages.get` (`GET /pages/:pageId`) | `Promise<Page \| undefined>` |
-| `createPage(projectId: string, input: CreatePageInput)` | `pages.create` | `Promise<Page>`; заготовка для последующей mutation |
-| `updatePage(id: string, input: UpdatePageInput)` | `pages.update` | `Promise<Page>`; заготовка для последующей mutation |
-| `deletePage(id: string)` | `pages.delete` | `Promise<void>`; заготовка для последующей mutation |
+| Функция                                                 | ts-rest маршрут                                 | Результат                                           |
+| ------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------- |
+| `getPagesList(projectId: string)`                       | `pages.list` (`GET /projects/:projectId/pages`) | `Promise<Page[]>`                                   |
+| `getPage(id: string)`                                   | `pages.get` (`GET /pages/:pageId`)              | `Promise<Page \| undefined>`                        |
+| `createPage(projectId: string, input: CreatePageInput)` | `pages.create`                                  | `Promise<Page>`; заготовка для последующей mutation |
+| `updatePage(id: string, input: UpdatePageInput)`        | `pages.update`                                  | `Promise<Page>`; заготовка для последующей mutation |
+| `deletePage(id: string)`                                | `pages.delete`                                  | `Promise<void>`; заготовка для последующей mutation |
 
 `getPagesList` возвращает массив из поля `{ pages }` успешного ответа. Пустой
 проект — успешный результат `[]`.
@@ -79,11 +79,11 @@ Query как ошибка запроса: адаптер преобразует 
 ### Query keys и read-only hooks
 
 ```ts
-pageKeys.list(projectId)   // ['pages', 'list', projectId]
-pageKeys.detail(id)        // ['pages', 'detail', id]
+pageKeys.list(projectId); // ['pages', 'list', projectId]
+pageKeys.detail(id); // ['pages', 'detail', id]
 
-usePagesList(projectId)    // useQuery<Page[]>
-usePage(id)                // useQuery<Page | null>
+usePagesList(projectId); // useQuery<Page[]>
+usePage(id); // useQuery<Page | null>
 ```
 
 `usePagesList` использует `pageKeys.list(projectId)` и возвращает список
@@ -135,16 +135,16 @@ function buildPageTree(pages: readonly PageTreeSource[]): PageTreeNode[];
 
 ## Крайние случаи
 
-| Случай | Ожидаемое поведение |
-| --- | --- |
-| В проекте нет страниц | `getPagesList` и `usePagesList` успешно возвращают `[]`. |
-| У страницы нет родителя | Узел находится среди корней. |
-| Родитель расположен после ребёнка в ответе | Ребёнок всё равно вложен в этого родителя. |
-| Равные `position` у siblings | Сохраняется порядок исходного API-ответа. |
-| Duplicate `id`, orphan `parentId` или цикл | `buildPageTree` завершает работу ошибкой и не возвращает частичное дерево. |
-| Запрошенная страница не существует или удалена | `getPage` возвращает `undefined`, `usePage` — `null`, без query error. |
-| `401` | Общий API-клиент выполняет refresh; при неуспехе очищает сессию и перенаправляет на `/login`. |
-| `403`, ошибка сети или другой API-ответ | Не преобразуется в пустые данные; query переходит в error state. |
+| Случай                                         | Ожидаемое поведение                                                                           |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| В проекте нет страниц                          | `getPagesList` и `usePagesList` успешно возвращают `[]`.                                      |
+| У страницы нет родителя                        | Узел находится среди корней.                                                                  |
+| Родитель расположен после ребёнка в ответе     | Ребёнок всё равно вложен в этого родителя.                                                    |
+| Равные `position` у siblings                   | Сохраняется порядок исходного API-ответа.                                                     |
+| Duplicate `id`, orphan `parentId` или цикл     | `buildPageTree` завершает работу ошибкой и не возвращает частичное дерево.                    |
+| Запрошенная страница не существует или удалена | `getPage` возвращает `undefined`, `usePage` — `null`, без query error.                        |
+| `401`                                          | Общий API-клиент выполняет refresh; при неуспехе очищает сессию и перенаправляет на `/login`. |
+| `403`, ошибка сети или другой API-ответ        | Не преобразуется в пустые данные; query переходит в error state.                              |
 
 ## Взаимодействия
 
