@@ -1,6 +1,1 @@
-export type Page = {
-  id: string;
-  title: string;
-  projectId: string;
-  parentId: string | null;
-};
+export type { Page } from '@noto/shared';

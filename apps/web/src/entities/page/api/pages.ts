@@ -1,20 +1,66 @@
-import type { Page } from '../model/types';
-import { pageFixtures } from './fixtures';
+import type { CreatePageInput, Page, UpdatePageInput } from '@noto/shared';
+
+import { apiClient, toApiClientError } from '../../../shared/api';
 
 export const pageKeys = {
-  byProject: (projectId: string) => ['pages', 'project', projectId] as const,
-  detail: (id: string) => ['pages', id] as const,
+  list: (projectId: string) => ['pages', 'list', projectId] as const,
+  detail: (id: string) => ['pages', 'detail', id] as const,
 };
 
-export function getPagesByProject(projectId: string): Promise<Page[]> {
-  return Promise.resolve(pageFixtures.filter((page) => page.projectId === projectId));
+export async function getPagesList(projectId: string): Promise<Page[]> {
+  const response = await apiClient.pages.list({ params: { projectId } });
+
+  if (response.status !== 200) {
+    throw toApiClientError(response.body);
+  }
+
+  return response.body.pages;
 }
 
-/**
- * Неизвестный id → undefined, не throw — тот же контракт, что и у
- * entities/project/api/projects.ts: при переходе на реальный API 404
- * маппится сюда же, не пробрасывается как ошибка.
- */
-export function getPage(id: string): Promise<Page | undefined> {
-  return Promise.resolve(pageFixtures.find((page) => page.id === id));
+export async function getPage(id: string): Promise<Page | undefined> {
+  const response = await apiClient.pages.get({ params: { pageId: id } });
+
+  if (response.status === 404) {
+    return undefined;
+  }
+
+  if (response.status !== 200) {
+    throw toApiClientError(response.body);
+  }
+
+  return response.body.page;
+}
+
+export async function createPage(projectId: string, input: CreatePageInput): Promise<Page> {
+  const response = await apiClient.pages.create({
+    params: { projectId },
+    body: input,
+  });
+
+  if (response.status !== 201) {
+    throw toApiClientError(response.body);
+  }
+
+  return response.body.page;
+}
+
+export async function updatePage(id: string, input: UpdatePageInput): Promise<Page> {
+  const response = await apiClient.pages.update({
+    params: { pageId: id },
+    body: input,
+  });
+
+  if (response.status !== 200) {
+    throw toApiClientError(response.body);
+  }
+
+  return response.body.page;
+}
+
+export async function deletePage(id: string): Promise<void> {
+  const response = await apiClient.pages.delete({ params: { pageId: id } });
+
+  if (response.status !== 204) {
+    throw toApiClientError(response.body);
+  }
 }

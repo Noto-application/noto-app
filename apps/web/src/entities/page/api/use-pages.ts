@@ -2,11 +2,11 @@
 
 import { useQuery } from '@tanstack/react-query';
 
-import { getPagesByProject, pageKeys } from './pages';
+import { getPagesList, pageKeys } from './pages';
 
-export function usePages(projectId: string) {
+export function usePagesList(projectId: string) {
   return useQuery({
-    queryKey: pageKeys.byProject(projectId),
-    queryFn: () => getPagesByProject(projectId),
+    queryKey: pageKeys.list(projectId),
+    queryFn: () => getPagesList(projectId),
   });
 }
