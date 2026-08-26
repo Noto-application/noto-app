@@ -36,15 +36,19 @@ export function PageTree({ projectId }: { projectId: string }): ReactNode;
   на `/app` параметра нет.
 - Данные — `usePagesList(projectId)`, дерево — `buildPageTree(pages)`, узлы —
   `SidebarTreeItem` из `shared/ui`.
-- Порядок узлов задаёт `buildPageTree` (#53), виджет не сортирует.
+- Плоский список приходит отсортированным: бэкенд отдаёт `list` по `position`
+  (вторичный ключ `createdAt`, см. `apps/api/src/pages/pages.spec.md`).
+  `buildPageTree` (#53) сохраняет этот порядок; ни он, ни виджет не сортируют.
 - Раскрытие — `useSidebarStore.collapsedPageIds: Set<string>` +
-  `togglePage(pageId)` (расширение стора). Хранятся **свёрнутые** узлы: по
-  умолчанию дерево раскрыто целиком.
+  `togglePage(pageId)` и `expandPages(pageIds)` (расширение стора). Хранятся
+  **свёрнутые** узлы: по умолчанию дерево раскрыто целиком.
 - `collapsedPageIds` живёт в памяти вкладки, в `localStorage` не сохраняется;
   при смене проекта не очищается.
-- Раскрытие предков активной страницы **очищает** `collapsedPageIds`, а не
-  подменяет состояние при рендере: иначе шеврон показывал бы «раскрыто», а клик
-  по нему не сворачивал бы узел.
+- Раскрытие предков активной страницы **очищает** `collapsedPageIds` через
+  `expandPages`, а не подменяет состояние при рендере: иначе шеврон показывал бы
+  «раскрыто», а клик по нему не сворачивал бы узел. Отдельное действие нужно
+  потому, что `togglePage` не идемпотентен — на уже раскрытом предке он сработал
+  бы наоборот.
 
 **Разметка и доступность.** Навигация с раскрытием, не ARIA-дерево:
 `<nav aria-label="Страницы">` со вложенными списками, дети узла — вложенный
@@ -96,7 +100,7 @@ export function PageTree({ projectId }: { projectId: string }): ReactNode;
 `pageId`/`projectId` — URL, список страниц — TanStack Query, свёрнутые узлы —
 Zustand (`useSidebarStore`).
 
-`togglePage` покрывается отдельным тестом (тест-первым) в
+`togglePage` и `expandPages` покрываются отдельными тестами (тест-первым) в
 `use-sidebar-store.test.ts`.
 
 Кнопка «Создать страницу» в пустом состоянии приходит из `features/create-page`.
