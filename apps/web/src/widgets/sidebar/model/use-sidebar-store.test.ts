@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useSidebarStore } from './use-sidebar-store';
 
+/** Восстановление целиком: перечисленные руками поля однажды забудут
+ *  дополнить, и состояние потечёт между тестами. */
+const initialState = useSidebarStore.getState();
+
 function resetStore() {
-  useSidebarStore.setState({
-    expandedProjectIds: new Set(),
-    collapsedPageIds: new Set(),
-    isDrawerOpen: false,
-  });
+  useSidebarStore.setState(initialState, true);
 }
 
 describe('useSidebarStore', () => {
@@ -52,6 +52,50 @@ describe('useSidebarStore', () => {
     const { collapsedPageIds } = useSidebarStore.getState();
     expect(collapsedPageIds.has('page-1')).toBe(true);
     expect(collapsedPageIds.has('page-2')).toBe(false);
+  });
+
+  /** `togglePage` для раскрытия предков не годится: свернул бы те, что уже
+   *  раскрыты. */
+  it('expandPages убирает переданные страницы из свёрнутых', () => {
+    useSidebarStore.setState({ collapsedPageIds: new Set(['page-1', 'page-2']) });
+
+    useSidebarStore.getState().expandPages(['page-1', 'page-2']);
+
+    expect(useSidebarStore.getState().collapsedPageIds.size).toBe(0);
+  });
+
+  it('expandPages не трогает страницы, которых нет в списке', () => {
+    useSidebarStore.setState({ collapsedPageIds: new Set(['page-1', 'page-3']) });
+
+    useSidebarStore.getState().expandPages(['page-1']);
+
+    const { collapsedPageIds } = useSidebarStore.getState();
+    expect(collapsedPageIds.has('page-1')).toBe(false);
+    expect(collapsedPageIds.has('page-3')).toBe(true);
+  });
+
+  it('expandPages идемпотентен: раскрытие уже раскрытых ничего не меняет', () => {
+    useSidebarStore.setState({ collapsedPageIds: new Set(['page-3']) });
+
+    useSidebarStore.getState().expandPages(['page-1']);
+    useSidebarStore.getState().expandPages(['page-1']);
+
+    const { collapsedPageIds } = useSidebarStore.getState();
+    expect(collapsedPageIds.has('page-1')).toBe(false);
+    expect(collapsedPageIds.has('page-3')).toBe(true);
+  });
+
+  /** `toBe`, а не `toEqual`: новый `Set` с тем же содержимым Zustand считает
+   *  изменением и перерисовывает подписчиков. */
+  it('expandPages не трогает состояние, когда раскрывать нечего', () => {
+    useSidebarStore.setState({ collapsedPageIds: new Set(['page-1']) });
+    const before = useSidebarStore.getState().collapsedPageIds;
+
+    useSidebarStore.getState().expandPages([]);
+    expect(useSidebarStore.getState().collapsedPageIds).toBe(before);
+
+    useSidebarStore.getState().expandPages(['page-2']);
+    expect(useSidebarStore.getState().collapsedPageIds).toBe(before);
   });
 
   it('togglePage не пересекается с раскрытием проектов', () => {

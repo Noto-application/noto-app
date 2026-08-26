@@ -1,3 +1,4 @@
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import react from '@vitejs/plugin-react';
@@ -7,7 +8,9 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('.', import.meta.url)),
+      // Дублирует `paths` из tsconfig. `dirname`, а не `new URL('.')`: тот
+      // отдаёт путь с хвостовым слэшем, и импорт разворачивается в двойной.
+      '@': dirname(fileURLToPath(import.meta.url)),
     },
   },
   test: {

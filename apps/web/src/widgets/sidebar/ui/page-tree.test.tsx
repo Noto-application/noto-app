@@ -26,11 +26,6 @@ vi.mock('@/src/entities/page', () => ({
   buildPageTree: buildPageTreeMock,
 }));
 
-/**
- * Мок повторяет ARIA-контракт строки из sidebar-tree-item.spec.md: шеврон —
- * отдельная кнопка с `aria-expanded`, заголовок — ссылка с `aria-current`.
- * Иначе тесты проверяли бы пропсы, а не разметку, которую увидит скринридер.
- */
 type BranchState = { hasChildren: false } | { hasChildren: true; isExpanded: boolean };
 
 type ItemProps = BranchState & {
@@ -41,6 +36,10 @@ type ItemProps = BranchState & {
   onToggle?: () => void;
 };
 
+/**
+ * Мок повторяет ARIA-контракт строки (sidebar-tree-item.spec.md), чтобы тесты
+ * проверяли разметку, которую увидит скринридер, а не переданные пропсы.
+ */
 vi.mock('@/src/shared/ui/sidebar-tree-item', () => ({
   SidebarTreeItem: (props: ItemProps) => (
     <span data-depth={props.depth}>
@@ -64,10 +63,8 @@ vi.mock('@/src/shared/ui/sidebar-tree-item', () => ({
 type TreeNode = { id: string; title: string; children: TreeNode[] };
 
 /**
- * Плоский список и дерево должны описывать одни и те же страницы: раскрытие
- * предков активной страницы идёт по `parentId` из плоского списка, а рендер —
- * по дереву. Поэтому `mockTree` разворачивает дерево обратно в плоский вид,
- * а не подставляет отдельную фикстуру.
+ * Плоский список и дерево обязаны описывать одни и те же страницы: раскрытие
+ * предков идёт по `parentId` из плоского списка, а рендер — по дереву.
  */
 function flatten(nodes: TreeNode[], parentId: string | null = null) {
   return nodes.flatMap((node): { id: string; title: string; parentId: string | null }[] => [
@@ -110,12 +107,16 @@ function threeLevels(): TreeNode[] {
   ];
 }
 
+/** Восстановление целиком: перечисленные руками поля однажды забудут
+ *  дополнить, и состояние потечёт между тестами. */
+const initialSidebarState = useSidebarStore.getState();
+
 beforeEach(() => {
   usePagesListMock.mockReset();
   buildPageTreeMock.mockReset();
   useParamsMock.mockReset();
   useParamsMock.mockReturnValue({ pageId: undefined });
-  useSidebarStore.setState({ collapsedPageIds: new Set() });
+  useSidebarStore.setState(initialSidebarState, true);
 });
 
 describe('PageTree', () => {
@@ -315,11 +316,8 @@ describe('PageTree', () => {
     expect(screen.getByRole('link', { name: 'Идеи' })).toBeInTheDocument();
   });
 
-  /**
-   * Переход по прямой ссылке на вложенную страницу: предки убираются из
-   * `collapsedPageIds` (цепочка `parentId` берётся из плоского списка), иначе
-   * активная страница остаётся невидимой в дереве.
-   */
+  /** Цепочка предков берётся по `parentId` из плоского списка: без раскрытия
+   *  активная страница осталась бы невидимой в дереве. */
   it('раскрывает свёрнутых предков активной страницы', () => {
     useParamsMock.mockReturnValue({ pageId: 'page-2' });
     useSidebarStore.setState({ collapsedPageIds: new Set(['page-1']) });
@@ -331,11 +329,8 @@ describe('PageTree', () => {
     expect(useSidebarStore.getState().collapsedPageIds.has('page-1')).toBe(false);
   });
 
-  /**
-   * Обратная сторона того же правила: предки раскрываются на **переходе**, а не
-   * на каждом рендере. Иначе шеврон на ветке с активной страницей становится
-   * нерабочим — свернул, а оно тут же раскрылось обратно.
-   */
+  /** Предки раскрываются на переходе, а не на каждом рендере: иначе шеврон на
+   *  ветке с активной страницей нерабочий — свернул, оно раскрылось обратно. */
   it('не мешает свернуть родителя, находясь на его потомке', async () => {
     const user = userEvent.setup();
     useParamsMock.mockReturnValue({ pageId: 'page-2' });
