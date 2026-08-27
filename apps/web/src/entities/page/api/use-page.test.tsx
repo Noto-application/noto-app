@@ -5,10 +5,12 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { apiClient } from '../../../shared/api';
+import { apiClient } from '@/src/shared/api';
 
 import { pageKeys } from './pages';
 import { usePage } from './use-page';
+
+type PageResponse = Awaited<ReturnType<typeof apiClient.pages.get>>;
 
 const page: Page = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -42,7 +44,8 @@ describe('usePage', () => {
     const get = vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
       status: 200,
       body: { page },
-    } as never);
+      headers: new Headers(),
+    } satisfies PageResponse);
     const { queryClient, Wrapper } = createWrapper();
 
     const { result } = renderHook(() => usePage(page.id), { wrapper: Wrapper });
@@ -58,7 +61,8 @@ describe('usePage', () => {
     vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
       status: 404,
       body: { code: 'NOT_FOUND', message: 'Not found' },
-    } as never);
+      headers: new Headers(),
+    } satisfies PageResponse);
     const { Wrapper } = createWrapper();
 
     const { result } = renderHook(() => usePage(page.id), { wrapper: Wrapper });
@@ -73,7 +77,8 @@ describe('usePage', () => {
     vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
       status: 403,
       body: { code: 'FORBIDDEN', message: 'Forbidden' },
-    } as never);
+      headers: new Headers(),
+    } satisfies PageResponse);
     const { Wrapper } = createWrapper();
 
     const { result } = renderHook(() => usePage(page.id), { wrapper: Wrapper });

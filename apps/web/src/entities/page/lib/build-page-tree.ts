@@ -30,22 +30,14 @@ export function buildPageTree(pages: readonly PageTreeSource[]): PageTreeNode[] 
   const roots: PageTreeNode[] = [];
 
   for (const page of pages) {
-    const node = nodesById.get(page.id);
-
-    if (!node) {
-      throw new Error(`Page node was not created: ${page.id}`);
-    }
+    const node = nodesById.get(page.id)!;
 
     if (page.parentId === null) {
       roots.push(node);
       continue;
     }
 
-    const parent = nodesById.get(page.parentId);
-
-    if (!parent) {
-      throw new Error(`Parent page not found: ${page.parentId}`);
-    }
+    const parent = nodesById.get(page.parentId)!;
 
     parent.children.push(node);
   }
@@ -69,10 +61,11 @@ function assertPageHierarchyIsValid(
       }
 
       visitedIds.add(currentPage.id);
-      currentPage = pagesById.get(currentPage.parentId);
+      const parentId = currentPage.parentId;
+      currentPage = pagesById.get(parentId);
 
       if (!currentPage) {
-        throw new Error(`Parent page not found: ${page.parentId}`);
+        throw new Error(`Parent page not found: ${parentId}`);
       }
     }
   }
@@ -89,7 +82,7 @@ function sortTreeByPosition(
       return positionDifference;
     }
 
-    return (inputOrderById.get(first.id) ?? 0) - (inputOrderById.get(second.id) ?? 0);
+    return inputOrderById.get(first.id)! - inputOrderById.get(second.id)!;
   });
 
   for (const node of nodes) {

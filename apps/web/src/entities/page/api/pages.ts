@@ -1,6 +1,6 @@
 import type { CreatePageInput, Page, UpdatePageInput } from '@noto/shared';
 
-import { apiClient, toApiClientError } from '../../../shared/api';
+import { apiClient, toApiClientError } from '@/src/shared/api';
 
 export const pageKeys = {
   list: (projectId: string) => ['pages', 'list', projectId] as const,

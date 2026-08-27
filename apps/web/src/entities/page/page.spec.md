@@ -83,16 +83,20 @@ pageKeys.list(projectId); // ['pages', 'list', projectId]
 pageKeys.detail(id); // ['pages', 'detail', id]
 
 usePagesList(projectId); // useQuery<Page[]>
+usePageTree(projectId); // useQuery<PageTreeNode[]>
 usePage(id); // useQuery<Page | null>
 ```
 
 `usePagesList` использует `pageKeys.list(projectId)` и возвращает список
-страниц текущего проекта. `usePage` использует `pageKeys.detail(id)` и
-преобразует `undefined` из API-функции в `null`: TanStack Query не допускает
-`undefined` как успешное значение query.
+страниц текущего проекта. `usePageTree` использует тот же query key и получает
+дерево через `select: buildPageTree`; плоский список остаётся в query cache.
+Если API вернёт неконсистентную иерархию, query переходит в error state. `usePage`
+использует `pageKeys.detail(id)` и преобразует `undefined` из API-функции в
+`null`: TanStack Query не допускает `undefined` как успешное значение query.
 
 Имя `usePages` не является частью итогового публичного API entity. Внешние
-потребители импортируют `usePagesList` и `usePage` из `entities/page`.
+потребители импортируют `usePagesList`, `usePageTree` и `usePage` из
+`entities/page`.
 
 ### Дерево страниц
 
@@ -125,8 +129,9 @@ function buildPageTree(pages: readonly PageTreeSource[]): PageTreeNode[];
 1. `usePagesList(projectId)` загружает плоский список через
    `apiClient.pages.list` и хранит server state в TanStack Query по ключу
    `pages.list(projectId)`.
-2. Потребитель передаёт полученный список в `buildPageTree` и получает
-   упорядоченные корневые узлы с рекурсивными `children`.
+2. `usePageTree(projectId)` преобразует загруженный список через
+   `buildPageTree` и возвращает упорядоченные корневые узлы с рекурсивными
+   `children`, не заменяя плоский список в query cache.
 3. `usePage(id)` запрашивает страницу по `apiClient.pages.get`; для
    неизвестной или удалённой страницы hook успешно возвращает `null`.
 4. Список и метаданные страниц используются последующими UI-задачами. Выбор

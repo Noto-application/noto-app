@@ -4,6 +4,7 @@ import { buildPageTree, type PageTreeSource } from './build-page-tree';
 const invalidPageLists: ReadonlyArray<{
   caseName: string;
   pages: PageTreeSource[];
+  errorPattern: RegExp;
 }> = [
   {
     caseName: 'duplicate ids',
@@ -11,10 +12,12 @@ const invalidPageLists: ReadonlyArray<{
       { id: 'duplicate', parentId: null, position: 0, title: 'First' },
       { id: 'duplicate', parentId: null, position: 1, title: 'Second' },
     ],
+    errorPattern: /duplicate page id/i,
   },
   {
     caseName: 'an orphan parent id',
     pages: [{ id: 'orphan', parentId: 'missing', position: 0, title: 'Orphan' }],
+    errorPattern: /parent page not found/i,
   },
   {
     caseName: 'a cycle',
@@ -22,10 +25,12 @@ const invalidPageLists: ReadonlyArray<{
       { id: 'first', parentId: 'second', position: 0, title: 'First' },
       { id: 'second', parentId: 'first', position: 0, title: 'Second' },
     ],
+    errorPattern: /cycle/i,
   },
   {
     caseName: 'a self-referencing cycle',
     pages: [{ id: 'self', parentId: 'self', position: 0, title: 'Self' }],
+    errorPattern: /cycle/i,
   },
 ];
 
@@ -114,9 +119,18 @@ describe('buildPageTree', () => {
     expect(pages.every((page) => !('children' in page))).toBe(true);
   });
 
-  for (const { caseName, pages } of invalidPageLists) {
+  it('reports the missing ancestor id for a nested orphan', () => {
+    const pages: PageTreeSource[] = [
+      { id: 'child', parentId: 'parent', position: 0, title: 'Child' },
+      { id: 'parent', parentId: 'missing', position: 0, title: 'Parent' },
+    ];
+
+    expect(() => buildPageTree(pages)).toThrow('Parent page not found: missing');
+  });
+
+  for (const { caseName, pages, errorPattern } of invalidPageLists) {
     it(`throws for ${caseName}`, () => {
-      expect(() => buildPageTree(pages)).toThrow();
+      expect(() => buildPageTree(pages)).toThrow(errorPattern);
     });
   }
 });
