@@ -1,3 +1,5 @@
 export type { Page } from './model/types';
 export { usePage } from './api/use-page';
-export { usePages } from './api/use-pages';
+export { usePageTree } from './api/use-page-tree';
+export { usePagesList } from './api/use-pages';
+export { buildPageTree, type PageTreeNode, type PageTreeSource } from './lib/build-page-tree';

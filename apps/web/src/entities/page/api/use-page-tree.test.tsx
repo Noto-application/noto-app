@@ -8,11 +8,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '@/src/shared/api';
 
 import { pageKeys } from './pages';
-import { usePagesList } from './use-pages';
+import { usePageTree } from './use-page-tree';
 
 type PagesListResponse = Awaited<ReturnType<typeof apiClient.pages.list>>;
 
-const page: Page = {
+const rootPage: Page = {
   id: '00000000-0000-4000-8000-000000000001',
   projectId: '00000000-0000-4000-8000-000000000002',
   parentId: null,
@@ -21,6 +21,14 @@ const page: Page = {
   position: 0,
   createdAt: '2026-08-25T00:00:00.000Z',
   updatedAt: '2026-08-25T00:00:00.000Z',
+};
+
+const childPage: Page = {
+  ...rootPage,
+  id: '00000000-0000-4000-8000-000000000003',
+  parentId: rootPage.id,
+  title: 'Child page',
+  position: 1,
 };
 
 function createWrapper() {
@@ -39,51 +47,52 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('usePagesList', () => {
-  it('loads pages and caches them under the list key', async () => {
-    const list = vi.spyOn(apiClient.pages, 'list').mockResolvedValue({
+describe('usePageTree', () => {
+  it('selects a page tree without replacing the cached page list', async () => {
+    const pages = [childPage, rootPage];
+    vi.spyOn(apiClient.pages, 'list').mockResolvedValue({
       status: 200,
-      body: { pages: [page] },
+      body: { pages },
       headers: new Headers(),
     } satisfies PagesListResponse);
     const { queryClient, Wrapper } = createWrapper();
 
-    const { result } = renderHook(() => usePagesList(page.projectId), { wrapper: Wrapper });
+    const { result } = renderHook(() => usePageTree(rootPage.projectId), { wrapper: Wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(result.current.data).toEqual([page]);
-    expect(queryClient.getQueryData(pageKeys.list(page.projectId))).toEqual([page]);
-    expect(list).toHaveBeenCalledWith({ params: { projectId: page.projectId } });
+    expect(result.current.data).toMatchObject([
+      {
+        id: rootPage.id,
+        parentId: null,
+        position: 0,
+        title: 'Overview',
+        children: [
+          {
+            id: childPage.id,
+            parentId: rootPage.id,
+            position: 1,
+            title: 'Child page',
+            children: [],
+          },
+        ],
+      },
+    ]);
+    expect(queryClient.getQueryData(pageKeys.list(rootPage.projectId))).toEqual(pages);
   });
 
-  it('resolves to an empty list for a project without pages', async () => {
+  it('exposes an invalid hierarchy as a query error', async () => {
     vi.spyOn(apiClient.pages, 'list').mockResolvedValue({
       status: 200,
-      body: { pages: [] },
+      body: { pages: [{ ...childPage, parentId: 'missing' }] },
       headers: new Headers(),
     } satisfies PagesListResponse);
     const { Wrapper } = createWrapper();
 
-    const { result } = renderHook(() => usePagesList(page.projectId), { wrapper: Wrapper });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(result.current.data).toEqual([]);
-  });
-
-  it('exposes API errors as a query error', async () => {
-    vi.spyOn(apiClient.pages, 'list').mockResolvedValue({
-      status: 403,
-      body: { code: 'FORBIDDEN', message: 'Forbidden' },
-      headers: new Headers(),
-    } satisfies PagesListResponse);
-    const { Wrapper } = createWrapper();
-
-    const { result } = renderHook(() => usePagesList(page.projectId), { wrapper: Wrapper });
+    const { result } = renderHook(() => usePageTree(rootPage.projectId), { wrapper: Wrapper });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
 
-    expect(result.current.error).toMatchObject({ code: 'FORBIDDEN' });
+    expect(result.current.error).toMatchObject({ message: 'Parent page not found: missing' });
   });
 });

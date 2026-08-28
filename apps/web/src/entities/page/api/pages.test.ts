@@ -1,36 +1,181 @@
-import { describe, expect, it } from 'vitest';
+import type { CreatePageInput, Page, UpdatePageInput } from '@noto/shared';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getPage, getPagesByProject } from './pages';
+import { apiClient } from '@/src/shared/api';
 
-describe('getPagesByProject', () => {
-  it('возвращает только страницы, принадлежащие данному проекту', async () => {
-    const pages = await getPagesByProject('project-1');
+import { createPage, deletePage, getPage, getPagesList, pageKeys, updatePage } from './pages';
 
-    expect(pages.length).toBeGreaterThan(0);
-    for (const page of pages) {
-      expect(page.projectId).toBe('project-1');
-    }
+type PagesListResponse = Awaited<ReturnType<typeof apiClient.pages.list>>;
+type PageResponse = Awaited<ReturnType<typeof apiClient.pages.get>>;
+type CreatePageResponse = Awaited<ReturnType<typeof apiClient.pages.create>>;
+type UpdatePageResponse = Awaited<ReturnType<typeof apiClient.pages.update>>;
+type DeletePageResponse = Awaited<ReturnType<typeof apiClient.pages.delete>>;
+
+const page: Page = {
+  id: '00000000-0000-4000-8000-000000000001',
+  projectId: '00000000-0000-4000-8000-000000000002',
+  parentId: null,
+  title: 'Overview',
+  content: [],
+  position: 0,
+  createdAt: '2026-08-25T00:00:00.000Z',
+  updatedAt: '2026-08-25T00:00:00.000Z',
+};
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('pageKeys', () => {
+  it('creates the contract query keys', () => {
+    expect(pageKeys.list('project-id')).toEqual(['pages', 'list', 'project-id']);
+    expect(pageKeys.detail('page-id')).toEqual(['pages', 'detail', 'page-id']);
+  });
+});
+
+describe('getPagesList', () => {
+  it('returns pages from the successful API response', async () => {
+    const list = vi.spyOn(apiClient.pages, 'list').mockResolvedValue({
+      status: 200,
+      body: { pages: [page] },
+      headers: new Headers(),
+    } satisfies PagesListResponse);
+
+    await expect(getPagesList(page.projectId)).resolves.toEqual([page]);
+    expect(list).toHaveBeenCalledWith({ params: { projectId: page.projectId } });
   });
 
-  it('возвращает пустой список для проекта без страниц', async () => {
-    const pages = await getPagesByProject('a-project-id-with-no-pages');
+  it('returns an empty list from a successful empty response', async () => {
+    vi.spyOn(apiClient.pages, 'list').mockResolvedValue({
+      status: 200,
+      body: { pages: [] },
+      headers: new Headers(),
+    } satisfies PagesListResponse);
 
-    expect(pages).toEqual([]);
+    await expect(getPagesList(page.projectId)).resolves.toEqual([]);
+  });
+
+  it('throws an API error for an unsuccessful response', async () => {
+    vi.spyOn(apiClient.pages, 'list').mockResolvedValue({
+      status: 403,
+      body: { code: 'FORBIDDEN', message: 'Forbidden' },
+      headers: new Headers(),
+    } satisfies PagesListResponse);
+
+    await expect(getPagesList(page.projectId)).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
 
 describe('getPage', () => {
-  it('возвращает страницу с совпадающим id', async () => {
-    const [target] = await getPagesByProject('project-1');
+  it('returns a page from the successful API response', async () => {
+    const get = vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
+      status: 200,
+      body: { page },
+      headers: new Headers(),
+    } satisfies PageResponse);
 
-    const page = await getPage(target.id);
-
-    expect(page).toEqual(target);
+    await expect(getPage(page.id)).resolves.toEqual(page);
+    expect(get).toHaveBeenCalledWith({ params: { pageId: page.id } });
   });
 
-  it('возвращает undefined для неизвестного id', async () => {
-    const page = await getPage('unknown-id');
+  it('returns undefined for a missing page', async () => {
+    vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
+      status: 404,
+      body: { code: 'NOT_FOUND', message: 'Not found' },
+      headers: new Headers(),
+    } satisfies PageResponse);
 
-    expect(page).toBeUndefined();
+    await expect(getPage(page.id)).resolves.toBeUndefined();
+  });
+
+  it('throws an API error for a bad page id', async () => {
+    vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
+      status: 400,
+      body: { code: 'VALIDATION_ERROR', message: 'Invalid page id' },
+      headers: new Headers(),
+    } satisfies PageResponse);
+
+    await expect(getPage(page.id)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
+
+  it('throws an API error for responses other than 404', async () => {
+    vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
+      status: 403,
+      body: { code: 'FORBIDDEN', message: 'Forbidden' },
+      headers: new Headers(),
+    } satisfies PageResponse);
+
+    await expect(getPage(page.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
+describe('mutation adapter stubs', () => {
+  it('creates a page', async () => {
+    const input: CreatePageInput = { title: 'New page' };
+    const create = vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
+      status: 201,
+      body: { page },
+      headers: new Headers(),
+    } satisfies CreatePageResponse);
+
+    await expect(createPage(page.projectId, input)).resolves.toEqual(page);
+    expect(create).toHaveBeenCalledWith({ params: { projectId: page.projectId }, body: input });
+  });
+
+  it('throws an API error when creating a page fails', async () => {
+    vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
+      status: 403,
+      body: { code: 'FORBIDDEN', message: 'Forbidden' },
+      headers: new Headers(),
+    } satisfies CreatePageResponse);
+
+    await expect(createPage(page.projectId, { title: 'New page' })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('updates a page', async () => {
+    const input: UpdatePageInput = { title: 'Updated page' };
+    const update = vi.spyOn(apiClient.pages, 'update').mockResolvedValue({
+      status: 200,
+      body: { page },
+      headers: new Headers(),
+    } satisfies UpdatePageResponse);
+
+    await expect(updatePage(page.id, input)).resolves.toEqual(page);
+    expect(update).toHaveBeenCalledWith({ params: { pageId: page.id }, body: input });
+  });
+
+  it('throws an API error when updating a page fails', async () => {
+    vi.spyOn(apiClient.pages, 'update').mockResolvedValue({
+      status: 403,
+      body: { code: 'FORBIDDEN', message: 'Forbidden' },
+      headers: new Headers(),
+    } satisfies UpdatePageResponse);
+
+    await expect(updatePage(page.id, { title: 'Updated page' })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('deletes a page', async () => {
+    const remove = vi.spyOn(apiClient.pages, 'delete').mockResolvedValue({
+      status: 204,
+      body: undefined,
+      headers: new Headers(),
+    } satisfies DeletePageResponse);
+
+    await expect(deletePage(page.id)).resolves.toBeUndefined();
+    expect(remove).toHaveBeenCalledWith({ params: { pageId: page.id } });
+  });
+
+  it('throws an API error when deleting a page fails', async () => {
+    vi.spyOn(apiClient.pages, 'delete').mockResolvedValue({
+      status: 403,
+      body: { code: 'FORBIDDEN', message: 'Forbidden' },
+      headers: new Headers(),
+    } satisfies DeletePageResponse);
+
+    await expect(deletePage(page.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });

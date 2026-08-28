@@ -48,7 +48,7 @@ export class PagesController {
   get() {
     return tsRestHandler(pagesContract.get, async ({ params }) => {
       try {
-        const page = await this.pagesService.getById(params.id);
+        const page = await this.pagesService.getById(params.pageId);
         return { status: 200 as const, body: { page } };
       } catch (error) {
         throw toTsRestException(error, pagesContract.get);
@@ -62,10 +62,24 @@ export class PagesController {
   update() {
     return tsRestHandler(pagesContract.update, async ({ params, body }) => {
       try {
-        const page = await this.pagesService.update(params.id, body);
+        const page = await this.pagesService.update(params.pageId, body);
         return { status: 200 as const, body: { page } };
       } catch (error) {
         throw toTsRestException(error, pagesContract.update);
+      }
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, PageAccessGuard)
+  @RequireProjectRole('editor')
+  @TsRestHandler(pagesContract.delete)
+  delete() {
+    return tsRestHandler(pagesContract.delete, async ({ params }) => {
+      try {
+        await this.pagesService.softDelete(params.pageId);
+        return { status: 204 as const, body: undefined };
+      } catch (error) {
+        throw toTsRestException(error, pagesContract.delete);
       }
     });
   }
