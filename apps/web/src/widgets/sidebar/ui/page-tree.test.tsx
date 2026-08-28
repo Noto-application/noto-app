@@ -7,8 +7,8 @@ import { useSidebarStore } from '../model/use-sidebar-store';
 import { PageTree } from './page-tree';
 
 /**
- * `usePagesList`/`buildPageTree` (#53) и `SidebarTreeItem` (#62) мокаются по
- * целевому контракту. `useSidebarStore` реальный — раскрытие дерева входит в
+ * `usePagesList`/`buildPageTree` (#53) и строка дерева мокаются по целевому
+ * контракту. `useSidebarStore` реальный — раскрытие дерева входит в
  * проверяемое поведение.
  */
 const { usePagesListMock, buildPageTreeMock, useParamsMock } = vi.hoisted(() => ({
@@ -40,8 +40,8 @@ type ItemProps = BranchState & {
  * Мок повторяет ARIA-контракт строки (sidebar-tree-item.spec.md), чтобы тесты
  * проверяли разметку, которую увидит скринридер, а не переданные пропсы.
  */
-vi.mock('@/src/shared/ui/sidebar-tree-item', () => ({
-  SidebarTreeItem: (props: ItemProps) => (
+vi.mock('./page-tree-row', () => ({
+  PageTreeRow: (props: ItemProps) => (
     <span data-depth={props.depth}>
       {props.hasChildren ? (
         <button

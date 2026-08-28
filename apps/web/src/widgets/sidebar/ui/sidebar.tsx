@@ -1,15 +1,31 @@
 'use client';
 
 import { Calendar, Inbox, Search, Settings, Trash2 } from 'lucide-react';
+import { useParams } from 'next/navigation';
 
+import { usePage } from '@/src/entities/page';
 import { cn } from '@/src/shared/lib/utils';
 import { useSidebarStore } from '../model/use-sidebar-store';
+import { PageTree } from './page-tree';
 import { SidebarNavItem } from './sidebar-nav-item';
 import { SidebarNewPageButton } from './sidebar-new-page-button';
 import { SidebarUserBlock } from './sidebar-user-block';
 import { SidebarWorkspaceSwitcher } from './sidebar-workspace-switcher';
 
+/**
+ * `projectId` дерева берётся из метаданных открытой страницы, не из URL
+ * (ADR-002). Пока их нет — места дерева занимает распорка.
+ */
+function SidebarPageTree({ pageId }: { pageId: string }) {
+  const { data: page } = usePage(pageId);
+
+  if (!page) return <div className="flex-1" />;
+
+  return <PageTree projectId={page.projectId} />;
+}
+
 export function Sidebar() {
+  const { pageId } = useParams<{ pageId?: string }>();
   const isDrawerOpen = useSidebarStore((state) => state.isDrawerOpen);
   const setDrawerOpen = useSidebarStore((state) => state.setDrawerOpen);
 
@@ -33,17 +49,13 @@ export function Sidebar() {
       >
         <SidebarWorkspaceSwitcher />
 
-        <nav className="flex flex-col gap-0.5">
+        <nav aria-label="Разделы" className="flex flex-col gap-0.5">
           <SidebarNavItem icon={<Search />} label="Поиск" shortcut="⌘K" />
           <SidebarNavItem icon={<Inbox />} label="Входящие" />
           <SidebarNavItem icon={<Calendar />} label="Календарь" />
         </nav>
 
-        {/*
-         * Дерево проектов/страниц — вынесено в FE-P2 (issue #54), не в scope
-         * этого виджета. См. «Открытые вопросы» в web-app-shell.md.
-         */}
-        <div className="flex-1" />
+        {pageId ? <SidebarPageTree pageId={pageId} /> : <div className="flex-1" />}
 
         <div className="flex flex-col gap-0.5 border-t border-border pt-1">
           <SidebarNewPageButton />
