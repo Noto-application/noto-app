@@ -41,8 +41,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Маппинг статусов покрыт в `pages.test.ts` и `use-page.test.tsx`. Здесь
- *  только связка ветки с разметкой; успешный случай — против тавтологии. */
+/** Маппинг кода ошибки в HTTP-статус покрыт в `pages.test.ts` и
+ *  `use-page.test.tsx`. Здесь — своя логика, которая нигде больше не
+ *  проверяется: какие коды `MISSING_CODES` считаются «страницы нет», а
+ *  какие ведут на «сервис недоступен», плюс связка веток с разметкой. */
 describe('роут /app/[pageId]', () => {
   it('показывает «Страница не найдена», когда страницы нет', async () => {
     vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
@@ -55,6 +57,43 @@ describe('роут /app/[pageId]', () => {
 
     expect(await screen.findByRole('heading', { name: 'Страница не найдена' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'На главную' })).toHaveAttribute('href', '/app');
+  });
+
+  it('показывает «Страница не найдена» на чужой странице (403)', async () => {
+    vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
+      status: 403,
+      body: { code: 'FORBIDDEN', message: 'Forbidden' },
+      headers: new Headers(),
+    } satisfies PageResponse);
+
+    renderRoute();
+
+    expect(await screen.findByRole('heading', { name: 'Страница не найдена' })).toBeInTheDocument();
+  });
+
+  it('показывает «Страница не найдена» при некорректном pageId (400)', async () => {
+    vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
+      status: 400,
+      body: { code: 'VALIDATION_ERROR', message: 'Invalid id' },
+      headers: new Headers(),
+    } satisfies PageResponse);
+
+    renderRoute();
+
+    expect(await screen.findByRole('heading', { name: 'Страница не найдена' })).toBeInTheDocument();
+  });
+
+  it('показывает «Не удалось загрузить страницу» на прочих ошибках', async () => {
+    vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
+      status: 500,
+      body: { code: 'INTERNAL', message: 'Internal error' },
+      headers: new Headers(),
+    } satisfies PageResponse);
+
+    renderRoute();
+
+    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить страницу' })).toBeInTheDocument();
+    expect(screen.queryByText('Страница не найдена')).not.toBeInTheDocument();
   });
 
   it('показывает заголовок страницы, когда запрос удался', async () => {
