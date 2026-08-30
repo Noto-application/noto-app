@@ -1,13 +1,21 @@
 import { Plus } from 'lucide-react';
 
-import { Button } from '@/src/shared/ui/button';
+import { CreatePageButton, useCreatePageAction } from '@/src/features/create-page';
 
-/** Мутация создания страницы — FE-P2 (issue #54), пока визуальная заглушка. */
+/** Доступная из любого маршрута точка входа в общую операцию создания. */
 export function SidebarNewPageButton() {
+  const { isProjectsError } = useCreatePageAction();
+
+  if (isProjectsError) {
+    return (
+      <p className="px-2 py-1 text-label text-status-danger-text">Не удалось загрузить проекты.</p>
+    );
+  }
+
   return (
-    <Button className="w-full justify-start gap-2 px-2" variant="ghost" disabled>
+    <CreatePageButton className="w-full justify-start gap-2 px-2" variant="ghost">
       <Plus aria-hidden="true" />
       Новая страница
-    </Button>
+    </CreatePageButton>
   );
 }

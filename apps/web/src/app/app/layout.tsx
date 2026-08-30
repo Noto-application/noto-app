@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 
+import { CreatePageProvider } from '@/src/features/create-page';
 import { QueryProvider } from '@/src/shared/api';
 import { Sidebar, useSidebarStore } from '@/src/widgets/sidebar';
 import { Topbar } from '@/src/widgets/topbar';
@@ -33,7 +34,9 @@ function AppShell({ children }: AppLayoutProps) {
 export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <QueryProvider>
-      <AppShell>{children}</AppShell>
+      <CreatePageProvider>
+        <AppShell>{children}</AppShell>
+      </CreatePageProvider>
     </QueryProvider>
   );
 }

@@ -1,13 +1,20 @@
-import type { Project } from '../model/types';
-import { projectFixtures } from './fixtures';
+import type { CreateProjectInput, Project } from '@noto/shared';
+
+import { apiClient, toApiClientError } from '@/src/shared/api';
 
 export const projectKeys = {
   all: () => ['projects'] as const,
   detail: (id: string) => ['projects', id] as const,
 };
 
-export function getProjects(): Promise<Project[]> {
-  return Promise.resolve(projectFixtures);
+export async function getProjects(): Promise<Project[]> {
+  const response = await apiClient.projects.list({});
+
+  if (response.status !== 200) {
+    throw toApiClientError(response.body);
+  }
+
+  return response.body.projects;
 }
 
 /**
@@ -16,6 +23,26 @@ export function getProjects(): Promise<Project[]> {
  * пробрасываться как ошибка — иначе консьюмеры, завязанные на undefined,
  * сломаются на реальных данных (см. spec «Решения»).
  */
-export function getProject(id: string): Promise<Project | undefined> {
-  return Promise.resolve(projectFixtures.find((project) => project.id === id));
+export async function getProject(id: string): Promise<Project | undefined> {
+  const response = await apiClient.projects.get({ params: { projectId: id } });
+
+  if (response.status === 404) {
+    return undefined;
+  }
+
+  if (response.status !== 200) {
+    throw toApiClientError(response.body);
+  }
+
+  return response.body.project;
+}
+
+export async function createProject(input: CreateProjectInput): Promise<Project> {
+  const response = await apiClient.projects.create({ body: input });
+
+  if (response.status !== 201) {
+    throw toApiClientError(response.body);
+  }
+
+  return response.body.project;
 }
