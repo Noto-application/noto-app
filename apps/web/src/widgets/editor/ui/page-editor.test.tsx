@@ -1,26 +1,42 @@
 // @vitest-environment jsdom
 import { render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Page } from '@/src/entities/page';
 
-const useCreateBlockNote = vi.fn(() => ({ document: [] }));
+const { useCreateBlockNote, blockNoteViewProps, autosaveOnChange, DOCUMENT_STUB } = vi.hoisted(() => {
+  const DOCUMENT_STUB = [{ type: 'paragraph', content: 'текущий документ редактора' }];
+
+  return {
+    DOCUMENT_STUB,
+    useCreateBlockNote: vi.fn(() => ({ document: DOCUMENT_STUB })),
+    blockNoteViewProps: vi.fn(),
+    autosaveOnChange: vi.fn(),
+  };
+});
 
 vi.mock('@blocknote/react', () => ({
-  useCreateBlockNote: (...args: unknown[]) => useCreateBlockNote(...args),
+  useCreateBlockNote,
 }));
 
 vi.mock('@blocknote/mantine', () => ({
-  BlockNoteView: () => null,
+  BlockNoteView: (props: { onChange?: () => void }) => {
+    blockNoteViewProps(props);
+    return null;
+  },
 }));
 
 vi.mock('../model/use-page-autosave', () => ({
-  usePageAutosave: () => ({ onChange: vi.fn() }),
+  usePageAutosave: () => ({ onChange: autosaveOnChange }),
 }));
 
-const { PageEditor } = await import('./page-editor');
+import { PageEditor } from './page-editor';
 
 const pageId = '00000000-0000-4000-8000-000000000001';
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('PageEditor', () => {
   it('передаёт content как initialContent, когда на странице уже есть блоки', () => {
@@ -28,12 +44,21 @@ describe('PageEditor', () => {
 
     render(<PageEditor pageId={pageId} content={content} />);
 
-    expect(useCreateBlockNote).toHaveBeenCalledWith(expect.objectContaining({ initialContent: content }));
+    expect(useCreateBlockNote).toHaveBeenCalledWith({ initialContent: content });
   });
 
   it('не передаёт initialContent для новой страницы без сохранённого контента', () => {
     render(<PageEditor pageId={pageId} content={[] as Page['content']} />);
 
-    expect(useCreateBlockNote).toHaveBeenCalledWith(expect.objectContaining({ initialContent: undefined }));
+    expect(useCreateBlockNote).toHaveBeenCalledWith({ initialContent: undefined });
+  });
+
+  it('передаёт текущий документ редактора в usePageAutosave.onChange при изменении', () => {
+    render(<PageEditor pageId={pageId} content={[]} />);
+
+    const { onChange } = blockNoteViewProps.mock.calls.at(-1)?.[0] ?? {};
+    onChange?.();
+
+    expect(autosaveOnChange).toHaveBeenCalledWith(DOCUMENT_STUB);
   });
 });
