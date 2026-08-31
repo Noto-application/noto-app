@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import { usePage } from '@/src/entities/page';
 import { ApiClientError } from '@/src/shared/api';
 import { Spinner } from '@/src/shared/ui/spinner';
+import { PageEditor } from '@/src/widgets/editor';
 
 
 const MISSING_CODES: ApiErrorCode[] = ['NOT_FOUND', 'FORBIDDEN', 'VALIDATION_ERROR'];
@@ -62,7 +63,9 @@ export default function PageRoute() {
   return (
     <div className="p-8">
       <h1 className="text-page-title text-foreground">{page.title}</h1>
-      <p className="mt-4 text-body text-muted-foreground">Здесь будет редактор</p>
+      <div className="mt-4">
+        <PageEditor key={page.id} pageId={page.id} content={page.content} />
+      </div>
     </div>
   );
 }
