@@ -36,6 +36,10 @@ export async function resetAuthState(
   prisma: PrismaService,
   redis: RedisService,
 ): Promise<void> {
+  // register создаёт дефолтный проект + membership (issue #88), поэтому чистим
+  // и их — иначе проекты копятся между тестами.
+  await prisma.projectMember.deleteMany();
+  await prisma.project.deleteMany();
   await prisma.user.deleteMany();
   await redis.client.flushdb();
 }
