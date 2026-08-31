@@ -4,13 +4,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Page } from '@/src/entities/page';
 
+type BlockNoteViewStubProps = { onChange?: () => void };
+
 const { useCreateBlockNote, blockNoteViewProps, autosaveOnChange, DOCUMENT_STUB } = vi.hoisted(() => {
   const DOCUMENT_STUB = [{ type: 'paragraph', content: 'текущий документ редактора' }];
 
   return {
     DOCUMENT_STUB,
     useCreateBlockNote: vi.fn(() => ({ document: DOCUMENT_STUB })),
-    blockNoteViewProps: vi.fn(),
+    blockNoteViewProps: vi.fn<(props: BlockNoteViewStubProps) => void>(),
     autosaveOnChange: vi.fn(),
   };
 });
@@ -20,7 +22,7 @@ vi.mock('@blocknote/react', () => ({
 }));
 
 vi.mock('@blocknote/mantine', () => ({
-  BlockNoteView: (props: { onChange?: () => void }) => {
+  BlockNoteView: (props: BlockNoteViewStubProps) => {
     blockNoteViewProps(props);
     return null;
   },
