@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useEffect } from 'react';
 
-import { buildPageTree, usePagesList, type Page, type PageTreeNode } from '@/src/entities/page';
+import { usePagesList, usePageTree, type Page, type PageTreeNode } from '@/src/entities/page';
 import { EmptyState } from '@/src/shared/ui/empty-state';
 import { InlineAlert } from '@/src/shared/ui/inline-alert';
 import { Skeleton } from '@/src/shared/ui/skeleton';
@@ -74,6 +74,11 @@ function TreeNodes({
 export function PageTree({ projectId }: { projectId: string }) {
   const { pageId } = useParams<{ pageId?: string }>();
   const { data: pages, isLoading } = usePagesList(projectId);
+  // Тот же query key, что у usePagesList — второй сетевой запрос не уходит,
+  // только пересчёт дерева. `buildPageTree` бросает на неконсистентных
+  // данных (дубли id, циклы); в `select` throw уходит в `isError`, а не
+  // роняет рендер, как было бы при вызове buildPageTree() прямо здесь.
+  const { data: tree, isError: isTreeError } = usePageTree(projectId);
   const expandPages = useSidebarStore((state) => state.expandPages);
 
   // Ветка с активной страницей раскрывается на переходе, а не на каждом
@@ -94,15 +99,13 @@ export function PageTree({ projectId }: { projectId: string }) {
     );
   }
 
-  if (!pages) {
+  if (!pages || isTreeError || !tree) {
     return (
       <InlineAlert variant="danger" className="m-2">
         Не удалось загрузить страницы
       </InlineAlert>
     );
   }
-
-  const tree = buildPageTree(pages);
 
   if (tree.length === 0) {
     return (

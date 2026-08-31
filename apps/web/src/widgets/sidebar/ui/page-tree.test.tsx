@@ -7,13 +7,13 @@ import { useSidebarStore } from '../model/use-sidebar-store';
 import { PageTree } from './page-tree';
 
 /**
- * `usePagesList`/`buildPageTree` (#53) и строка дерева мокаются по целевому
+ * `usePagesList`/`usePageTree` и строка дерева мокаются по целевому
  * контракту. `useSidebarStore` реальный — раскрытие дерева входит в
  * проверяемое поведение.
  */
-const { usePagesListMock, buildPageTreeMock, useParamsMock } = vi.hoisted(() => ({
+const { usePagesListMock, usePageTreeMock, useParamsMock } = vi.hoisted(() => ({
   usePagesListMock: vi.fn(),
-  buildPageTreeMock: vi.fn(),
+  usePageTreeMock: vi.fn(),
   useParamsMock: vi.fn(),
 }));
 
@@ -23,7 +23,7 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/src/entities/page', () => ({
   usePagesList: usePagesListMock,
-  buildPageTree: buildPageTreeMock,
+  usePageTree: usePageTreeMock,
 }));
 
 type BranchState = { hasChildren: false } | { hasChildren: true; isExpanded: boolean };
@@ -75,7 +75,7 @@ function flatten(nodes: TreeNode[], parentId: string | null = null) {
 
 function mockTree(nodes: TreeNode[]) {
   usePagesListMock.mockReturnValue({ data: flatten(nodes), isLoading: false });
-  buildPageTreeMock.mockReturnValue(nodes);
+  usePageTreeMock.mockReturnValue({ data: nodes, isError: false });
   return nodes;
 }
 
@@ -113,7 +113,7 @@ const initialSidebarState = useSidebarStore.getState();
 
 beforeEach(() => {
   usePagesListMock.mockReset();
-  buildPageTreeMock.mockReset();
+  usePageTreeMock.mockReset();
   useParamsMock.mockReset();
   useParamsMock.mockReturnValue({ pageId: undefined });
   useSidebarStore.setState(initialSidebarState, true);
@@ -122,6 +122,7 @@ beforeEach(() => {
 describe('PageTree', () => {
   it('показывает Skeleton, пока usePagesList грузится', () => {
     usePagesListMock.mockReturnValue({ data: undefined, isLoading: true });
+    usePageTreeMock.mockReturnValue({ data: undefined, isError: false });
 
     const { container } = render(<PageTree projectId="project-1" />);
 
@@ -131,7 +132,7 @@ describe('PageTree', () => {
 
   it('показывает EmptyState «Нет страниц», когда у проекта нет страниц', () => {
     usePagesListMock.mockReturnValue({ data: [], isLoading: false });
-    buildPageTreeMock.mockReturnValue([]);
+    usePageTreeMock.mockReturnValue({ data: [], isError: false });
 
     render(<PageTree projectId="project-1" />);
 
@@ -141,6 +142,7 @@ describe('PageTree', () => {
 
   it('показывает ошибку и не строит дерево, когда данных нет вне загрузки', () => {
     usePagesListMock.mockReturnValue({ data: undefined, isLoading: false, isError: true });
+    usePageTreeMock.mockReturnValue({ data: undefined, isError: false });
 
     render(<PageTree projectId="project-1" />);
 
@@ -148,16 +150,27 @@ describe('PageTree', () => {
     expect(screen.queryAllByRole('link')).toHaveLength(0);
   });
 
-  it('передаёт projectId в usePagesList, а полученные страницы — в buildPageTree', () => {
+  /** `buildPageTree` бросает на неконсистентных данных (дубли id, циклы);
+   *  `usePageTree` ловит throw через `select` и отдаёт `isError`, а не роняет
+   *  рендер. Без этого теста регрессия на прямой вызов buildPageTree() в
+   *  рендере осталась бы незамеченной. */
+  it('показывает ошибку, а не падает, когда usePageTree не может построить дерево', () => {
+    usePagesListMock.mockReturnValue({ data: [{ id: 'page-1', title: 'Обзор', parentId: null }], isLoading: false });
+    usePageTreeMock.mockReturnValue({ data: undefined, isError: true });
+
+    render(<PageTree projectId="project-1" />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Не удалось загрузить страницы');
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+  });
+
+  it('передаёт projectId в usePagesList и в usePageTree', () => {
     mockTree(parentWithChild());
 
     render(<PageTree projectId="project-42" />);
 
     expect(usePagesListMock).toHaveBeenCalledWith('project-42');
-    expect(buildPageTreeMock).toHaveBeenCalledWith([
-      { id: 'page-1', title: 'Обзор', parentId: null },
-      { id: 'page-2', title: 'Роадмап', parentId: 'page-1' },
-    ]);
+    expect(usePageTreeMock).toHaveBeenCalledWith('project-42');
   });
 
   it('оборачивает дерево в навигацию с меткой и вложенные списки', () => {
@@ -284,7 +297,7 @@ describe('PageTree', () => {
     expect(screen.queryByRole('link', { name: 'Q3' })).not.toBeInTheDocument();
   });
 
-  it('рендерит узлы в порядке из buildPageTree и не сортирует их сам', () => {
+  it('рендерит узлы в порядке из usePageTree и не сортирует их сам', () => {
     mockTree([
       { id: 'page-3', title: 'Бэклог', children: [] },
       { id: 'page-1', title: 'Обзор', children: [] },
