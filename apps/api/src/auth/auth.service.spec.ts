@@ -19,6 +19,12 @@ describe('AuthService', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
     },
+    project: {
+      create: jest.fn(),
+    },
+    // register оборачивает создание в транзакцию; реализация — в beforeEach
+    // (нельзя ссылаться на prisma внутри его же инициализатора).
+    $transaction: jest.fn(),
   };
 
   const jwtService = {
@@ -62,6 +68,10 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Прокидываем тот же мок как tx: tx.user.create === prisma.user.create,
+    // поэтому моки кейсов остаются валидны.
+    prisma.$transaction.mockImplementation((cb: (tx: unknown) => unknown) => cb(prisma));
 
     service = new AuthService(
       prisma as never,
