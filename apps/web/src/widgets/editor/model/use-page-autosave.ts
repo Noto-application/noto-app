@@ -8,7 +8,7 @@ export const AUTOSAVE_DEBOUNCE_MS = 1000;
 
 export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
-function toAutosaveStatus(mutationStatus: 'idle' | 'pending' | 'error' | 'success'): AutosaveStatus {
+export function toAutosaveStatus(mutationStatus: 'idle' | 'pending' | 'error' | 'success'): AutosaveStatus {
   if (mutationStatus === 'pending') return 'saving';
   if (mutationStatus === 'success') return 'saved';
   return mutationStatus;
