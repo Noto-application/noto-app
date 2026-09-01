@@ -1,21 +1,26 @@
 // @vitest-environment jsdom
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Page } from '@/src/entities/page';
+import type { AutosaveStatus } from '../model/use-page-autosave';
 
 type BlockNoteViewStubProps = { onChange?: () => void };
 
-const { useCreateBlockNote, blockNoteViewProps, autosaveOnChange, DOCUMENT_STUB } = vi.hoisted(() => {
-  const DOCUMENT_STUB = [{ type: 'paragraph', content: 'текущий документ редактора' }];
+const { useCreateBlockNote, blockNoteViewProps, autosaveOnChange, autosaveRetry, autosaveState, DOCUMENT_STUB } =
+  vi.hoisted(() => {
+    const DOCUMENT_STUB = [{ type: 'paragraph', content: 'текущий документ редактора' }];
 
-  return {
-    DOCUMENT_STUB,
-    useCreateBlockNote: vi.fn(() => ({ document: DOCUMENT_STUB })),
-    blockNoteViewProps: vi.fn<(props: BlockNoteViewStubProps) => void>(),
-    autosaveOnChange: vi.fn(),
-  };
-});
+    return {
+      DOCUMENT_STUB,
+      useCreateBlockNote: vi.fn(() => ({ document: DOCUMENT_STUB })),
+      blockNoteViewProps: vi.fn<(props: BlockNoteViewStubProps) => void>(),
+      autosaveOnChange: vi.fn(),
+      autosaveRetry: vi.fn(),
+      autosaveState: { status: 'idle' as AutosaveStatus },
+    };
+  });
 
 vi.mock('@blocknote/react', () => ({
   useCreateBlockNote,
@@ -29,7 +34,7 @@ vi.mock('@blocknote/mantine', () => ({
 }));
 
 vi.mock('../model/use-page-autosave', () => ({
-  usePageAutosave: () => ({ onChange: autosaveOnChange }),
+  usePageAutosave: () => ({ onChange: autosaveOnChange, status: autosaveState.status, retry: autosaveRetry }),
 }));
 
 import { PageEditor } from './page-editor';
@@ -38,6 +43,7 @@ const pageId = '00000000-0000-4000-8000-000000000001';
 
 afterEach(() => {
   vi.clearAllMocks();
+  autosaveState.status = 'idle';
 });
 
 describe('PageEditor', () => {
@@ -62,5 +68,17 @@ describe('PageEditor', () => {
     onChange?.();
 
     expect(autosaveOnChange).toHaveBeenCalledWith(DOCUMENT_STUB);
+  });
+
+  it('передаёт status и retry из usePageAutosave в AutosaveIndicator', async () => {
+    autosaveState.status = 'error';
+    const user = userEvent.setup();
+    render(<PageEditor pageId={pageId} content={[]} />);
+
+    expect(screen.getByText('Не удалось сохранить')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Повторить' }));
+
+    expect(autosaveRetry).toHaveBeenCalledTimes(1);
   });
 });
