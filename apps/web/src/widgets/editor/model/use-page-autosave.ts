@@ -6,6 +6,14 @@ import { updatePage } from '@/src/entities/page';
 
 export const AUTOSAVE_DEBOUNCE_MS = 1000;
 
+export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+function toAutosaveStatus(mutationStatus: 'idle' | 'pending' | 'error' | 'success'): AutosaveStatus {
+  if (mutationStatus === 'pending') return 'saving';
+  if (mutationStatus === 'success') return 'saved';
+  return mutationStatus;
+}
+
 export function usePageAutosave(pageId: string) {
   const mutation = useMutation({
     mutationFn: (content: Page['content']) => updatePage(pageId, { content }),
@@ -22,6 +30,16 @@ export function usePageAutosave(pageId: string) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pendingRef = useRef<Page['content'] | null>(null);
 
+  const save = useCallback((content: Page['content']) => {
+    // Без обработчика ошибка молча уходит в состояние мутации, которое
+    // никто не читает — правка терялась бы без единого следа.
+    mutateRef.current(content, {
+      onError: (error) => {
+        console.error('Не удалось сохранить страницу', error);
+      },
+    });
+  }, []);
+
   const flush = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -29,16 +47,10 @@ export function usePageAutosave(pageId: string) {
     }
 
     if (pendingRef.current) {
-      // Без обработчика ошибка молча уходит в состояние мутации, которое
-      // никто не читает — правка терялась бы без единого следа.
-      mutateRef.current(pendingRef.current, {
-        onError: (error) => {
-          console.error('Не удалось сохранить страницу', error);
-        },
-      });
+      save(pendingRef.current);
       pendingRef.current = null;
     }
-  }, []);
+  }, [save]);
 
   const onChange = useCallback(
     (content: Page['content']) => {
@@ -55,5 +67,13 @@ export function usePageAutosave(pageId: string) {
 
   useEffect(() => flush, [flush]);
 
-  return { onChange };
+  const retry = useCallback(() => {
+    if (mutation.status !== 'error' || mutation.variables === undefined) {
+      return;
+    }
+
+    save(mutation.variables);
+  }, [mutation.status, mutation.variables, save]);
+
+  return { onChange, status: toAutosaveStatus(mutation.status), retry };
 }
