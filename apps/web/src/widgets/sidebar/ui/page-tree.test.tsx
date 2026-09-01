@@ -356,6 +356,26 @@ describe('PageTree', () => {
     expect(useSidebarStore.getState().collapsedPageIds.has('page-1')).toBe(true);
   });
 
+  /** pages в зависимостях эффекта — любое обновление списка, не только смена
+   *  pageId, иначе раскрывало бы предка заново поверх ручного сворачивания. */
+  it('не раскрывает вручную свёрнутого предка повторно, когда pages обновился без смены pageId', async () => {
+    const user = userEvent.setup();
+    useParamsMock.mockReturnValue({ pageId: 'page-2' });
+    mockTree(parentWithChild());
+
+    const { rerender } = render(<PageTree projectId="project-1" />);
+    await user.click(screen.getByRole('button', { name: 'Свернуть «Обзор»' }));
+    expect(useSidebarStore.getState().collapsedPageIds.has('page-1')).toBe(true);
+
+    // pages обновился (новая ссылка на массив, тот же pageId) — например,
+    // список страниц инвалидировался по несвязанной причине.
+    usePagesListMock.mockReturnValue({ data: flatten(parentWithChild()), isLoading: false });
+    rerender(<PageTree projectId="project-1" />);
+
+    expect(useSidebarStore.getState().collapsedPageIds.has('page-1')).toBe(true);
+    expect(screen.queryByRole('link', { name: 'Роадмап' })).not.toBeInTheDocument();
+  });
+
   it('помечает aria-current="page" только страницу из URL, не её родителей', () => {
     useParamsMock.mockReturnValue({ pageId: 'page-2' });
     mockTree(parentWithChild());

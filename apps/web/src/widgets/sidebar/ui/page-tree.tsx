@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { usePagesList, usePageTree, type Page, type PageTreeNode } from '@/src/entities/page';
 import { EmptyState } from '@/src/shared/ui/empty-state';
@@ -81,11 +81,17 @@ export function PageTree({ projectId }: { projectId: string }) {
   const { data: tree, isError: isTreeError } = usePageTree(projectId);
   const expandPages = useSidebarStore((state) => state.expandPages);
 
-  // Ветка с активной страницей раскрывается на переходе, а не на каждом
-  // рендере: иначе шеврон на ней невозможно свернуть.
+  // Раскрытие только на смену pageId, не на любое обновление pages — иначе
+  // вручную свёрнутая ветка раскрывалась бы обратно при каждой инвалидации
+  // списка. pages остаётся в зависимостях: без него раскрытие не сработало
+  // бы при заходе по прямой ссылке, пока список ещё грузится.
+  const expandedForPageIdRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
     if (!pages) return;
+    if (expandedForPageIdRef.current === pageId) return;
 
+    expandedForPageIdRef.current = pageId;
     expandPages(collectAncestorIds(pages, pageId));
   }, [pages, pageId, expandPages]);
 
