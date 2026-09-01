@@ -4,7 +4,6 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Page } from '@/src/entities/page';
-import type { AutosaveStatus } from '../model/use-page-autosave';
 
 type BlockNoteViewStubProps = { onChange?: () => void };
 
@@ -18,7 +17,7 @@ const { useCreateBlockNote, blockNoteViewProps, autosaveOnChange, autosaveRetry,
       blockNoteViewProps: vi.fn<(props: BlockNoteViewStubProps) => void>(),
       autosaveOnChange: vi.fn(),
       autosaveRetry: vi.fn(),
-      autosaveState: { status: 'idle' as AutosaveStatus },
+      autosaveState: { status: 'idle' },
     };
   });
 
