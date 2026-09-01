@@ -1,5 +1,6 @@
 'use client';
 
+import type { Page } from '@noto/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 
@@ -20,8 +21,8 @@ export function useCreatePage(projectId?: string) {
   const queryClient = useQueryClient();
   const projectsQuery = useProjects();
 
-  const mutation = useMutation({
-    mutationFn: async () => {
+  const mutation = useMutation<Page, ApiClientError, string | undefined>({
+    mutationFn: async (title = DEFAULT_PAGE_TITLE) => {
       let targetProjectId = projectId;
 
       if (!targetProjectId) {
@@ -40,14 +41,13 @@ export function useCreatePage(projectId?: string) {
         }
       }
 
-      return createPage(targetProjectId, { title: DEFAULT_PAGE_TITLE });
+      return createPage(targetProjectId, { title });
     },
     onSuccess: async (page) => {
       await queryClient.invalidateQueries({ queryKey: pageKeys.list(page.projectId) });
       router.push(`/app/${page.id}`);
     },
     onError: (error) => {
-      // 401 обрабатывает общий API-клиент: refresh либо переход на /login.
       if (error instanceof ApiClientError && error.code === 'UNAUTHORIZED') {
         return;
       }

@@ -71,7 +71,7 @@ describe('useCreatePage', () => {
 
     const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
 
-    act(() => result.current.mutate());
+    act(() => result.current.mutate(undefined));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -81,6 +81,26 @@ describe('useCreatePage', () => {
     });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: pageKeys.list(project.id) });
     expect(push).toHaveBeenCalledWith(`/app/${page.id}`);
+  });
+
+  it('передаёт указанное название страницы', async () => {
+    const create = vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
+      status: 201,
+      body: { page: { ...page, title: 'План проекта' } },
+      headers: new Headers(),
+    } satisfies CreatePageResponse);
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
+
+    act(() => result.current.mutate('План проекта'));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(create).toHaveBeenCalledWith({
+      params: { projectId: project.id },
+      body: { title: 'План проекта' },
+    });
   });
 
   it('при пустом списке сначала создаёт проект, затем страницу', async () => {
@@ -104,7 +124,7 @@ describe('useCreatePage', () => {
     const { result } = renderHook(() => useCreatePage(), { wrapper: Wrapper });
 
     await waitFor(() => expect(queryClient.getQueryData(projectKeys.all())).toEqual([]));
-    act(() => result.current.mutate());
+    act(() => result.current.mutate(undefined));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -127,7 +147,7 @@ describe('useCreatePage', () => {
 
     const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
 
-    act(() => result.current.mutate());
+    act(() => result.current.mutate(undefined));
 
     await waitFor(() => expect(result.current.isError).toBe(true));
 
