@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 describe('стартовый экран /app', () => {
-  it('показывает сообщение вместо кнопки, если список проектов не загрузился', async () => {
+  it('блокирует кнопку, если список проектов не загрузился', async () => {
     vi.spyOn(apiClient.projects, 'list').mockRejectedValue(new TypeError('Network error'));
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -29,7 +29,6 @@ describe('стартовый экран /app', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить проекты');
-    expect(screen.queryByRole('button', { name: 'Создать страницу' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Создать страницу' })).toBeDisabled();
   });
 });

@@ -160,6 +160,29 @@ describe('useCreatePage', () => {
 });
 
 describe('общая операция создания', () => {
+  it('блокирует точки входа при ошибке загрузки проектов', async () => {
+    vi.spyOn(apiClient.projects, 'list').mockRejectedValue(new TypeError('Network error'));
+    const create = vi.spyOn(apiClient.pages, 'create');
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <CreatePageProvider>
+          <CreatePageButton>Создать страницу</CreatePageButton>
+          <CreatePageButton>Новая страница</CreatePageButton>
+        </CreatePageProvider>
+      </QueryClientProvider>,
+    );
+
+    const startButton = await screen.findByRole('button', { name: 'Создать страницу' });
+    const sidebarButton = screen.getByRole('button', { name: 'Новая страница' });
+
+    await waitFor(() => expect(startButton).toBeDisabled());
+    expect(sidebarButton).toBeDisabled();
+    startButton.click();
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it('блокирует обе точки входа и не отправляет второй запрос', async () => {
     vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
       status: 200,
