@@ -15,6 +15,9 @@ import { toPublicUser, ttlToSeconds } from '../lib/utils';
 import { PasswordHasherService } from './password-hasher.service';
 import { RedisRefreshTokenStore } from './refresh-token.store';
 
+/** Имя дефолтного проекта, создаваемого при регистрации (issue #88). */
+const DEFAULT_PROJECT_NAME = 'Мой проект';
+
 @Injectable()
 export class AuthService {
   private dummyPasswordHash: string | null = null;
@@ -40,11 +43,24 @@ export class AuthService {
 
     let user: UserRecord;
     try {
-      user = await this.prisma.user.create({
-        data: {
-          email: credentials.email,
-          passwordHash,
-        },
+      // Транзакция: у нового пользователя всегда есть воркспейс — создаём
+      // дефолтный проект и owner-membership вместе с User (issue #88, ADR-011).
+      user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            email: credentials.email,
+            passwordHash,
+          },
+        });
+
+        await tx.project.create({
+          data: {
+            name: DEFAULT_PROJECT_NAME,
+            members: { create: { userId: created.id, role: 'owner' } },
+          },
+        });
+
+        return created;
       });
     } catch (error) {
       // Гонка: параллельный register с тем же email прошёл findUnique выше и
