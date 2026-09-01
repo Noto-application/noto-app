@@ -10,9 +10,8 @@ export function usePageTitleAutosave(pageId: string, projectId: string) {
   const mutation = useMutation({
     mutationFn: (title: string) => updatePage(pageId, { title }),
     onSuccess: () => {
-      // Сайдбар держит список/дерево страниц отдельным Query-запросом
-      // (pageKeys.list) — без инвалидации он не узнает о новом заголовке,
-      // пока не перефетчится по другому триггеру (фокус вкладки и т.п.).
+      // Дерево страниц в сайдбаре — отдельный Query-запрос (pageKeys.list),
+      // без инвалидации не узнает о новом заголовке.
       void queryClient.invalidateQueries({ queryKey: pageKeys.list(projectId) });
     },
   });
@@ -52,11 +51,9 @@ export function usePageTitleAutosave(pageId: string, projectId: string) {
         timeoutRef.current = undefined;
       }
 
-      // Пустой заголовок — обычное промежуточное состояние (select-all +
-      // delete), не ошибка: не шлём его на бэк, где он всё равно упадёт на
-      // min-length валидации. Важно также снять уже запланированную отправку
-      // предыдущего (валидного) значения — иначе оно всё равно долетит до
-      // сервера, хотя пользователь его только что стёр.
+      // Пустой заголовок не шлём — обычное промежуточное состояние
+      // (select-all + delete), а не ошибка. Таймер тоже снимаем, иначе
+      // ранее запланированное непустое значение всё равно долетит до сервера.
       if (title.trim().length === 0) {
         pendingRef.current = null;
         return;
