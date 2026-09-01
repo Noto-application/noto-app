@@ -69,6 +69,11 @@ describe('Projects (e2e)', () => {
       .expect(201);
 
     const { user } = authUserResponseSchema.parse(response.body);
+
+    // register создаёт дефолтный проект (#88); эти тесты задают набор проектов
+    // вручную, поэтому убираем его — membership каскадится при удалении проекта.
+    await prisma.project.deleteMany({ where: { members: { some: { userId: user.id } } } });
+
     return { agent, userId: user.id };
   }
 

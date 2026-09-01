@@ -40,7 +40,9 @@
 ## Поведение
 
 **Register:** валидируем вход → проверяем уникальность email → хешируем пароль
-(argon2id) → создаём `User` → выставляем access + refresh cookie → 201 `{ user }`.
+(argon2id) → в одной транзакции создаём `User` + дефолтный проект «Мой проект» +
+`ProjectMember` с ролью `owner` (issue #88; у нового юзера всегда есть
+воркспейс) → выставляем access + refresh cookie → 201 `{ user }`.
 
 **Login:** валидируем → находим по email → сверяем пароль (argon2.verify) →
 выставляем обе cookie → 200 `{ user }`.

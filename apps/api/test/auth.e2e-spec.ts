@@ -78,6 +78,22 @@ describe('Auth (e2e)', () => {
       expect(users).toHaveLength(1);
     });
 
+    it('создаёт дефолтный проект с ролью owner для нового пользователя', async () => {
+      const agent = request.agent(server);
+
+      const response = await agent.post('/api/auth/register').send(credentials).expect(201);
+      const body = parseAuthUserBody(response.body);
+
+      const memberships = await prisma.projectMember.findMany({
+        where: { userId: body.user.id },
+        include: { project: true },
+      });
+
+      expect(memberships).toHaveLength(1);
+      expect(memberships[0]?.role).toBe('owner');
+      expect(memberships[0]?.project.deletedAt).toBeNull();
+    });
+
     it('возвращает 409 если email занят и не создаёт второго пользователя', async () => {
       const agent = request.agent(server);
       await agent.post('/api/auth/register').send(credentials).expect(201);
