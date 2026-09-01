@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Calendar, Inbox, Search, Settings, Trash2 } from 'lucide-react';
+import { Calendar, Home, Inbox, Search, Settings, Trash2 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 
 import { usePage } from '@/src/entities/page';
@@ -50,7 +50,7 @@ export function Sidebar() {
       >
         <SidebarWorkspaceSwitcher />
 
-        <nav className="flex flex-col gap-0.5">
+        <nav aria-label="Разделы" className="flex flex-col gap-0.5">
           <Link
             href="/app"
             className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-body-compact text-foreground hover:bg-surface-hover"
@@ -60,7 +60,6 @@ export function Sidebar() {
             </span>
             <span className="flex-1 truncate text-left">Домой</span>
           </Link>
-        <nav aria-label="Разделы" className="flex flex-col gap-0.5">
           <SidebarNavItem icon={<Search />} label="Поиск" shortcut="⌘K" />
           <SidebarNavItem icon={<Inbox />} label="Входящие" />
           <SidebarNavItem icon={<Calendar />} label="Календарь" />
