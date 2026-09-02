@@ -13,16 +13,20 @@ const DEFAULT_PAGE_TITLE = 'Без названия';
 const DEFAULT_PROJECT_NAME = 'Мой проект';
 
 /**
- * Создаёт корневую страницу в известном проекте. Когда проект не передан,
- * выбирает первый загруженный проект или сначала создаёт «Мой проект».
+ * Создаёт страницу в известном проекте. Когда проект не передан, выбирает
+ * первый загруженный проект или сначала создаёт «Мой проект».
  */
 export function useCreatePage(projectId?: string) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const projectsQuery = useProjects();
 
-  const mutation = useMutation<Page, ApiClientError, string | undefined>({
-    mutationFn: async (title = DEFAULT_PAGE_TITLE) => {
+  const mutation = useMutation<
+    Page,
+    ApiClientError,
+    { title?: string; parentId?: string | null } | undefined
+  >({
+    mutationFn: async ({ title = DEFAULT_PAGE_TITLE, parentId } = {}) => {
       let targetProjectId = projectId;
 
       if (!targetProjectId) {
@@ -41,7 +45,7 @@ export function useCreatePage(projectId?: string) {
         }
       }
 
-      return createPage(targetProjectId, { title });
+      return createPage(targetProjectId, { title, parentId });
     },
     onSuccess: async (page) => {
       await queryClient.invalidateQueries({ queryKey: pageKeys.list(page.projectId) });

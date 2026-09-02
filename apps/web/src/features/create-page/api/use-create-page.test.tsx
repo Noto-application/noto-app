@@ -83,7 +83,7 @@ describe('useCreatePage', () => {
     expect(push).toHaveBeenCalledWith(`/app/${page.id}`);
   });
 
-  it('передаёт указанное название страницы', async () => {
+  it('передаёт указанные название и родительскую страницу', async () => {
     const create = vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
       status: 201,
       body: { page: { ...page, title: 'План проекта' } },
@@ -93,13 +93,13 @@ describe('useCreatePage', () => {
 
     const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
 
-    act(() => result.current.mutate('План проекта'));
+    act(() => result.current.mutate({ title: 'План проекта', parentId: page.id }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(create).toHaveBeenCalledWith({
       params: { projectId: project.id },
-      body: { title: 'План проекта' },
+      body: { title: 'План проекта', parentId: page.id },
     });
   });
 
