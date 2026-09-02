@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef } from 'react';
 
-import { pageKeys, updatePage } from '@/src/entities/page';
+import { pageKeys, updatePage, type Page } from '@/src/entities/page';
 
 import { AUTOSAVE_DEBOUNCE_MS } from './use-page-autosave';
 
@@ -9,10 +9,16 @@ export function usePageTitleAutosave(pageId: string, projectId: string) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: (title: string) => updatePage(pageId, { title }),
-    onSuccess: () => {
+    onSuccess: (savedPage) => {
       // Дерево страниц в сайдбаре — отдельный Query-запрос (pageKeys.list),
       // без инвалидации не узнает о новом заголовке.
       void queryClient.invalidateQueries({ queryKey: pageKeys.list(projectId) });
+      // Тот же класс проблемы, что и у detail-кэша content: следующий
+      // монтаж страницы иначе увидел бы старый заголовок. Мержим только
+      // title — по той же причине, что и у usePageAutosave.
+      queryClient.setQueryData(pageKeys.detail(pageId), (old: Page | undefined) =>
+        old ? { ...old, title: savedPage.title, updatedAt: savedPage.updatedAt } : savedPage,
+      );
     },
   });
 
@@ -59,7 +65,7 @@ export function usePageTitleAutosave(pageId: string, projectId: string) {
         return;
       }
 
-      pendingRef.current = title;
+      pendingRef.current = title.trim();
       timeoutRef.current = setTimeout(flush, AUTOSAVE_DEBOUNCE_MS);
     },
     [flush],

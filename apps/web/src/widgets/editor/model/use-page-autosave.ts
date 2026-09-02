@@ -1,8 +1,8 @@
 import type { Page } from '@noto/shared';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef } from 'react';
 
-import { updatePage } from '@/src/entities/page';
+import { pageKeys, updatePage } from '@/src/entities/page';
 
 export const AUTOSAVE_DEBOUNCE_MS = 1000;
 
@@ -15,8 +15,19 @@ export function toAutosaveStatus(mutationStatus: 'idle' | 'pending' | 'error' | 
 }
 
 export function usePageAutosave(pageId: string) {
+  const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: (content: Page['content']) => updatePage(pageId, { content }),
+    onSuccess: (savedPage) => {
+      // Следующий монтаж страницы иначе увидел бы устаревший detail-кэш
+      // (живой редактор его не перечитывает) и мог бы автосейвом
+      // перезаписать сервер старым содержимым. Мержим только своё поле,
+      // а не весь объект — иначе более старый по сетевому ответу PATCH
+      // мог бы откатить title, сохранённый параллельно usePageTitleAutosave.
+      queryClient.setQueryData(pageKeys.detail(pageId), (old: Page | undefined) =>
+        old ? { ...old, content: savedPage.content, updatedAt: savedPage.updatedAt } : savedPage,
+      );
+    },
   });
 
   // react-query возвращает новый `mutate` на каждом рендере — без ref
