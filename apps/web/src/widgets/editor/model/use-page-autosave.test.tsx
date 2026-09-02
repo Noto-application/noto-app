@@ -187,4 +187,22 @@ describe('usePageAutosave', () => {
 
     expect(queryClient.getQueryData(pageKeys.detail(pageId))).toEqual(response.body.page);
   });
+
+  it('мержит content в detail-кэш, не откатывая title, сохранённый параллельно usePageTitleAutosave', async () => {
+    const response = updatedResponse([{ type: 'paragraph', content: 'a' }]);
+    vi.spyOn(apiClient.pages, 'update').mockResolvedValue(response);
+    const { result, queryClient } = setup();
+    // Снимок ответа этой мутации ещё не знает о новом title — он сделан на
+    // сервере до того, как title-PATCH успел закоммититься. Если бы мы
+    // писали в кэш весь объект целиком, этот снимок откатил бы title.
+    queryClient.setQueryData(pageKeys.detail(pageId), { ...response.body.page, title: 'Переименовано параллельно' });
+
+    result.current.onChange([{ type: 'paragraph', content: 'a' }]);
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+    expect(queryClient.getQueryData(pageKeys.detail(pageId))).toMatchObject({
+      title: 'Переименовано параллельно',
+      content: [{ type: 'paragraph', content: 'a' }],
+    });
+  });
 });

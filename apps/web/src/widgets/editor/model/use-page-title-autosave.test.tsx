@@ -151,4 +151,23 @@ describe('usePageTitleAutosave', () => {
 
     expect(queryClient.getQueryData(pageKeys.detail(pageId))).toEqual(response.body.page);
   });
+
+  it('мержит title в detail-кэш, не откатывая content, сохранённый параллельно usePageAutosave', async () => {
+    const response = updatedResponse('Noto');
+    vi.spyOn(apiClient.pages, 'update').mockResolvedValue(response);
+    const { result, queryClient } = setup();
+    // Снимок ответа этой мутации ещё не знает о новом content — он сделан
+    // на сервере до того, как content-PATCH успел закоммититься. Если бы мы
+    // писали в кэш весь объект целиком, этот снимок откатил бы content.
+    const parallelContent = [{ type: 'paragraph', content: 'сохранено параллельно' }];
+    queryClient.setQueryData(pageKeys.detail(pageId), { ...response.body.page, content: parallelContent });
+
+    result.current.onChange('Noto');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+    expect(queryClient.getQueryData(pageKeys.detail(pageId))).toMatchObject({
+      title: 'Noto',
+      content: parallelContent,
+    });
+  });
 });
