@@ -9,6 +9,10 @@ export type AuthCredentials = ServerInferRequest<
   typeof authContract.register
 >['body'];
 
+export type LoginCredentials = ServerInferRequest<
+  typeof authContract.login
+>['body'];
+
 export type AuthUserResponse = Extract<
   ServerInferResponses<typeof authContract.me>,
   { status: 200 }
