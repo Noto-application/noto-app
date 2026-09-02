@@ -5,7 +5,7 @@ import type { ProjectRole } from '@prisma/client';
 import { ApiErrors } from '../lib/errors';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedRequest } from '../types/auth.types';
-import { hasMinimumProjectRole } from './project-role.utils';
+import { assertProjectRole } from './assert-project-role';
 import { REQUIRE_PROJECT_ROLE_KEY } from './require-project-role.decorator';
 
 type RequestWithParams = AuthenticatedRequest & { params?: Record<string, string> };
@@ -50,6 +50,7 @@ export class ProjectAccessGuard implements CanActivate {
     userId: string,
     requiredRole: ProjectRole,
   ): Promise<void> {
+    // Существование (404) — по проекту; членство и роль (403) — общая проверка.
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
       select: { deletedAt: true },
@@ -59,19 +60,6 @@ export class ProjectAccessGuard implements CanActivate {
       throw ApiErrors.notFound('Project not found');
     }
 
-    const membership = await this.prisma.projectMember.findUnique({
-      where: {
-        projectId_userId: { projectId, userId },
-      },
-      select: { role: true },
-    });
-
-    if (!membership) {
-      throw ApiErrors.forbidden('You do not have access to this project');
-    }
-
-    if (!hasMinimumProjectRole(membership.role, requiredRole)) {
-      throw ApiErrors.forbidden('Insufficient project role');
-    }
+    await assertProjectRole(this.prisma, projectId, userId, requiredRole);
   }
 }
