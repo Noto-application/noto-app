@@ -16,7 +16,7 @@ type UpdateResponse = Awaited<ReturnType<typeof apiClient.pages.update>>;
 const pageId = '00000000-0000-4000-8000-000000000001';
 const projectId = '00000000-0000-4000-8000-000000000002';
 
-function updatedResponse(title: Page['title']): UpdateResponse {
+function updatedResponse(title: Page['title']) {
   return {
     status: 200,
     body: {
@@ -104,6 +104,16 @@ describe('usePageTitleAutosave', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it('триммит заголовок перед отправкой', async () => {
+    const update = vi.spyOn(apiClient.pages, 'update').mockResolvedValue(updatedResponse('Noto'));
+    const { result } = setup();
+
+    result.current.onChange('  Noto  ');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+    expect(update).toHaveBeenCalledWith({ params: { pageId }, body: { title: 'Noto' } });
+  });
+
   it('очистка заголовка отменяет уже запланированную отправку предыдущего значения', async () => {
     const update = vi.spyOn(apiClient.pages, 'update').mockResolvedValue(updatedResponse(''));
     const { result, unmount } = setup();
@@ -129,5 +139,16 @@ describe('usePageTitleAutosave', () => {
     await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
 
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: pageKeys.list(projectId) });
+  });
+
+  it('после успешного сохранения кладёт сохранённую страницу в detail-кэш', async () => {
+    const response = updatedResponse('Noto');
+    vi.spyOn(apiClient.pages, 'update').mockResolvedValue(response);
+    const { result, queryClient } = setup();
+
+    result.current.onChange('Noto');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+    expect(queryClient.getQueryData(pageKeys.detail(pageId))).toEqual(response.body.page);
   });
 });

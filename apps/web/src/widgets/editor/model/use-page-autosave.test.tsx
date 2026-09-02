@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from '@/src/shared/api';
+import { pageKeys } from '@/src/entities/page';
 
 import { AUTOSAVE_DEBOUNCE_MS, usePageAutosave } from './use-page-autosave';
 
@@ -13,7 +14,7 @@ type UpdateResponse = Awaited<ReturnType<typeof apiClient.pages.update>>;
 
 const pageId = '00000000-0000-4000-8000-000000000001';
 
-function updatedResponse(content: Page['content']): UpdateResponse {
+function updatedResponse(content: Page['content']) {
   return {
     status: 200,
     body: {
@@ -49,7 +50,7 @@ function setup() {
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 
-  return renderHook(() => usePageAutosave(pageId), { wrapper: Wrapper });
+  return { ...renderHook(() => usePageAutosave(pageId), { wrapper: Wrapper }), queryClient };
 }
 
 beforeEach(() => {
@@ -174,5 +175,16 @@ describe('usePageAutosave', () => {
     result.current.retry();
 
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('после успешного сохранения кладёт сохранённую страницу в detail-кэш', async () => {
+    const response = updatedResponse([{ type: 'paragraph', content: 'a' }]);
+    vi.spyOn(apiClient.pages, 'update').mockResolvedValue(response);
+    const { result, queryClient } = setup();
+
+    result.current.onChange([{ type: 'paragraph', content: 'a' }]);
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+    expect(queryClient.getQueryData(pageKeys.detail(pageId))).toEqual(response.body.page);
   });
 });
