@@ -9,3 +9,24 @@ import { afterEach } from 'vitest';
 afterEach(() => {
   cleanup();
 });
+
+/**
+ * jsdom не реализует `matchMedia` — падает любой компонент, который его
+ * читает (Mantine, используется внутри `@blocknote/mantine`, проверяет
+ * системную тему). Часть наборов тестов идёт под `environment: 'node'`
+ * (чистая логика, без DOM) — там `window` нет вовсе, пропускаем.
+ */
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  window.matchMedia = function matchMedia(this: void, query: string): MediaQueryList {
+    return {
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    } as MediaQueryList;
+  };
+}

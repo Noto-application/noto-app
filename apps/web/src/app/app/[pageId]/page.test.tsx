@@ -105,7 +105,7 @@ describe('роут /app/[pageId]', () => {
 
     renderRoute();
 
-    expect(await screen.findByRole('heading', { name: page.title })).toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: 'Заголовок страницы' })).toHaveValue(page.title);
     expect(screen.queryByText('Страница не найдена')).not.toBeInTheDocument();
   });
 });

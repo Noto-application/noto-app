@@ -1,5 +1,5 @@
 export type { Page } from './model/types';
-export { createPage, pageKeys } from './api/pages';
+export { pageKeys, updatePage, createPage } from './api/pages';
 export { usePage } from './api/use-page';
 export { usePageTree } from './api/use-page-tree';
 export { usePagesList } from './api/use-pages';
