@@ -12,6 +12,7 @@ export {
   AUTH_PASSWORD_MIN_LENGTH,
   authCredentialsSchema,
   authUserResponseSchema,
+  loginBodySchema,
 } from './schemas/auth';
 export { userSchema, type User } from './schemas/user';
 export {
@@ -41,6 +42,7 @@ export type {
   AuthUserResponse,
   CreatePageInput,
   CreateProjectInput,
+  LoginCredentials,
   PageResponse,
   PagesResponse,
   ProjectResponse,

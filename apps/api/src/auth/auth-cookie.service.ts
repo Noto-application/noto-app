@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import type { Env } from '../config/env.schema';
+import { ttlToSeconds } from '../lib/utils';
 import type { CookieReply } from '../types/http.types';
 
 /** Имена и path cookie (ADR-003) — только здесь, наружу через методы сервиса. */
@@ -21,7 +22,18 @@ export class AuthCookieService {
     return cookies?.[REFRESH];
   }
 
-  setAuthCookies(reply: CookieReply, accessToken: string, refreshToken: string): void {
+  /**
+   * `persistent` (issue #51): при `true` refresh-cookie получает `Max-Age` и
+   * переживает перезапуск браузера («запомнить меня»); при `false` — сессионная,
+   * как было. Access-cookie всегда сессионная — она короткоживущая, персистентность
+   * держится на refresh-токене.
+   */
+  setAuthCookies(
+    reply: CookieReply,
+    accessToken: string,
+    refreshToken: string,
+    persistent: boolean,
+  ): void {
     const secure = this.config.get('NODE_ENV', { infer: true }) === 'production';
 
     reply.setCookie(ACCESS, accessToken, {
@@ -36,6 +48,9 @@ export class AuthCookieService {
       sameSite: 'lax',
       secure,
       path: REFRESH_PATH,
+      ...(persistent
+        ? { maxAge: ttlToSeconds(this.config.get('JWT_REFRESH_TTL', { infer: true })) }
+        : {}),
     });
   }
 

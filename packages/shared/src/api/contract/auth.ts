@@ -1,7 +1,7 @@
 import { initContract } from '@ts-rest/core';
 
 import { apiErrorSchema } from '../errors';
-import { authCredentialsSchema, authUserResponseSchema } from '../schemas/auth';
+import { authCredentialsSchema, authUserResponseSchema, loginBodySchema } from '../schemas/auth';
 
 const c = initContract();
 
@@ -25,7 +25,7 @@ export const authContract = c.router(
     login: {
       method: 'POST',
       path: '/login',
-      body: authCredentialsSchema,
+      body: loginBodySchema,
       responses: {
         200: authUserResponseSchema,
         400: apiErrorSchema,

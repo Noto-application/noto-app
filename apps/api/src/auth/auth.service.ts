@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 import type { User as UserRecord } from '@prisma/client';
-import type { AuthCredentials, User } from '@noto/shared';
+import type { AuthCredentials, LoginCredentials, User } from '@noto/shared';
 
 import type { Env } from '../config/env.schema';
 import { ApiErrors } from '../lib/errors';
@@ -73,11 +73,13 @@ export class AuthService {
       throw error;
     }
 
-    const tokens = await this.issueTokenPair(user.id);
+    // Register всегда даёт сессионную cookie — «запомнить меня» относится к
+    // осознанному входу (issue #51), не к первичной регистрации.
+    const tokens = await this.issueTokenPair(user.id, false);
     return { user: toPublicUser(user), tokens };
   }
 
-  async login(credentials: AuthCredentials): Promise<AuthResult> {
+  async login(credentials: LoginCredentials): Promise<AuthResult> {
     const user = await this.prisma.user.findUnique({
       where: { email: credentials.email },
     });
@@ -89,7 +91,7 @@ export class AuthService {
       throw ApiErrors.invalidCredentials();
     }
 
-    const tokens = await this.issueTokenPair(user.id);
+    const tokens = await this.issueTokenPair(user.id, credentials.rememberMe ?? false);
     return { user: toPublicUser(user), tokens };
   }
 
@@ -112,7 +114,11 @@ export class AuthService {
       throw ApiErrors.unauthorized('Refresh token is invalid or expired');
     }
 
-    const tokens = await this.rotateRefreshToken(payload.sub, payload.jti);
+    const tokens = await this.rotateRefreshToken(
+      payload.sub,
+      payload.jti,
+      payload.persistent ?? false,
+    );
     return { tokens };
   }
 
@@ -149,11 +155,11 @@ export class AuthService {
     return { user: toPublicUser(user) };
   }
 
-  private async issueTokenPair(userId: string): Promise<AuthTokens> {
+  private async issueTokenPair(userId: string, persistent: boolean): Promise<AuthTokens> {
     const jti = randomUUID();
     const accessToken = await this.jwtService.signAsync({ sub: userId });
     const refreshToken = await this.jwtService.signAsync(
-      { sub: userId, jti },
+      { sub: userId, jti, persistent },
       {
         secret: this.config.get('JWT_REFRESH_SECRET', { infer: true }),
         expiresIn: this.config.get('JWT_REFRESH_TTL', { infer: true }),
@@ -166,14 +172,18 @@ export class AuthService {
       ttlToSeconds(this.config.get('JWT_REFRESH_TTL', { infer: true })),
     );
 
-    return { accessToken, refreshToken, refreshJti: jti, userId };
+    return { accessToken, refreshToken, refreshJti: jti, userId, persistent };
   }
 
-  private async rotateRefreshToken(userId: string, oldJti: string): Promise<AuthTokens> {
+  private async rotateRefreshToken(
+    userId: string,
+    oldJti: string,
+    persistent: boolean,
+  ): Promise<AuthTokens> {
     const jti = randomUUID();
     const accessToken = await this.jwtService.signAsync({ sub: userId });
     const refreshToken = await this.jwtService.signAsync(
-      { sub: userId, jti },
+      { sub: userId, jti, persistent },
       {
         secret: this.config.get('JWT_REFRESH_SECRET', { infer: true }),
         expiresIn: this.config.get('JWT_REFRESH_TTL', { infer: true }),
@@ -187,7 +197,7 @@ export class AuthService {
       ttlToSeconds(this.config.get('JWT_REFRESH_TTL', { infer: true })),
     );
 
-    return { accessToken, refreshToken, refreshJti: jti, userId };
+    return { accessToken, refreshToken, refreshJti: jti, userId, persistent };
   }
 
   private async getDummyPasswordHash(): Promise<string> {
