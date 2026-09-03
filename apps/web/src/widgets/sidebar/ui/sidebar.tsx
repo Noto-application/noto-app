@@ -1,6 +1,7 @@
 'use client';
 
-import { Calendar, Inbox, Search, Settings, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { Calendar, Home, Inbox, Search, Settings, Trash2 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 
 import { usePage } from '@/src/entities/page';
@@ -50,6 +51,15 @@ export function Sidebar() {
         <SidebarWorkspaceSwitcher />
 
         <nav aria-label="Разделы" className="flex flex-col gap-0.5">
+          <Link
+            href="/app"
+            className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-body-compact text-foreground hover:bg-surface-hover"
+          >
+            <span aria-hidden="true" className="text-muted-foreground [&_svg]:size-4">
+              <Home />
+            </span>
+            <span className="flex-1 truncate text-left">Домой</span>
+          </Link>
           <SidebarNavItem icon={<Search />} label="Поиск" shortcut="⌘K" />
           <SidebarNavItem icon={<Inbox />} label="Входящие" />
           <SidebarNavItem icon={<Calendar />} label="Календарь" />
