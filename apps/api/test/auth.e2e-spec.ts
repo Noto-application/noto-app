@@ -311,6 +311,41 @@ describe('Auth (e2e)', () => {
       expect(parseApiErrorBody(response.body).code).toBe('UNAUTHORIZED');
     });
   });
+
+  describe('«Запомнить меня» (персистентная refresh-cookie, #51)', () => {
+    beforeEach(async () => {
+      await request(server).post('/api/auth/register').send(credentials);
+    });
+
+    it('login с rememberMe: true → refresh-cookie с Max-Age', async () => {
+      const response = await request(server)
+        .post('/api/auth/login')
+        .send({ ...credentials, rememberMe: true })
+        .expect(200);
+
+      expect(rawSetCookie(response.headers['set-cookie'], 'refresh_token')).toMatch(/Max-Age=\d+/i);
+    });
+
+    it('login без rememberMe → сессионная refresh-cookie (без Max-Age)', async () => {
+      const response = await request(server).post('/api/auth/login').send(credentials).expect(200);
+
+      expect(rawSetCookie(response.headers['set-cookie'], 'refresh_token')).not.toMatch(
+        /Max-Age=|Expires=/i,
+      );
+    });
+
+    it('refresh сохраняет персистентность (остаётся с Max-Age)', async () => {
+      const agent = request.agent(server);
+      await agent
+        .post('/api/auth/login')
+        .send({ ...credentials, rememberMe: true })
+        .expect(200);
+
+      const response = await agent.post('/api/auth/refresh').expect(200);
+
+      expect(rawSetCookie(response.headers['set-cookie'], 'refresh_token')).toMatch(/Max-Age=\d+/i);
+    });
+  });
 });
 
 function extractCookie(
@@ -328,4 +363,15 @@ function extractCookie(
   }
 
   return raw.split(';')[0]?.slice(name.length + 1);
+}
+
+/** Полная строка Set-Cookie (с атрибутами) — для проверки Max-Age/Expires. */
+function rawSetCookie(setCookieHeader: string | string[] | undefined, name: string): string {
+  const entries = Array.isArray(setCookieHeader)
+    ? setCookieHeader
+    : setCookieHeader
+      ? [setCookieHeader]
+      : [];
+
+  return entries.find((entry) => entry.startsWith(`${name}=`)) ?? '';
 }

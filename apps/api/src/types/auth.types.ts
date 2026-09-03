@@ -5,10 +5,15 @@ export interface JwtAccessPayload {
   sub: string;
 }
 
-/** Payload refresh JWT: `sub` + `jti` для Redis allow-list. */
+/**
+ * Payload refresh JWT: `sub` + `jti` для Redis allow-list. `persistent` несёт
+ * выбор «запомнить меня» (issue #51) внутри самого токена — чтобы ротация на
+ * `/refresh` сохранила режим cookie, не имея доступа к исходному запросу login.
+ */
 export interface JwtRefreshPayload {
   sub: string;
   jti: string;
+  persistent?: boolean;
 }
 
 /** Минимальный контракт Fastify-запроса с cookie (@fastify/cookie). */
@@ -42,6 +47,8 @@ export interface AuthTokens {
   refreshToken: string;
   refreshJti: string;
   userId: string;
+  /** Режим refresh-cookie: `true` — персистентная (`Max-Age`), `false` — сессионная. */
+  persistent: boolean;
 }
 
 /** Результат register/login — публичный user + токены для cookie. */

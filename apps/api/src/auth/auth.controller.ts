@@ -32,6 +32,7 @@ export class AuthController {
           reply,
           result.tokens.accessToken,
           result.tokens.refreshToken,
+          result.tokens.persistent,
         );
         return { status: 201, body: { user: result.user } };
       } catch (error) {
@@ -49,6 +50,7 @@ export class AuthController {
           reply,
           result.tokens.accessToken,
           result.tokens.refreshToken,
+          result.tokens.persistent,
         );
         return { status: 200, body: { user: result.user } };
       } catch (error) {
@@ -71,6 +73,7 @@ export class AuthController {
           reply,
           result.tokens.accessToken,
           result.tokens.refreshToken,
+          result.tokens.persistent,
         );
         return { status: 200, body: undefined };
       } catch (error) {
