@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { RedisService } from '../redis/redis.service';
-import type { RefreshTokenStore } from '../types/auth.types';
+import type { AuthTokens, RefreshRotationResult, RefreshTokenStore } from '../types/auth.types';
 
 /** Redis allow-list активных refresh-токенов (ключ `refresh:{userId}:{jti}`). */
 @Injectable()
@@ -23,6 +23,22 @@ export class RedisRefreshTokenStore implements RefreshTokenStore {
       .del(this.key(userId, oldJti))
       .set(this.key(userId, newJti), '1', 'EX', ttlSeconds)
       .exec();
+  }
+
+  /**
+   * Заглушка: реализация после ревью тестов issue #50.
+   * Без неё `implements RefreshTokenStore` не компилируется, а e2e стора
+   * не могут вызвать новый метод.
+   */
+  rotateWithGrace(
+    _userId: string,
+    _oldJti: string,
+    _newJti: string,
+    _tokens: AuthTokens,
+    _refreshTtlSeconds: number,
+    _graceTtlSeconds: number,
+  ): Promise<RefreshRotationResult> {
+    return Promise.reject(new Error('rotateWithGrace is not implemented (issue #50)'));
   }
 
   async revoke(userId: string, jti: string): Promise<void> {

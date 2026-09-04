@@ -256,6 +256,93 @@ describe('Auth (e2e)', () => {
 
       expect(parseApiErrorBody(response.body).code).toBe('UNAUTHORIZED');
     });
+
+    describe('конкурентное обновление токена (grace-окно, #50)', () => {
+      it('два параллельных запроса с одним jti оба успешны и ставят одну пару cookie', async () => {
+        const registered = await request(server)
+          .post('/api/auth/register')
+          .send(credentials)
+          .expect(201);
+        const oldRefresh = extractCookie(registered.headers['set-cookie'], 'refresh_token');
+        expect(oldRefresh).toBeDefined();
+        const cookie = `refresh_token=${oldRefresh}`;
+
+        const [first, second] = await Promise.all([
+          request(server).post('/api/auth/refresh').set('Cookie', cookie),
+          request(server).post('/api/auth/refresh').set('Cookie', cookie),
+        ]);
+
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
+
+        const firstRefresh = extractCookie(first.headers['set-cookie'], 'refresh_token');
+        const secondRefresh = extractCookie(second.headers['set-cookie'], 'refresh_token');
+        expect(firstRefresh).toBeDefined();
+        expect(firstRefresh).toBe(secondRefresh);
+        expect(extractCookie(first.headers['set-cookie'], 'access_token')).toBe(
+          extractCookie(second.headers['set-cookie'], 'access_token'),
+        );
+
+        await request(server)
+          .post('/api/auth/refresh')
+          .set('Cookie', `refresh_token=${firstRefresh}`)
+          .expect(200);
+      });
+
+      it('сразу после ротации старый jti ещё принимается и отдаёт ту же пару', async () => {
+        const registered = await request(server)
+          .post('/api/auth/register')
+          .send(credentials)
+          .expect(201);
+        const oldRefresh = extractCookie(registered.headers['set-cookie'], 'refresh_token');
+        const cookie = `refresh_token=${oldRefresh}`;
+
+        const rotated = await request(server)
+          .post('/api/auth/refresh')
+          .set('Cookie', cookie)
+          .expect(200);
+        const replay = await request(server)
+          .post('/api/auth/refresh')
+          .set('Cookie', cookie)
+          .expect(200);
+
+        expect(extractCookie(replay.headers['set-cookie'], 'refresh_token')).toBe(
+          extractCookie(rotated.headers['set-cookie'], 'refresh_token'),
+        );
+        expect(extractCookie(replay.headers['set-cookie'], 'access_token')).toBe(
+          extractCookie(rotated.headers['set-cookie'], 'access_token'),
+        );
+      });
+
+      it('выход сразу после обновления токена инвалидирует и старый, и новый jti', async () => {
+        const registered = await request(server)
+          .post('/api/auth/register')
+          .send(credentials)
+          .expect(201);
+        const accessToken = extractCookie(registered.headers['set-cookie'], 'access_token');
+        const oldRefresh = extractCookie(registered.headers['set-cookie'], 'refresh_token');
+
+        const rotated = await request(server)
+          .post('/api/auth/refresh')
+          .set('Cookie', `refresh_token=${oldRefresh}`)
+          .expect(200);
+        const newRefresh = extractCookie(rotated.headers['set-cookie'], 'refresh_token');
+
+        await request(server)
+          .post('/api/auth/logout')
+          .set('Cookie', `access_token=${accessToken}`)
+          .expect(204);
+
+        await request(server)
+          .post('/api/auth/refresh')
+          .set('Cookie', `refresh_token=${oldRefresh}`)
+          .expect(401);
+        await request(server)
+          .post('/api/auth/refresh')
+          .set('Cookie', `refresh_token=${newRefresh}`)
+          .expect(401);
+      });
+    });
   });
 
   describe('POST /api/auth/logout', () => {
