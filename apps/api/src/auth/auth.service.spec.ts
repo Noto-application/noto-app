@@ -8,8 +8,11 @@ import { Prisma } from '@prisma/client';
 
 import type { Env } from '../config/env.schema';
 import { ApiException } from '../lib/errors';
-import type { PasswordHasher, RefreshTokenStore } from '../types/auth.types';
+import type { AuthTokens, PasswordHasher, RefreshTokenStore } from '../types/auth.types';
 import { AuthService } from './auth.service';
+
+/** Дефолт grace-окна (#50); сервис передаёт его в store. */
+const REFRESH_GRACE_TTL_SECONDS = 10;
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -44,6 +47,9 @@ describe('AuthService', () => {
 
   const storeMock = jest.fn() as jest.MockedFunction<RefreshTokenStore['store']>;
   const replaceMock = jest.fn() as jest.MockedFunction<RefreshTokenStore['replace']>;
+  const rotateWithGraceMock = jest.fn() as jest.MockedFunction<
+    RefreshTokenStore['rotateWithGrace']
+  >;
   const revokeMock = jest.fn() as jest.MockedFunction<RefreshTokenStore['revoke']>;
   const revokeAllForUserMock = jest.fn() as jest.MockedFunction<
     RefreshTokenStore['revokeAllForUser']
@@ -53,6 +59,7 @@ describe('AuthService', () => {
   const refreshTokenStore: jest.Mocked<RefreshTokenStore> = {
     store: storeMock,
     replace: replaceMock,
+    rotateWithGrace: rotateWithGraceMock,
     revoke: revokeMock,
     revokeAllForUser: revokeAllForUserMock,
     isActive: isActiveMock,
@@ -215,29 +222,63 @@ describe('AuthService', () => {
 
     it('бросает UNAUTHORIZED если jti отсутствует в Redis', async () => {
       jwtService.verifyAsync.mockResolvedValue({ sub: 'user-1', jti: 'jti-old' });
-      isActiveMock.mockResolvedValue(false);
+      rotateWithGraceMock.mockResolvedValue({ kind: 'missing' });
 
       await expect(service.refresh('valid.token')).rejects.toMatchObject({
         code: 'UNAUTHORIZED',
       });
+      expect(rotateWithGraceMock).toHaveBeenCalled();
     });
 
     it('ротирует refresh jti при успешном refresh', async () => {
-      jwtService.verifyAsync.mockResolvedValue({ sub: 'user-1', jti: 'jti-old' });
-      isActiveMock.mockResolvedValue(true);
-      jwtService.signAsync
-        .mockResolvedValueOnce('new-access')
-        .mockResolvedValueOnce('new-refresh');
+      jwtService.verifyAsync.mockResolvedValue({
+        sub: 'user-1',
+        jti: 'jti-old',
+        persistent: false,
+      });
+      jwtService.signAsync.mockResolvedValueOnce('new-access').mockResolvedValueOnce('new-refresh');
+      rotateWithGraceMock.mockResolvedValue({ kind: 'rotated' });
 
       const result = await service.refresh('valid.token');
 
-      expect(replaceMock).toHaveBeenCalledWith(
+      expect(rotateWithGraceMock).toHaveBeenCalledWith(
         'user-1',
         'jti-old',
         expect.any(String),
+        expect.objectContaining({
+          accessToken: 'new-access',
+          refreshToken: 'new-refresh',
+          userId: 'user-1',
+          persistent: false,
+        }),
         604_800,
+        REFRESH_GRACE_TTL_SECONDS,
       );
       expect(result.tokens.accessToken).toBe('new-access');
+      expect(result.tokens.refreshToken).toBe('new-refresh');
+    });
+
+    it('при гонке в grace-окне отдаёт кэшированную пару, а не только что подписанную', async () => {
+      jwtService.verifyAsync.mockResolvedValue({
+        sub: 'user-1',
+        jti: 'jti-old',
+        persistent: true,
+      });
+      jwtService.signAsync
+        .mockResolvedValueOnce('speculative-access')
+        .mockResolvedValueOnce('speculative-refresh');
+      const cached: AuthTokens = {
+        accessToken: 'cached-access',
+        refreshToken: 'cached-refresh',
+        refreshJti: 'jti-winner',
+        userId: 'user-1',
+        persistent: true,
+      };
+      rotateWithGraceMock.mockResolvedValue({ kind: 'replay', tokens: cached });
+
+      const result = await service.refresh('valid.token');
+
+      expect(result.tokens).toEqual(cached);
     });
   });
 
