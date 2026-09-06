@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { routerReplace, searchParamsGet, loginMock } = vi.hoisted(() => ({
   routerReplace: vi.fn(),
@@ -19,6 +19,10 @@ vi.mock('../api/auth', () => ({
 }));
 
 import { LoginForm } from './login-form';
+
+beforeEach(() => {
+  searchParamsGet.mockReturnValue(null);
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -54,7 +58,6 @@ describe('LoginForm', () => {
   });
 
   it('после входа ведёт на /app, если redirectUrl отсутствует', async () => {
-    searchParamsGet.mockReturnValue(null);
     loginMock.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<LoginForm />);
@@ -62,5 +65,48 @@ describe('LoginForm', () => {
     await fillAndSubmit(user);
 
     expect(routerReplace).toHaveBeenCalledWith('/app');
+  });
+
+  it('показывает доступный чекбокс, снятый по умолчанию', async () => {
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    const rememberMe = screen.getByRole('checkbox', { name: 'Запомнить меня' });
+
+    expect(rememberMe).toBeEnabled();
+    expect(rememberMe).not.toBeChecked();
+
+    await user.click(rememberMe);
+
+    expect(rememberMe).toBeChecked();
+  });
+
+  it('отправляет rememberMe: true при отмеченном чекбоксе', async () => {
+    loginMock.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await user.click(screen.getByRole('checkbox', { name: 'Запомнить меня' }));
+    await fillAndSubmit(user);
+
+    expect(loginMock).toHaveBeenCalledWith({
+      email: 'user@example.com',
+      password: 'password123',
+      rememberMe: true,
+    });
+  });
+
+  it('отправляет rememberMe: false при снятом чекбоксе', async () => {
+    loginMock.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await fillAndSubmit(user);
+
+    expect(loginMock).toHaveBeenCalledWith({
+      email: 'user@example.com',
+      password: 'password123',
+      rememberMe: false,
+    });
   });
 });
