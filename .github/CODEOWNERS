@@ -15,7 +15,7 @@
 /.github/            @StasKobles @temich080
 
 # Доки / ADR / RFC
-/docs/               @StasKobles @temich080
+/docs/               @StasKobles @temich080 @daria-z
 
 # Фронтенд
 /apps/web/           @MAChapurin @WinfordAshlyn @daria-z
