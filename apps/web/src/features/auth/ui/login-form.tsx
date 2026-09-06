@@ -78,7 +78,7 @@ export function LoginForm() {
             checked={rememberMe}
             id="login-remember-me"
             name="rememberMe"
-            onCheckedChange={(rememberMe) => form.setValue('rememberMe', rememberMe)}
+            onCheckedChange={(checked) => form.setValue('rememberMe', checked)}
           />
           Запомнить меня
         </label>

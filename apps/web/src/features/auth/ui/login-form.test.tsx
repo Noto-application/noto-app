@@ -3,10 +3,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-if (!window.PointerEvent) {
-  window.PointerEvent = MouseEvent as typeof PointerEvent;
-}
-
 const { login, replace } = vi.hoisted(() => ({
   login: vi.fn(),
   replace: vi.fn(),
