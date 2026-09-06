@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { authCredentialsSchema, type AuthCredentials } from '@noto/shared/api';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 
 import { login } from '@/src/features/auth/api/auth';
@@ -11,6 +11,7 @@ import { Button } from '@/src/shared/ui/button';
 import { Checkbox } from '@/src/shared/ui/checkbox';
 
 import { getAuthFormError } from '../lib/get-auth-error-message';
+import { getSafeRedirectPath } from '../lib/get-safe-redirect-path';
 import { AuthLayout } from './auth-layout';
 import { FormField } from './form-field';
 import { PasswordField } from './password-field';
@@ -19,6 +20,7 @@ type LoginFormValues = AuthCredentials;
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(authCredentialsSchema),
     defaultValues: { email: '', password: '' },
@@ -27,7 +29,7 @@ export function LoginForm() {
   async function onSubmit(credentials: LoginFormValues) {
     try {
       await login(credentials);
-      router.replace('/app');
+      router.replace(getSafeRedirectPath(searchParams.get('redirectUrl')) ?? '/app');
     } catch (error) {
       const { field, message } = getAuthFormError(error);
       form.setError(field ?? 'root', { message });
