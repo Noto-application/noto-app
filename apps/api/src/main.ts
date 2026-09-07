@@ -5,8 +5,8 @@ import { ConfigService } from '@nestjs/config';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module';
+import { configureApp } from './app-setup';
 import type { Env } from './config/env.schema';
-import cookie from '@fastify/cookie';
 
 async function bootstrap(): Promise<void> {
   // FastifyAdapter вместо Express: быстрее на HTTP и ближе к прод-нагрузке.
@@ -16,16 +16,8 @@ async function bootstrap(): Promise<void> {
   );
   const config = app.get(ConfigService<Env, true>);
 
-  await app.register(cookie);
-
-  // /health остаётся вне префикса: его дёргают healthcheck'и контейнера.
-  app.setGlobalPrefix('api', { exclude: ['health'] });
-
-  // credentials: true обязателен — токены живут в HttpOnly cookie (ADR-003).
-  app.enableCors({
-    origin: config.get('CORS_ORIGIN', { infer: true }),
-    credentials: true,
-  });
+  // cookie + глобальный префикс + CORS — общий обвес для прода и e2e.
+  await configureApp(app, config);
 
   app.enableShutdownHooks();
 

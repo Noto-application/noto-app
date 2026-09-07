@@ -1,10 +1,12 @@
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import cookie from '@fastify/cookie';
 
 import { AppModule } from '../../src/app.module';
+import { configureApp } from '../../src/app-setup';
+import type { Env } from '../../src/config/env.schema';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { RedisService } from '../../src/redis/redis.service';
 
@@ -20,8 +22,8 @@ export async function createTestApp(): Promise<TestAppContext> {
   }).compile();
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
-  await app.register(cookie);
-  app.setGlobalPrefix('api', { exclude: ['health'] });
+  // Тот же HTTP-обвес, что и в проде (cookie/prefix/CORS) — issue #96.
+  await configureApp(app, app.get(ConfigService<Env, true>));
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
 
