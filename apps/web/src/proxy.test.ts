@@ -42,4 +42,18 @@ describe('proxy', () => {
 
     expect(response.headers.getSetCookie()).toEqual([]);
   });
+
+  it('redirects to /login with the original path when both tokens are invalid', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await proxy(request);
+
+    const location = new URL(response.headers.get('location') ?? '');
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('redirectUrl')).toBe('/app/page-id');
+  });
 });
