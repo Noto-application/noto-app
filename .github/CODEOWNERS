@@ -3,7 +3,7 @@
 # затронутой области. Синтаксис: последнее совпадение по пути побеждает.
 
 # Дефолт — лиды
-*                    @temich080 @StasKobles
+*                    @temich080 @StasKobles @daria-z
 
 # Бэкенд
 /apps/api/           @StasKobles @terra456
