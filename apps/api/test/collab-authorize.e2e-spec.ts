@@ -117,6 +117,36 @@ describe('Internal collab authorize (e2e)', () => {
     expect(response.body).toMatchObject({ allowed: true, userId });
   });
 
+  it('owner → 200 (viewer — минимум, не равенство)', async () => {
+    const { cookie, userId } = await registerUser('c-owner-ok@example.com');
+    const projectId = await seedProject([{ userId, role: 'owner' }]);
+    const pageId = await seedPage({ projectId });
+
+    const response = await request(server)
+      .post(AUTHORIZE_PATH)
+      .set('Cookie', cookie)
+      .set('X-Collab-Secret', secret)
+      .send({ documentName: pageId })
+      .expect(200);
+
+    expect(response.body).toMatchObject({ allowed: true, userId });
+  });
+
+  it('editor → 200', async () => {
+    const { cookie, userId } = await registerUser('c-editor-ok@example.com');
+    const projectId = await seedProject([{ userId, role: 'editor' }]);
+    const pageId = await seedPage({ projectId });
+
+    const response = await request(server)
+      .post(AUTHORIZE_PATH)
+      .set('Cookie', cookie)
+      .set('X-Collab-Secret', secret)
+      .send({ documentName: pageId })
+      .expect(200);
+
+    expect(response.body).toMatchObject({ allowed: true, userId });
+  });
+
   it('участник + валидная cookie + НЕВЕРНЫЙ секрет → 403', async () => {
     const { cookie, userId } = await registerUser('c-badsecret@example.com');
     const projectId = await seedProject([{ userId, role: 'owner' }]);
@@ -267,6 +297,38 @@ describe('Internal collab authorize (e2e)', () => {
     expect(parseError(response.body).code).toBe('NOT_FOUND');
   });
 
+  it('НЕ участник + soft-deleted страница → 404 (существование раньше членства)', async () => {
+    const { userId: ownerId } = await registerUser('c-del-stranger-owner@example.com');
+    const { cookie: strangerCookie } = await registerUser('c-del-stranger@example.com');
+    const projectId = await seedProject([{ userId: ownerId, role: 'owner' }]);
+    const pageId = await seedPage({ projectId, deleted: true });
+
+    const response = await request(server)
+      .post(AUTHORIZE_PATH)
+      .set('Cookie', strangerCookie)
+      .set('X-Collab-Secret', secret)
+      .send({ documentName: pageId })
+      .expect(404);
+
+    expect(parseError(response.body).code).toBe('NOT_FOUND');
+  });
+
+  it('НЕ участник + soft-deleted проект → 404', async () => {
+    const { userId: ownerId } = await registerUser('c-delproj-stranger-owner@example.com');
+    const { cookie: strangerCookie } = await registerUser('c-delproj-stranger@example.com');
+    const projectId = await seedProject([{ userId: ownerId, role: 'owner' }], { deleted: true });
+    const pageId = await seedPage({ projectId });
+
+    const response = await request(server)
+      .post(AUTHORIZE_PATH)
+      .set('Cookie', strangerCookie)
+      .set('X-Collab-Secret', secret)
+      .send({ documentName: pageId })
+      .expect(404);
+
+    expect(parseError(response.body).code).toBe('NOT_FOUND');
+  });
+
   it('невалидное тело (нет documentName) → 400', async () => {
     const { cookie } = await registerUser('c-badbody@example.com');
 
@@ -291,5 +353,17 @@ describe('Internal collab authorize (e2e)', () => {
       .expect(400);
 
     expect(parseError(response.body).code).toBe('VALIDATION_ERROR');
+  });
+
+  it('верный секрет + нет cookie + кривой uuid → 401 (JWT раньше валидации тела)', async () => {
+    // Если Zod отработает первым — вернёт 400 без авторизации и тест упадёт,
+    // зафиксировав нарушение порядка спеки (секрет → JWT → тело).
+    const response = await request(server)
+      .post(AUTHORIZE_PATH)
+      .set('X-Collab-Secret', secret)
+      .send({ documentName: 'not-a-uuid' })
+      .expect(401);
+
+    expect(parseError(response.body).code).toBe('UNAUTHORIZED');
   });
 });
