@@ -1,8 +1,4 @@
-import {
-  authorizeConnection,
-  type AuthorizeDeps,
-  type CollabAuthApi,
-} from './authorize-connection';
+import { authorizeConnection, type AuthorizeDeps } from './authorize-connection';
 
 /**
  * Unit `authorizeConnection` — test-first (ADR-013), контракт из
@@ -21,31 +17,30 @@ const SECOND_ORIGIN = 'https://app.noto.example';
 const SECRET = 'service-secret';
 const TIMEOUT_MS = 1000;
 
-function makeApi(
-  authorize: CollabAuthApi['authorize'] = jest.fn(),
-): { api: CollabAuthApi; authorize: jest.Mock } {
-  const mock = authorize as jest.Mock;
-  return { api: { authorize: mock }, authorize: mock };
+interface DepsOverrides {
+  authorize?: jest.Mock;
+  allowedOrigins?: string[];
+  secret?: string;
+  timeoutMs?: number;
 }
 
-function makeDeps(overrides: Partial<AuthorizeDeps> = {}): {
+function makeDeps(overrides: DepsOverrides = {}): {
   deps: AuthorizeDeps;
   authorize: jest.Mock;
   warn: jest.Mock;
   info: jest.Mock;
   error: jest.Mock;
 } {
-  const { api, authorize } = makeApi(overrides.api?.authorize);
+  const authorize = overrides.authorize ?? jest.fn();
   const warn = jest.fn();
   const info = jest.fn();
   const error = jest.fn();
   const deps: AuthorizeDeps = {
-    allowedOrigins: [ALLOWED_ORIGIN, SECOND_ORIGIN],
-    secret: SECRET,
-    timeoutMs: TIMEOUT_MS,
-    api,
+    allowedOrigins: overrides.allowedOrigins ?? [ALLOWED_ORIGIN, SECOND_ORIGIN],
+    secret: overrides.secret ?? SECRET,
+    timeoutMs: overrides.timeoutMs ?? TIMEOUT_MS,
+    api: { authorize },
     logger: { warn, info, error },
-    ...overrides,
   };
   return { deps, authorize, warn, info, error };
 }
@@ -93,7 +88,7 @@ describe('authorizeConnection — origin allowlist (API не зовём)', () =>
 
   it('origin — ВТОРОЙ в allowlist → allow (не только [0])', async () => {
     const { deps } = makeDeps({
-      api: { authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }) },
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
     });
     const result = await authorizeConnection({ ...okInput, origin: SECOND_ORIGIN }, deps);
     expect(result).toEqual({ allowed: true, userId: 'user-1' });
@@ -120,7 +115,7 @@ describe('authorizeConnection — предусловия (API не зовём)',
 
   it('access_token НЕ первый в списке → извлекается, allow', async () => {
     const { deps, authorize } = makeDeps({
-      api: { authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }) },
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
     });
     const result = await authorizeConnection(
       { ...okInput, cookieHeader: 'theme=dark; access_token=tok-123; other=1' },
@@ -153,7 +148,7 @@ describe('authorizeConnection — предусловия (API не зовём)',
 describe('authorizeConnection — happy path и проброс в API', () => {
   it('200 { allowed:true, userId } → allow, userId проброшен', async () => {
     const { deps } = makeDeps({
-      api: { authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }) },
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
     });
     const result = await authorizeConnection(okInput, deps);
     expect(result).toEqual({ allowed: true, userId: 'user-1' });
@@ -161,7 +156,7 @@ describe('authorizeConnection — happy path и проброс в API', () => {
 
   it('в API уходит documentName, ТОЛЬКО значение access_token и секрет', async () => {
     const { deps, authorize } = makeDeps({
-      api: { authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }) },
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
     });
     await authorizeConnection(okInput, deps);
     expect(authorize).toHaveBeenCalledWith({
@@ -175,7 +170,7 @@ describe('authorizeConnection — happy path и проброс в API', () => {
 describe('authorizeConnection — fail-closed на не-happy ответы', () => {
   it.each([401, 403, 404, 400, 500])('status %s → deny', async (status) => {
     const { deps } = makeDeps({
-      api: { authorize: jest.fn().mockResolvedValue({ status, body: {} }) },
+      authorize: jest.fn().mockResolvedValue({ status, body: {} }),
     });
     const result = await authorizeConnection(okInput, deps);
     expect(result).toEqual({ allowed: false });
@@ -183,7 +178,7 @@ describe('authorizeConnection — fail-closed на не-happy ответы', () 
 
   it('200 { allowed:false } → deny', async () => {
     const { deps } = makeDeps({
-      api: { authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: false } }) },
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: false } }),
     });
     const result = await authorizeConnection(okInput, deps);
     expect(result).toEqual({ allowed: false });
@@ -191,7 +186,7 @@ describe('authorizeConnection — fail-closed на не-happy ответы', () 
 
   it('200 с невалидным телом → deny', async () => {
     const { deps } = makeDeps({
-      api: { authorize: jest.fn().mockResolvedValue({ status: 200, body: { foo: 'bar' } }) },
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { foo: 'bar' } }),
     });
     const result = await authorizeConnection(okInput, deps);
     expect(result).toEqual({ allowed: false });
@@ -199,7 +194,7 @@ describe('authorizeConnection — fail-closed на не-happy ответы', () 
 
   it('200 { allowed:true } без userId → deny', async () => {
     const { deps } = makeDeps({
-      api: { authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true } }) },
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true } }),
     });
     const result = await authorizeConnection(okInput, deps);
     expect(result).toEqual({ allowed: false });
@@ -207,7 +202,7 @@ describe('authorizeConnection — fail-closed на не-happy ответы', () 
 
   it('200 { allowed:true, userId:"" } (пустой) → deny', async () => {
     const { deps } = makeDeps({
-      api: { authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: '' } }) },
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: '' } }),
     });
     const result = await authorizeConnection(okInput, deps);
     expect(result).toEqual({ allowed: false });
@@ -215,7 +210,7 @@ describe('authorizeConnection — fail-closed на не-happy ответы', () 
 
   it('API бросил (сеть) → deny', async () => {
     const { deps } = makeDeps({
-      api: { authorize: jest.fn().mockRejectedValue(new Error('ECONNREFUSED')) },
+      authorize: jest.fn().mockRejectedValue(new Error('ECONNREFUSED')),
     });
     const result = await authorizeConnection(okInput, deps);
     expect(result).toEqual({ allowed: false });
@@ -226,7 +221,7 @@ describe('authorizeConnection — fail-closed на не-happy ответы', () 
     try {
       // API-вызов зависает — решение должно упереться в timeoutMs и отказать.
       const { deps } = makeDeps({
-        api: { authorize: jest.fn().mockReturnValue(new Promise(() => {})) },
+        authorize: jest.fn().mockReturnValue(new Promise(() => {})),
       });
       const pending = authorizeConnection(okInput, deps);
       await jest.advanceTimersByTimeAsync(TIMEOUT_MS + 1);
@@ -266,59 +261,55 @@ function serializeLogCalls(calls: unknown[][]): string {
       for (const nested of Object.values(value as Record<string, unknown>)) walk(nested);
       return;
     }
-    parts.push(String(value));
+    if (typeof value === 'bigint') parts.push(value.toString());
+    // symbol/function не логируем — секрета в них быть не может.
   };
   for (const call of calls) for (const arg of call) walk(arg);
   return parts.join(' ');
 }
 
+/** Сводит аргументы логгер-моков в один текст. Изолирует any из jest.Mock. */
+function loggedText(...mocks: jest.Mock[]): string {
+  const calls: unknown[][] = [];
+  for (const mock of mocks) {
+    for (const call of mock.mock.calls as unknown[][]) calls.push(call);
+  }
+  return serializeLogCalls(calls);
+}
+
 describe('authorizeConnection — не логируем секреты', () => {
   it('при отказе (403) ни в warn/info/error нет access_token или секрета', async () => {
     const { deps, warn, info, error } = makeDeps({
-      api: { authorize: jest.fn().mockResolvedValue({ status: 403, body: {} }) },
+      authorize: jest.fn().mockResolvedValue({ status: 403, body: {} }),
     });
     await authorizeConnection(okInput, deps);
 
-    const logged = serializeLogCalls([
-      ...warn.mock.calls,
-      ...info.mock.calls,
-      ...error.mock.calls,
-    ]);
+    const logged = loggedText(warn, info, error);
     expect(logged).not.toContain('tok-123');
     expect(logged).not.toContain(SECRET);
   });
 
   it('при успехе (200) ни в warn/info/error нет access_token или секрета', async () => {
     const { deps, warn, info, error } = makeDeps({
-      api: { authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }) },
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
     });
     await authorizeConnection(okInput, deps);
 
-    const logged = serializeLogCalls([
-      ...warn.mock.calls,
-      ...info.mock.calls,
-      ...error.mock.calls,
-    ]);
+    const logged = loggedText(warn, info, error);
     expect(logged).not.toContain('tok-123');
     expect(logged).not.toContain(SECRET);
   });
 
   it('секрет/токен в тексте ошибки API не попадают в лог', async () => {
     const { deps, warn, info, error } = makeDeps({
-      api: {
-        authorize: jest
-          .fn()
-          .mockRejectedValue(new Error(`connect failed leaking ${SECRET} and tok-123`)),
-      },
+      authorize: jest
+        .fn()
+        .mockRejectedValue(new Error(`connect failed leaking ${SECRET} and tok-123`)),
     });
     const result = await authorizeConnection(okInput, deps);
 
     expect(result).toEqual({ allowed: false });
-    const logged = serializeLogCalls([
-      ...warn.mock.calls,
-      ...info.mock.calls,
-      ...error.mock.calls,
-    ]);
+    const logged = loggedText(warn, info, error);
     expect(logged).not.toContain('tok-123');
     expect(logged).not.toContain(SECRET);
   });
