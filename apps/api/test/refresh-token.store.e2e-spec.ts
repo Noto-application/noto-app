@@ -160,7 +160,21 @@ describe('RedisRefreshTokenStore (e2e)', () => {
         1,
       );
       expect(after).toEqual({ kind: 'missing' });
-      expect(await redis.client.get(`refresh:${userId}:${winner.refreshJti}`)).toBe('1');
+      const newKeyTtl = await redis.client.ttl(`refresh:${userId}:${winner.refreshJti}`);
+      expect(newKeyTtl).toBeGreaterThan(0);
+      expect(newKeyTtl).toBeLessThanOrEqual(refreshTtl);
+    });
+
+    it('новому refresh-ключу ставит TTL по refreshTtl, а не бессрочный ключ', async () => {
+      await store.store(userId, oldJti, refreshTtl);
+      const winner = tokensFor(userId, 'jti-new');
+
+      await store.rotateWithGrace(userId, oldJti, winner.refreshJti, winner, refreshTtl, 10);
+
+      const ttl = await redis.client.ttl(`refresh:${userId}:${winner.refreshJti}`);
+      expect(ttl).toBeGreaterThan(0);
+      expect(ttl).toBeLessThanOrEqual(refreshTtl);
+      expect(ttl).toBeGreaterThan(refreshTtl - 5);
     });
 
     it('отзыв grace-ключа снимает и новый jti', async () => {
@@ -172,6 +186,26 @@ describe('RedisRefreshTokenStore (e2e)', () => {
 
       expect(await store.isActive(userId, oldJti)).toBe(false);
       expect(await store.isActive(userId, winner.refreshJti)).toBe(false);
+    });
+
+    it('отзыв нового jti в окне не отдаёт отозванную пару по старому ключу', async () => {
+      await store.store(userId, oldJti, refreshTtl);
+      const winner = tokensFor(userId, 'jti-new');
+
+      await store.rotateWithGrace(userId, oldJti, winner.refreshJti, winner, refreshTtl, 10);
+      await store.revoke(userId, winner.refreshJti);
+
+      const again = await store.rotateWithGrace(
+        userId,
+        oldJti,
+        'jti-after-revoke',
+        tokensFor(userId, 'jti-after-revoke'),
+        refreshTtl,
+        10,
+      );
+
+      expect(again).toEqual({ kind: 'missing' });
+      expect(await redis.client.get(`refresh:${userId}:${winner.refreshJti}`)).toBeNull();
     });
 
     it('отзыв всех токенов юзера снимает и grace, и новый jti; чужие ключи не трогает', async () => {
