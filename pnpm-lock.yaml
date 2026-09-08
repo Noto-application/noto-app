@@ -117,6 +117,12 @@ importers:
       '@hocuspocus/server':
         specifier: 2.15.3
         version: 2.15.3(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
+      '@noto/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@ts-rest/core':
+        specifier: 3.53.0-rc.1
+        version: 3.53.0-rc.1(@types/node@26.1.1)
     devDependencies:
       '@types/jest':
         specifier: 30.0.0

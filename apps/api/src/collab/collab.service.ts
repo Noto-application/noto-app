@@ -3,7 +3,6 @@ import { Injectable } from '@nestjs/common';
 import { assertProjectRole } from '../guards/assert-project-role';
 import { ApiErrors } from '../lib/errors';
 import { PrismaService } from '../prisma/prisma.service';
-import { collabAuthorizeBodySchema } from './collab.schema';
 
 export interface CollabAuthorizeResult {
   allowed: true;
@@ -11,22 +10,16 @@ export interface CollabAuthorizeResult {
 }
 
 /**
- * Авторизация доступа к Yjs-документу страницы (#108). Переиспользует ту же
- * проверку существования, что `PageAccessGuard` (404 на удалённую страницу/
+ * Авторизация доступа к Yjs-документу страницы (#108). Тело уже провалидировано
+ * ts-rest по контракту @noto/shared/internal (documentName = uuid). Переиспользует
+ * ту же проверку существования, что `PageAccessGuard` (404 на удалённую страницу/
  * проект — скрывает факт существования), и `assertProjectRole` для членства.
  */
 @Injectable()
 export class CollabService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async authorize(userId: string, rawBody: unknown): Promise<CollabAuthorizeResult> {
-    const parsed = collabAuthorizeBodySchema.safeParse(rawBody);
-    if (!parsed.success) {
-      throw ApiErrors.validation('Invalid authorize body', parsed.error.issues);
-    }
-
-    const { documentName } = parsed.data;
-
+  async authorize(userId: string, documentName: string): Promise<CollabAuthorizeResult> {
     // Существование (404): живая страница в живом проекте — как в PageAccessGuard.
     const page = await this.prisma.page.findFirst({
       where: { id: documentName, deletedAt: null },

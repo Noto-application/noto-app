@@ -1,35 +1,32 @@
+import { initClient } from '@ts-rest/core';
+import { internalCollabContract } from '@noto/shared/internal';
+
 import type { CollabAuthApi } from './auth/authorize-connection';
 
 /**
- * HTTP-клиент к internal collab-authorize endpoint API (#108). Пробрасывает
- * access_token как Cookie (тот же механизм, что REST) и сервисный секрет
- * заголовком. Возвращает сырой { status, body } — интерпретирует их
- * authorizeConnection (fail-closed).
+ * Клиент к internal collab-authorize endpoint API (#108). Один контракт с API
+ * (@noto/shared/internal). Пробрасывает access_token как Cookie (тот же
+ * механизм, что REST) и сервисный секрет заголовком; возвращает сырой
+ * { status, body } — интерпретирует их authorizeConnection (fail-closed).
  */
 export function createCollabAuthApi(apiInternalUrl: string): CollabAuthApi {
-  const endpoint = `${apiInternalUrl.replace(/\/$/, '')}/internal/collab/authorize`;
+  const client = initClient(internalCollabContract, {
+    baseUrl: apiInternalUrl.replace(/\/$/, ''),
+    baseHeaders: {},
+  });
 
   return {
     async authorize({ documentName, accessToken, secret, signal }) {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
+      const response = await client.authorize({
+        body: { documentName },
+        extraHeaders: {
           'x-collab-secret': secret,
           cookie: `access_token=${accessToken}`,
         },
-        body: JSON.stringify({ documentName }),
-        signal,
+        fetchOptions: { signal },
       });
 
-      let body: unknown;
-      try {
-        body = await response.json();
-      } catch {
-        body = null;
-      }
-
-      return { status: response.status, body };
+      return { status: response.status, body: response.body };
     },
   };
 }

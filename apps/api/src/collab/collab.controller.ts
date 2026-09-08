@@ -1,29 +1,36 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
+import { Controller, Req, UseGuards } from '@nestjs/common';
+import { TsRestHandler, tsRestHandler } from '@ts-rest/nest';
+import { internalCollabContract } from '@noto/shared/internal';
 
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { toTsRestException } from '../lib/errors';
 import type { AuthenticatedRequest } from '../types/auth.types';
 import { CollabSecretGuard } from './collab-secret.guard';
-import { CollabService, type CollabAuthorizeResult } from './collab.service';
+import { CollabService } from './collab.service';
 
 /**
- * Internal endpoint авторизации Yjs-документа для collab-сервиса (#108).
- * Живёт ВНЕ глобального префикса `/api` (см. app-setup): путь
- * `/internal/collab/authorize`, наружу через публичный proxy не роутится.
+ * Internal endpoint авторизации Yjs-документа (#108). Контракт —
+ * @noto/shared/internal (общий с apps/collab), вне публичного apiContract.
+ * Путь `/internal/collab/authorize` исключён из глобального /api-префикса
+ * (см. app-setup), наружу через Caddy не роутится.
  *
- * Порядок гвардов = порядок спеки: сначала сервисный секрет (403), затем
- * пользовательский JWT (401); валидация тела (400) — уже в сервисе.
+ * Порядок гвардов = порядок спеки: сервисный секрет (403) → JWT (401);
+ * валидацию тела (400) делает ts-rest до хендлера.
  */
-@Controller('internal/collab')
+@Controller()
 export class CollabController {
   constructor(private readonly collabService: CollabService) {}
 
-  @Post('authorize')
-  @HttpCode(HttpStatus.OK)
   @UseGuards(CollabSecretGuard, JwtAuthGuard)
-  authorize(
-    @Req() request: AuthenticatedRequest,
-    @Body() body: unknown,
-  ): Promise<CollabAuthorizeResult> {
-    return this.collabService.authorize(request.user.sub, body);
+  @TsRestHandler(internalCollabContract.authorize)
+  authorize(@Req() request: AuthenticatedRequest) {
+    return tsRestHandler(internalCollabContract.authorize, async ({ body }) => {
+      try {
+        const result = await this.collabService.authorize(request.user.sub, body.documentName);
+        return { status: 200 as const, body: result };
+      } catch (error) {
+        throw toTsRestException(error, internalCollabContract.authorize);
+      }
+    });
   }
 }

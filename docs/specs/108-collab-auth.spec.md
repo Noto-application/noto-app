@@ -69,8 +69,12 @@ apps/collab ──onAuthenticate──► apps/api  POST /internal/collab/author
 
 - Вне глобального префикса `/api` (Nest `setGlobalPrefix(..., { exclude })`),
   путь `/internal/collab/authorize`.
-- Контракт тела — ts-rest + Zod ([ADR-012](../adr/012-api-contract.md)):
-  `{ documentName: string (uuid) }`. Невалидное тело → `400 VALIDATION_ERROR`.
+- Контракт — ts-rest + Zod ([ADR-012](../adr/012-api-contract.md)) в
+  `@noto/shared/internal` (`internalCollabContract`), **общий** для apps/api
+  (реализация через `@ts-rest/nest`) и apps/collab (клиент через
+  `@ts-rest/core` `initClient`); в публичный `apiContract` НЕ входит. Тело
+  `{ documentName: uuid }`, невалидное → `400 VALIDATION_ERROR` (маппит
+  `ApiExceptionFilter`).
 - Аутентификация пользователя — **тем же** механизмом, что REST (cookie
   `access_token` + верификация access-JWT). Нет/битый/просроченный токен →
   `401 UNAUTHORIZED`.
