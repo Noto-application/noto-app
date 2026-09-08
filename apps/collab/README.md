@@ -39,10 +39,22 @@ caddy run --config ./Caddyfile
 одного origin уходит и на REST (`/api`), и на WS (`/collab`).
 
 > Изоляция internal-endpoint: Caddy не проксирует `/internal/*`, но «API
-> недоступен в обход Caddy» — требование деплоя. В dev достаточно, что фронт
-> ходит через :8080; в проде публиковать только Caddy, порт API держать в
-> приватной сети (loopback/без publish). На уровне приложения endpoint
-> защищён сервисным секретом.
+> недоступен в обход Caddy» — требование деплоя. В dev API слушает loopback
+> (`HOST=127.0.0.1`); в проде публиковать только Caddy, порт API держать в
+> приватной сети (без publish). На уровне приложения endpoint защищён
+> сервисным секретом.
+
+> Уже настроенное окружение: обновление `apps/api/.env.example` **не меняет**
+> существующий `apps/api/.env`. Допишите туда вручную (иначе dev-запуск
+> останется на `0.0.0.0`):
+>
+> ```
+> HOST=127.0.0.1
+> COLLAB_SHARED_SECRET=dev-collab-secret-change-me
+> ```
+>
+> И для single-origin: `CORS_ORIGIN=http://localhost:8080` (apps/api/.env),
+> `NEXT_PUBLIC_API_URL=http://localhost:8080` (apps/web/.env).
 
 ## Ручная проверка (спайк, realtime тестами не гоним)
 
