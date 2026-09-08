@@ -2,18 +2,23 @@
   "name": "@noto/collab",
   "version": "0.0.0",
   "private": true,
-  "type": "commonjs",
   "scripts": {
+    "dev": "node --env-file=.env --watch --import tsx src/server.ts",
+    "start": "node --env-file=.env --import tsx src/server.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src"
+  },
+  "dependencies": {
+    "@hocuspocus/server": "2.15.3"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",
     "@types/node": "26.1.1",
     "jest": "30.4.2",
     "ts-jest": "29.4.11",
+    "tsx": "4.20.3",
     "typescript": "5.9.3"
   }
 }
