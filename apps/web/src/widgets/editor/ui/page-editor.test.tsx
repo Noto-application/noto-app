@@ -69,6 +69,22 @@ describe('PageEditor', () => {
     expect(autosaveOnChange).toHaveBeenCalledWith(DOCUMENT_STUB);
   });
 
+  it('показывает фолбэк вместо падения всего маршрута, если BlockNote бросает при рендере', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // Дважды: React 19 при ошибке в конкурентном рендере молча повторяет
+    // рендер синхронно — одного throw не хватит, второй пройдёт уже чисто.
+    const throwOnRender = () => {
+      throw new Error('невалидный content');
+    };
+    useCreateBlockNote.mockImplementationOnce(throwOnRender).mockImplementationOnce(throwOnRender);
+
+    render(<PageEditor pageId={pageId} content={[]} />);
+
+    expect(screen.getByText('Не удалось открыть редактор.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'На главную' })).toHaveAttribute('href', '/app');
+    expect(consoleError).toHaveBeenCalled();
+  });
+
   it('передаёт status и retry из usePageAutosave в AutosaveIndicator', async () => {
     autosaveState.status = 'error';
     const user = userEvent.setup();
