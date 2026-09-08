@@ -26,6 +26,14 @@ vi.mock('@/src/entities/page', () => ({
   usePageTree: usePageTreeMock,
 }));
 
+vi.mock('@/src/features/delete-page', () => ({
+  DeletePage: ({ pageId, title }: { pageId: string; title: string }) => (
+    <button type="button" aria-label={`Удалить «${title}»`} data-page-id={pageId}>
+      Удалить
+    </button>
+  ),
+}));
+
 type BranchState = { hasChildren: false } | { hasChildren: true; isExpanded: boolean };
 
 type ItemProps = BranchState & {
@@ -34,6 +42,7 @@ type ItemProps = BranchState & {
   depth: number;
   isActive: boolean;
   onToggle?: () => void;
+  actions?: React.ReactNode;
 };
 
 /**
@@ -51,8 +60,9 @@ vi.mock('./page-tree-row', () => ({
           onClick={props.onToggle}
         />
       ) : null}
-      {/* Слот действий по контракту строки есть всегда, пока пустой. */}
-      <span data-actions />
+
+      {props.actions}
+
       <a href={props.href} aria-current={props.isActive ? 'page' : undefined}>
         {props.title}
       </a>
@@ -155,7 +165,10 @@ describe('PageTree', () => {
    *  рендер. Без этого теста регрессия на прямой вызов buildPageTree() в
    *  рендере осталась бы незамеченной. */
   it('показывает ошибку, а не падает, когда usePageTree не может построить дерево', () => {
-    usePagesListMock.mockReturnValue({ data: [{ id: 'page-1', title: 'Обзор', parentId: null }], isLoading: false });
+    usePagesListMock.mockReturnValue({
+      data: [{ id: 'page-1', title: 'Обзор', parentId: null }],
+      isLoading: false,
+    });
     usePageTreeMock.mockReturnValue({ data: undefined, isError: true });
 
     render(<PageTree projectId="project-1" />);
@@ -384,5 +397,17 @@ describe('PageTree', () => {
 
     expect(screen.getByRole('link', { name: 'Роадмап' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Обзор' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('показывает действие удаления для страницы', () => {
+    mockTree([{ id: 'page-1', title: 'Обзор', children: [] }]);
+
+    render(<PageTree projectId="project-1" />);
+
+    expect(
+      screen.getByRole('button', {
+        name: 'Удалить «Обзор»',
+      }),
+    ).toBeInTheDocument();
   });
 });
