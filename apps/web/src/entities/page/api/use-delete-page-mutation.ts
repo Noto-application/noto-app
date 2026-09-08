@@ -15,7 +15,7 @@ export function useDeletePageMutation() {
         queryKey: pageKeys.detail(pageId),
       });
 
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ['pages', 'list'],
       });
     },

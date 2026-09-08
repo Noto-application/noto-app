@@ -1,7 +1,19 @@
 // @vitest-environment jsdom
-import { renderHook, act } from '@testing-library/react';
+
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { useDeletePage } from './use-delete-page';
+
+type MutationOptions = {
+  onSuccess?: () => void;
+  onError?: () => void;
+};
+
+type DeletePageMutation = {
+  mutate: (pageId: string, options?: MutationOptions) => void;
+  isPending: boolean;
+};
 
 const {
   useDeletePageMutationMock,
@@ -32,6 +44,16 @@ vi.mock('@/src/shared/ui/toast', () => ({
   },
 }));
 
+function createMutationMock(
+  mutate: DeletePageMutation['mutate'] = vi.fn(),
+  isPending = false,
+): DeletePageMutation {
+  return {
+    mutate,
+    isPending,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 
@@ -39,10 +61,7 @@ beforeEach(() => {
     push: routerPushMock,
   });
 
-  useDeletePageMutationMock.mockReturnValue({
-    mutate: vi.fn(),
-    isPending: false,
-  });
+  useDeletePageMutationMock.mockReturnValue(createMutationMock());
 });
 
 describe('useDeletePage', () => {
@@ -94,10 +113,7 @@ describe('useDeletePage', () => {
   });
 
   it('не открывает диалог во время удаления', () => {
-    useDeletePageMutationMock.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: true,
-    });
+    useDeletePageMutationMock.mockReturnValue(createMutationMock(vi.fn(), true));
 
     const { result } = renderHook(() =>
       useDeletePage({
@@ -114,10 +130,7 @@ describe('useDeletePage', () => {
   });
 
   it('не изменяет состояние открытия во время удаления', () => {
-    useDeletePageMutationMock.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: true,
-    });
+    useDeletePageMutationMock.mockReturnValue(createMutationMock(vi.fn(), true));
 
     const { result } = renderHook(() =>
       useDeletePage({
@@ -134,12 +147,9 @@ describe('useDeletePage', () => {
   });
 
   it('передаёт pageId в mutation при удалении', () => {
-    const mutate = vi.fn();
+    const mutate = vi.fn<DeletePageMutation['mutate']>();
 
-    useDeletePageMutationMock.mockReturnValue({
-      mutate,
-      isPending: false,
-    });
+    useDeletePageMutationMock.mockReturnValue(createMutationMock(mutate));
 
     const { result } = renderHook(() =>
       useDeletePage({
@@ -152,22 +162,26 @@ describe('useDeletePage', () => {
       result.current.onDelete();
     });
 
-    expect(mutate).toHaveBeenCalledWith(
-      'page-42',
-      expect.objectContaining({
-        onSuccess: expect.any(Function),
-        onError: expect.any(Function),
-      }),
-    );
+    expect(mutate).toHaveBeenCalledTimes(1);
+
+    const [pageId, options] = mutate.mock.calls[0] ?? [];
+
+    expect(pageId).toBe('page-42');
+    expect(options).toBeDefined();
+    expect(options?.onSuccess).toEqual(expect.any(Function));
+    expect(options?.onError).toEqual(expect.any(Function));
   });
 
   it('после успешного удаления закрывает диалог', () => {
-    const mutate = vi.fn();
+    const mutate = vi.fn<DeletePageMutation['mutate']>();
 
-    useDeletePageMutationMock.mockReturnValue({
-      mutate,
-      isPending: false,
+    let options: MutationOptions | undefined;
+
+    mutate.mockImplementation((_pageId, mutationOptions) => {
+      options = mutationOptions;
     });
+
+    useDeletePageMutationMock.mockReturnValue(createMutationMock(mutate));
 
     const { result } = renderHook(() =>
       useDeletePage({
@@ -178,30 +192,26 @@ describe('useDeletePage', () => {
 
     act(() => {
       result.current.onOpen();
-    });
-
-    expect(result.current.open).toBe(true);
-
-    act(() => {
       result.current.onDelete();
     });
 
-    const [, options] = mutate.mock.calls[0];
-
     act(() => {
-      options.onSuccess();
+      options?.onSuccess?.();
     });
 
     expect(result.current.open).toBe(false);
   });
 
   it('после успешного удаления показывает success toast', () => {
-    const mutate = vi.fn();
+    const mutate = vi.fn<DeletePageMutation['mutate']>();
 
-    useDeletePageMutationMock.mockReturnValue({
-      mutate,
-      isPending: false,
+    let options: MutationOptions | undefined;
+
+    mutate.mockImplementation((_pageId, mutationOptions) => {
+      options = mutationOptions;
     });
+
+    useDeletePageMutationMock.mockReturnValue(createMutationMock(mutate));
 
     const { result } = renderHook(() =>
       useDeletePage({
@@ -214,10 +224,8 @@ describe('useDeletePage', () => {
       result.current.onDelete();
     });
 
-    const [, options] = mutate.mock.calls[0];
-
     act(() => {
-      options.onSuccess();
+      options?.onSuccess?.();
     });
 
     expect(toastSuccessMock).toHaveBeenCalledWith(
@@ -227,12 +235,15 @@ describe('useDeletePage', () => {
   });
 
   it('после успешного удаления перенаправляет на /app', () => {
-    const mutate = vi.fn();
+    const mutate = vi.fn<DeletePageMutation['mutate']>();
 
-    useDeletePageMutationMock.mockReturnValue({
-      mutate,
-      isPending: false,
+    let options: MutationOptions | undefined;
+
+    mutate.mockImplementation((_pageId, mutationOptions) => {
+      options = mutationOptions;
     });
+
+    useDeletePageMutationMock.mockReturnValue(createMutationMock(mutate));
 
     const { result } = renderHook(() =>
       useDeletePage({
@@ -245,22 +256,23 @@ describe('useDeletePage', () => {
       result.current.onDelete();
     });
 
-    const [, options] = mutate.mock.calls[0];
-
     act(() => {
-      options.onSuccess();
+      options?.onSuccess?.();
     });
 
     expect(routerPushMock).toHaveBeenCalledWith('/app');
   });
 
   it('после ошибки удаления показывает error toast', () => {
-    const mutate = vi.fn();
+    const mutate = vi.fn<DeletePageMutation['mutate']>();
 
-    useDeletePageMutationMock.mockReturnValue({
-      mutate,
-      isPending: false,
+    let options: MutationOptions | undefined;
+
+    mutate.mockImplementation((_pageId, mutationOptions) => {
+      options = mutationOptions;
     });
+
+    useDeletePageMutationMock.mockReturnValue(createMutationMock(mutate));
 
     const { result } = renderHook(() =>
       useDeletePage({
@@ -273,10 +285,8 @@ describe('useDeletePage', () => {
       result.current.onDelete();
     });
 
-    const [, options] = mutate.mock.calls[0];
-
     act(() => {
-      options.onError();
+      options?.onError?.();
     });
 
     expect(toastErrorMock).toHaveBeenCalledWith(
@@ -286,12 +296,15 @@ describe('useDeletePage', () => {
   });
 
   it('не перенаправляет на /app при ошибке удаления', () => {
-    const mutate = vi.fn();
+    const mutate = vi.fn<DeletePageMutation['mutate']>();
 
-    useDeletePageMutationMock.mockReturnValue({
-      mutate,
-      isPending: false,
+    let options: MutationOptions | undefined;
+
+    mutate.mockImplementation((_pageId, mutationOptions) => {
+      options = mutationOptions;
     });
+
+    useDeletePageMutationMock.mockReturnValue(createMutationMock(mutate));
 
     const { result } = renderHook(() =>
       useDeletePage({
@@ -304,20 +317,15 @@ describe('useDeletePage', () => {
       result.current.onDelete();
     });
 
-    const [, options] = mutate.mock.calls[0];
-
     act(() => {
-      options.onError();
+      options?.onError?.();
     });
 
     expect(routerPushMock).not.toHaveBeenCalled();
   });
 
   it('возвращает состояние isPending mutation', () => {
-    useDeletePageMutationMock.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: true,
-    });
+    useDeletePageMutationMock.mockReturnValue(createMutationMock(vi.fn(), true));
 
     const { result } = renderHook(() =>
       useDeletePage({

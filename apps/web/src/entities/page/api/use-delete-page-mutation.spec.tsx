@@ -8,8 +8,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { deletePage, pageKeys } from './pages';
 import { useDeletePageMutation } from './use-delete-page-mutation';
 
+import type * as PagesApi from './pages';
+
 vi.mock('./pages', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./pages')>();
+  const actual = await importOriginal<typeof PagesApi>();
 
   return {
     ...actual,
