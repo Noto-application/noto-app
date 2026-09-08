@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, FileText, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText } from 'lucide-react';
 import Link from 'next/link';
 
 import { cn } from '@/src/shared/lib/utils';
