@@ -20,3 +20,4 @@
 | Фича                                      | Спека                                  | Статус |
 | ----------------------------------------- | -------------------------------------- | ------ |
 | FE-3 · App shell (сайдбар/топбар/роутинг) | [web-app-shell.md](./web-app-shell.md) | Draft  |
+| Collab auth · Yjs WS-хендшейк (#108)      | [108-collab-auth.spec.md](./108-collab-auth.spec.md) | Draft  |

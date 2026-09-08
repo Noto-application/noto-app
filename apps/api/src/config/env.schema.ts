@@ -16,6 +16,10 @@ export const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(1),
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL: z.string().default('7d'),
+
+  // Сервисный секрет internal collab-authorize endpoint (#108): им collab
+  // подтверждает, что вызов идёт от него, а не снаружи. Обязателен и непустой.
+  COLLAB_SHARED_SECRET: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;
