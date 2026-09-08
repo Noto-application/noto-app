@@ -159,11 +159,17 @@ describe('authorizeConnection — happy path и проброс в API', () => {
       authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
     });
     await authorizeConnection(okInput, deps);
-    expect(authorize).toHaveBeenCalledWith({
-      documentName: okInput.documentName,
-      accessToken: 'tok-123',
-      secret: SECRET,
-    });
+    // documentName + значение access_token (не весь cookie-header) + секрет.
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentName: okInput.documentName,
+        accessToken: 'tok-123',
+        secret: SECRET,
+      }),
+    );
+    // signal прокинут — отмена HTTP по таймауту.
+    const [firstArg] = authorize.mock.calls[0] as [unknown];
+    expect((firstArg as { signal?: unknown }).signal).toBeInstanceOf(AbortSignal);
   });
 });
 

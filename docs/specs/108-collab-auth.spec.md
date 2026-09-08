@@ -25,8 +25,11 @@ apps/collab ──onAuthenticate──► apps/api  POST /internal/collab/author
 ```
 
 - `documentName = pageId` (голый UUID, без префикса) — **согласовано**.
-- Публичный proxy отдаёт наружу только `/api/*` и `/collab`. `/internal/*`
-  наружу не роутится; API напрямую (в обход Caddy) не публикуется.
+- Публичный proxy отдаёт наружу только `/api/*` и `/collab`; `/internal/*` из
+  публичной маршрутизации исключён. Но «API недоступен в обход Caddy» —
+  требование **уровня деплоя**, не приложения: в dev API слушать на loopback,
+  в проде — приватная сеть без публикации порта API. На уровне приложения
+  endpoint защищает сервисный секрет `X-Collab-Secret` (defense-in-depth).
 - Access-cookie `access_token` HttpOnly → клиентский JS её не читает, поэтому
   в `HocuspocusProvider({ token })` не передаётся. Единый origin (Caddy) →
   cookie сама уходит на `/collab`, collab читает её с upgrade-запроса.
@@ -35,7 +38,10 @@ apps/collab ──onAuthenticate──► apps/api  POST /internal/collab/author
 
 ### WS-хендшейк (apps/collab, `onAuthenticate` → `authorizeConnection`)
 
-Порядок и решения (любой не-happy путь → **отказ**, соединение рвётся):
+Порядок и решения (любой не-happy путь → **отказ**: доступ к документу
+запрещён, данные не отдаются; `throw` в `onAuthenticate` Hocuspocus 2.15.3
+отклоняет авторизацию, но мгновенный разрыв самого WS не гарантирует —
+безопасность держится на том, что неавторизованному не отдаётся контент):
 
 1. `Origin` отсутствует, равен строке `null` или не совпадает **точно** с
    элементом allowlist (`COLLAB_ALLOWED_ORIGINS`) → отказ, **API не зовём**
@@ -48,7 +54,8 @@ apps/collab ──onAuthenticate──► apps/api  POST /internal/collab/author
 5. **Fail-closed:** пропускаем **только** при `200 { allowed: true, userId }`
    с непустым строковым `userId`. Любой иной ответ (`401/403/404/400/500`,
    `allowed:false`, невалидное тело, отсутствующий/пустой `userId`), **таймаут**
-   или сетевая ошибка → отказ.
+   или сетевая ошибка → отказ. По таймауту HTTP-запрос отменяется
+   (`AbortController`), чтобы зависшие запросы не накапливались.
 6. Проверка выполняется **на каждый запрашиваемый документ** (onAuthenticate на
    коннект/док), не кэшируется на уровне соединения.
 

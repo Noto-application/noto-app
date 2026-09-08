@@ -13,25 +13,36 @@ WS-хендшейке (#108). Спека: [`docs/specs/108-collab-auth.spec.md`]
 
 ## Запуск (dev)
 
-Единый origin за Caddy — иначе HttpOnly access-cookie не долетит на `/collab`.
+Единый origin за Caddy — иначе HttpOnly access-cookie не долетит на `/collab`,
+а CORS отрежет запросы фронта. Поэтому фронт должен ходить в API **через тот же
+origin** (`:8080`), а API — разрешать этот origin.
 
 ```bash
-# 1. Инфра
-pnpm docker:up
+# 1. env ПЕРВЫМ (до запуска сервисов)
+cp apps/collab/.env.example apps/collab/.env
 
-# 2. API (порт 4000) и фронт (порт 3000)
+# Единый origin: фронт бьёт в API через Caddy, API разрешает :8080
+#   apps/web/.env :  NEXT_PUBLIC_API_URL=http://localhost:8080
+#   apps/api/.env :  CORS_ORIGIN=http://localhost:8080
+# collab: COLLAB_ALLOWED_ORIGINS=http://localhost:8080 (уже в .env.example),
+#         API_INTERNAL_URL=http://localhost:4000 (напрямую, internal endpoint)
+
+# 2. Все сервисы разом: turbo поднимает api + web + collab
+pnpm docker:up
 pnpm dev
 
-# 3. collab (порт 5555)
-cp apps/collab/.env.example apps/collab/.env
-pnpm --filter @noto/collab dev
-
-# 4. Caddy — единый origin http://localhost:8080
+# 3. Caddy — единый origin http://localhost:8080
 caddy run --config ./Caddyfile
 ```
 
 Открывать приложение на `http://localhost:8080` (не :3000) — тогда cookie
-одного origin уходит и на REST, и на WS.
+одного origin уходит и на REST (`/api`), и на WS (`/collab`).
+
+> Изоляция internal-endpoint: Caddy не проксирует `/internal/*`, но «API
+> недоступен в обход Caddy» — требование деплоя. В dev достаточно, что фронт
+> ходит через :8080; в проде публиковать только Caddy, порт API держать в
+> приватной сети (loopback/без publish). На уровне приложения endpoint
+> защищён сервисным секретом.
 
 ## Ручная проверка (спайк, realtime тестами не гоним)
 

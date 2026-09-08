@@ -10,7 +10,7 @@ export function createCollabAuthApi(apiInternalUrl: string): CollabAuthApi {
   const endpoint = `${apiInternalUrl.replace(/\/$/, '')}/internal/collab/authorize`;
 
   return {
-    async authorize({ documentName, accessToken, secret }) {
+    async authorize({ documentName, accessToken, secret, signal }) {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -19,6 +19,7 @@ export function createCollabAuthApi(apiInternalUrl: string): CollabAuthApi {
           cookie: `access_token=${accessToken}`,
         },
         body: JSON.stringify({ documentName }),
+        signal,
       });
 
       let body: unknown;

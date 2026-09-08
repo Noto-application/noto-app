@@ -9,6 +9,8 @@ export interface CollabAuthApiRequest {
   documentName: string;
   accessToken: string;
   secret: string;
+  /** Отмена запроса по таймауту — чтобы зависший HTTP не жил после deny. */
+  signal?: AbortSignal;
 }
 
 export interface CollabAuthApiResponse {
@@ -58,11 +60,23 @@ function extractCookie(cookieHeader: string | null | undefined, name: string): s
   return undefined;
 }
 
-/** Отклоняет обещание через ms, если оно не разрешилось раньше (fail-closed на таймаут). */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('collab authorize timeout')), ms);
-    promise.then(
+/**
+ * Зовёт API с таймаутом. По истечении ms: отменяет HTTP через AbortController
+ * (иначе зависший запрос живёт после deny) И отклоняет обещание — fail-closed
+ * даже если клиент/мок не среагировал на abort.
+ */
+function callWithTimeout(
+  api: CollabAuthApi,
+  request: Omit<CollabAuthApiRequest, 'signal'>,
+  ms: number,
+): Promise<CollabAuthApiResponse> {
+  const controller = new AbortController();
+  return new Promise<CollabAuthApiResponse>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error('collab authorize timeout'));
+    }, ms);
+    api.authorize({ ...request, signal: controller.signal }).then(
       (value) => {
         clearTimeout(timer);
         resolve(value);
@@ -111,8 +125,9 @@ export async function authorizeConnection(
 
   let response: CollabAuthApiResponse;
   try {
-    response = await withTimeout(
-      deps.api.authorize({ documentName, accessToken, secret: deps.secret }),
+    response = await callWithTimeout(
+      deps.api,
+      { documentName, accessToken, secret: deps.secret },
       deps.timeoutMs,
     );
   } catch (error) {
