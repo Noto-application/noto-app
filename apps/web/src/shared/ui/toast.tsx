@@ -1,3 +1,4 @@
+'use client';
 import { Toast as ToastPrimitive } from '@base-ui/react/toast';
 import { cva } from 'class-variance-authority';
 import { X } from 'lucide-react';
@@ -13,16 +14,19 @@ import { cn } from '@/src/shared/lib/utils';
  * `warning` совпадает) — рамка и цвет иконки при этом идентичны badge.
  * Разошедшиеся фоны заведены отдельными `--status-*-bg-soft` токенами
  * (см. globals.css), а не подогнаны под badge — расхождение из самого
- * макета, не наша правка. Обоснование → `toast.notes.md` рядом.
+ * макета.
  */
 const toastManager = ToastPrimitive.createToastManager();
 
 type ToastVariant = 'success' | 'danger' | 'info';
 
 const toast = {
-  success: (title: string, description?: string) => toastManager.add({ type: 'success', title, description }),
-  error: (title: string, description?: string) => toastManager.add({ type: 'danger', title, description }),
-  info: (title: string, description?: string) => toastManager.add({ type: 'info', title, description }),
+  success: (title: string, description?: string) =>
+    toastManager.add({ type: 'success', title, description }),
+  error: (title: string, description?: string) =>
+    toastManager.add({ type: 'danger', title, description }),
+  info: (title: string, description?: string) =>
+    toastManager.add({ type: 'info', title, description }),
 };
 
 const toastVariants = cva(
@@ -60,7 +64,12 @@ function ToastList() {
     const type = (t.type ?? 'info') as ToastVariant;
 
     return (
-      <ToastPrimitive.Root key={t.id} toast={t} data-slot="toast" className={cn(toastVariants({ type }))}>
+      <ToastPrimitive.Root
+        key={t.id}
+        toast={t}
+        data-slot="toast"
+        className={cn(toastVariants({ type }))}
+      >
         <span className={cn(toastIconVariants({ type }))} aria-hidden="true">
           {toastGlyphs[type]}
         </span>
@@ -81,7 +90,7 @@ function ToastList() {
   });
 }
 
-/** Монтируется один раз на верхнем уровне приложения (`app/layout.tsx`). */
+/** Монтируется один раз в `src/app/app/layout.tsx`. */
 function Toaster() {
   return (
     <ToastPrimitive.Provider toastManager={toastManager}>

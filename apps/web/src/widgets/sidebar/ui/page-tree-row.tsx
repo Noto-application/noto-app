@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, FileText } from 'lucide-react';
 import Link from 'next/link';
 
 import { cn } from '@/src/shared/lib/utils';
+import type { ReactNode } from 'react';
 
 type BranchState = { hasChildren: false } | { hasChildren: true; isExpanded: boolean };
 
@@ -11,6 +12,7 @@ type PageTreeRowProps = BranchState & {
   depth: number;
   isActive: boolean;
   onToggle?: () => void;
+  actions?: ReactNode;
 };
 
 /**
@@ -19,7 +21,14 @@ type PageTreeRowProps = BranchState & {
  * держит контракт [sidebar-tree-item.spec.md](../../../shared/ui/sidebar-tree-item.spec.md),
  * чтобы подмена свелась к замене импорта.
  */
-export function PageTreeRow({ title, href, depth, isActive, ...branch }: PageTreeRowProps) {
+export function PageTreeRow({
+  title,
+  href,
+  depth,
+  isActive,
+  actions,
+  ...branch
+}: PageTreeRowProps) {
   return (
     <div
       className={cn(
@@ -54,7 +63,7 @@ export function PageTreeRow({ title, href, depth, isActive, ...branch }: PageTre
       </Link>
 
       {/* Слот действий: наполняется в задаче создания страницы и в FE-P3/P5. */}
-      <span className="size-5 shrink-0" />
+      {actions ?? <span className="size-5 shrink-0" />}
     </div>
   );
 }

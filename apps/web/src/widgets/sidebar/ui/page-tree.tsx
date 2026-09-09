@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
 import { usePagesList, usePageTree, type Page, type PageTreeNode } from '@/src/entities/page';
+import { DeletePage } from '@/src/features/delete-page';
 import { EmptyState } from '@/src/shared/ui/empty-state';
 import { InlineAlert } from '@/src/shared/ui/inline-alert';
 import { Skeleton } from '@/src/shared/ui/skeleton';
@@ -31,10 +32,12 @@ function TreeNodes({
   nodes,
   depth,
   activePageId,
+  projectId,
 }: {
   nodes: PageTreeNode[];
   depth: number;
   activePageId: string | undefined;
+  projectId: string;
 }) {
   const collapsedPageIds = useSidebarStore((state) => state.collapsedPageIds);
   const togglePage = useSidebarStore((state) => state.togglePage);
@@ -52,13 +55,23 @@ function TreeNodes({
               href={`/app/${node.id}`}
               depth={depth}
               isActive={node.id === activePageId}
+              actions={<DeletePage pageId={node.id} title={node.title} />}
               {...(hasChildren
-                ? { hasChildren: true, isExpanded, onToggle: () => togglePage(node.id) }
+                ? {
+                    hasChildren: true,
+                    isExpanded,
+                    onToggle: () => togglePage(node.id),
+                  }
                 : { hasChildren: false })}
             />
 
             {isExpanded ? (
-              <TreeNodes nodes={node.children} depth={depth + 1} activePageId={activePageId} />
+              <TreeNodes
+                nodes={node.children}
+                depth={depth + 1}
+                activePageId={activePageId}
+                projectId={projectId}
+              />
             ) : null}
           </li>
         );
@@ -73,18 +86,20 @@ function TreeNodes({
  */
 export function PageTree({ projectId }: { projectId: string }) {
   const { pageId } = useParams<{ pageId?: string }>();
+
   const { data: pages, isLoading } = usePagesList(projectId);
+
   // Тот же query key, что у usePagesList — второй сетевой запрос не уходит,
   // только пересчёт дерева. `buildPageTree` бросает на неконсистентных
   // данных (дубли id, циклы); в `select` throw уходит в `isError`, а не
-  // роняет рендер, как было бы при вызове buildPageTree() прямо здесь.
+  // роняет рендер.
   const { data: tree, isError: isTreeError } = usePageTree(projectId);
+
   const expandPages = useSidebarStore((state) => state.expandPages);
 
   // Раскрытие только на смену pageId, не на любое обновление pages — иначе
   // вручную свёрнутая ветка раскрывалась бы обратно при каждой инвалидации
-  // списка. pages остаётся в зависимостях: без него раскрытие не сработало
-  // бы при заходе по прямой ссылке, пока список ещё грузится.
+  // списка.
   const expandedForPageIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -125,7 +140,7 @@ export function PageTree({ projectId }: { projectId: string }) {
 
   return (
     <nav aria-label="Страницы" className="flex-1 overflow-y-auto">
-      <TreeNodes nodes={tree} depth={0} activePageId={pageId} />
+      <TreeNodes nodes={tree} depth={0} activePageId={pageId} projectId={projectId} />
     </nav>
   );
 }
