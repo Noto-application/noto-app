@@ -21,8 +21,10 @@ export async function configureApp(
 ): Promise<void> {
   await app.register(cookie);
 
-  // /health остаётся вне префикса: его дёргают healthcheck'и контейнера.
-  app.setGlobalPrefix('api', { exclude: ['health'] });
+  // /health вне префикса — его дёргают healthcheck'и контейнера.
+  // /internal/collab/authorize вне префикса — internal endpoint для collab
+  // (#108), наружу не публикуется, зовётся только collab-сервисом.
+  app.setGlobalPrefix('api', { exclude: ['health', 'internal/collab/authorize'] });
 
   // credentials: true обязателен — токены живут в HttpOnly cookie (ADR-003).
   app.enableCors({
