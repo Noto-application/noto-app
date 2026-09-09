@@ -7,6 +7,10 @@ import type { AuthTokens, RefreshRotationResult, RefreshTokenStore } from '../ty
  * Атомарная ротация с grace (#50).
  * KEYS[1] старый ключ, KEYS[2] новый.
  * ARGV: refreshTtl, graceTtl, JSON пары победителя, userId.
+ *
+ * Single-node Redis: скрипт читает successorKey, не объявленный в KEYS[],
+ * EVAL идёт по двум ключам. На Redis Cluster это CROSSSLOT / недопустимый
+ * доступ к третьему ключу. Cluster не в планах.
  */
 const ROTATE_WITH_GRACE_LUA = `
 local current = redis.call('GET', KEYS[1])
