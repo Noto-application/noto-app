@@ -14,7 +14,9 @@ function copySetCookies(target: NextResponse, source: Response): void {
 }
 
 async function logoutAndRedirect(request: NextRequest): Promise<NextResponse> {
-  const response = NextResponse.redirect(new URL('/login', request.url));
+  const loginUrl = new URL('/login', request.url);
+  loginUrl.searchParams.set('redirectUrl', request.nextUrl.pathname);
+  const response = NextResponse.redirect(loginUrl);
 
   try {
     const logoutResponse = await apiRequest(request, '/auth/logout', 'POST');

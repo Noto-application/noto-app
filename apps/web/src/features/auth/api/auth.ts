@@ -1,8 +1,8 @@
-import type { AuthCredentials, AuthUserResponse } from '@noto/shared/api';
+import type { AuthCredentials, AuthUserResponse, LoginCredentials } from '@noto/shared/api';
 
 import { apiClient, toApiClientError } from '@/src/shared/api';
 
-export async function login(credentials: AuthCredentials): Promise<AuthUserResponse> {
+export async function login(credentials: LoginCredentials): Promise<AuthUserResponse> {
   const response = await apiClient.auth.login({ body: credentials });
 
   if (response.status !== 200) {

@@ -1,33 +1,36 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { authCredentialsSchema, type AuthCredentials } from '@noto/shared/api';
+import { loginBodySchema, type LoginCredentials } from '@noto/shared/api';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useForm, useWatch } from 'react-hook-form';
 
 import { login } from '@/src/features/auth/api/auth';
 import { Button } from '@/src/shared/ui/button';
 import { Checkbox } from '@/src/shared/ui/checkbox';
 
 import { getAuthFormError } from '../lib/get-auth-error-message';
+import { getSafeRedirectPath } from '../lib/get-safe-redirect-path';
 import { AuthLayout } from './auth-layout';
 import { FormField } from './form-field';
 import { PasswordField } from './password-field';
 
-type LoginFormValues = AuthCredentials;
+type LoginFormValues = LoginCredentials;
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const form = useForm<LoginFormValues>({
-    resolver: zodResolver(authCredentialsSchema),
-    defaultValues: { email: '', password: '' },
+    resolver: zodResolver(loginBodySchema),
+    defaultValues: { email: '', password: '', rememberMe: false },
   });
+  const rememberMe = useWatch({ control: form.control, name: 'rememberMe' });
 
   async function onSubmit(credentials: LoginFormValues) {
     try {
       await login(credentials);
-      router.replace('/app');
+      router.replace(getSafeRedirectPath(searchParams.get('redirectUrl')) ?? '/app');
     } catch (error) {
       const { field, message } = getAuthFormError(error);
       form.setError(field ?? 'root', { message });
@@ -73,7 +76,12 @@ export function LoginForm() {
         />
 
         <label className="flex items-center gap-2 text-body-compact text-muted-foreground">
-          <Checkbox disabled id="login-remember-me" />
+          <Checkbox
+            checked={rememberMe}
+            id="login-remember-me"
+            name="rememberMe"
+            onCheckedChange={(checked) => form.setValue('rememberMe', checked)}
+          />
           Запомнить меня
         </label>
 
