@@ -8,18 +8,21 @@ import { createPage, pageKeys } from '@/src/entities/page';
 import { createProject, projectKeys, useProjects } from '@/src/entities/project';
 import { ApiClientError } from '@/src/shared/api';
 import { toast } from '@/src/shared/ui/toast';
+import { useActiveProjectId } from './use-active-project-id';
 
 const DEFAULT_PAGE_TITLE = 'Без названия';
 const DEFAULT_PROJECT_NAME = 'Мой проект';
 
 /**
- * Создаёт страницу в известном проекте. Когда проект не передан, выбирает
- * первый загруженный проект или сначала создаёт «Мой проект».
+ * Создаёт страницу в известном проекте. Когда проект не передан, берёт
+ * активный (проект открытой страницы, иначе первый загруженный) или сначала
+ * создаёт «Мой проект», если проектов ещё нет вовсе.
  */
 export function useCreatePage(projectId?: string) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const projectsQuery = useProjects();
+  const activeProjectId = useActiveProjectId();
 
   const mutation = useMutation<
     Page,
@@ -27,7 +30,7 @@ export function useCreatePage(projectId?: string) {
     { title?: string; parentId?: string | null } | undefined
   >({
     mutationFn: async ({ title = DEFAULT_PAGE_TITLE, parentId } = {}) => {
-      let targetProjectId = projectId;
+      let targetProjectId = projectId ?? activeProjectId.projectId;
 
       if (!targetProjectId) {
         const projects = projectsQuery.data;
@@ -69,5 +72,7 @@ export function useCreatePage(projectId?: string) {
     ...mutation,
     isProjectsPending: projectsQuery.isPending,
     isProjectsError: projectsQuery.isError,
+    isActiveProjectPending: activeProjectId.isPending,
+    isActiveProjectError: activeProjectId.isError,
   };
 }
