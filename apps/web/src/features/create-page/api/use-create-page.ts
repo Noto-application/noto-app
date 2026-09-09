@@ -50,6 +50,7 @@ export function useCreatePage(projectId?: string) {
     onSuccess: async (page) => {
       await queryClient.invalidateQueries({ queryKey: pageKeys.list(page.projectId) });
       router.push(`/app/${page.id}`);
+      toast.success('Страница создана', `Вы перешли на страницу «${page.title}»`);
     },
     onError: (error) => {
       if (error instanceof ApiClientError && error.code === 'UNAUTHORIZED') {

@@ -7,6 +7,7 @@ import { QueryProvider } from '@/src/shared/api';
 import { InlineAlert } from '@/src/shared/ui/inline-alert';
 import { Sidebar, useSidebarStore } from '@/src/widgets/sidebar';
 import { Topbar } from '@/src/widgets/topbar';
+import { Toaster } from '@/src/shared/ui/toast';
 
 type AppLayoutProps = Readonly<{
   children: ReactNode;
@@ -42,6 +43,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <QueryProvider>
       <CreatePageProvider>
+        <Toaster />
         <AppShell>{children}</AppShell>
       </CreatePageProvider>
     </QueryProvider>
