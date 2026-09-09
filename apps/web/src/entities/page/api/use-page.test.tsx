@@ -87,4 +87,14 @@ describe('usePage', () => {
 
     expect(result.current.error).toMatchObject({ code: 'FORBIDDEN' });
   });
+
+  it('не отправляет запрос, если id не передан', () => {
+    const get = vi.spyOn(apiClient.pages, 'get');
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => usePage(undefined), { wrapper: Wrapper });
+
+    expect(get).not.toHaveBeenCalled();
+    expect(result.current.fetchStatus).toBe('idle');
+  });
 });

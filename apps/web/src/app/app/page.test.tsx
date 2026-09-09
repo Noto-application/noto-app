@@ -10,6 +10,7 @@ import AppPage from './page';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useParams: () => ({}),
 }));
 
 afterEach(() => {

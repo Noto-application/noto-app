@@ -8,6 +8,7 @@ import AppLayout from './layout';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useParams: () => ({}),
 }));
 
 vi.mock('@/src/widgets/sidebar', () => ({
