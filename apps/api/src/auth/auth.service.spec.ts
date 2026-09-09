@@ -40,6 +40,7 @@ describe('AuthService', () => {
       const values: Partial<Record<keyof Env, string>> = {
         JWT_REFRESH_SECRET: 'refresh-secret',
         JWT_REFRESH_TTL: '7d',
+        JWT_REFRESH_GRACE_TTL: '10s',
       };
       return values[key];
     }),
