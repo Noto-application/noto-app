@@ -109,11 +109,6 @@ export class AuthService {
       throw ApiErrors.unauthorized('Refresh token is invalid or expired');
     }
 
-    const isActive = await this.refreshTokenStore.isActive(payload.sub, payload.jti);
-    if (!isActive) {
-      throw ApiErrors.unauthorized('Refresh token is invalid or expired');
-    }
-
     const tokens = await this.rotateRefreshToken(
       payload.sub,
       payload.jti,
@@ -190,14 +185,32 @@ export class AuthService {
       },
     );
 
-    await this.refreshTokenStore.replace(
+    const tokens: AuthTokens = {
+      accessToken,
+      refreshToken,
+      refreshJti: jti,
+      userId,
+      persistent,
+    };
+
+    const result = await this.refreshTokenStore.rotateWithGrace(
       userId,
       oldJti,
       jti,
+      tokens,
       ttlToSeconds(this.config.get('JWT_REFRESH_TTL', { infer: true })),
+      ttlToSeconds(this.config.get('JWT_REFRESH_GRACE_TTL', { infer: true })),
     );
 
-    return { accessToken, refreshToken, refreshJti: jti, userId, persistent };
+    if (result.kind === 'missing') {
+      throw ApiErrors.unauthorized('Refresh token is invalid or expired');
+    }
+
+    if (result.kind === 'replay') {
+      return result.tokens;
+    }
+
+    return tokens;
   }
 
   private async getDummyPasswordHash(): Promise<string> {
