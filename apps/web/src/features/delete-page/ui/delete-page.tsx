@@ -6,7 +6,6 @@ import { useDeletePage } from '../model/use-delete-page';
 
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -14,6 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/src/shared/ui/alert-dialog';
+import { Button } from '@/src/shared/ui/button';
 
 type DeletePageProps = {
   pageId: string;
@@ -50,10 +50,15 @@ export function DeletePage({ pageId, title }: DeletePageProps) {
 
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Отмена</AlertDialogCancel>
-
-            <AlertDialogAction variant="destructive" disabled={isPending} onClick={onDelete}>
-              {isPending ? 'Удаление…' : 'Удалить'}
-            </AlertDialogAction>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isPending}
+              onClick={onDelete}
+              loading={isPending}
+            >
+              {isPending ? 'Удаление' : 'Удалить'}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

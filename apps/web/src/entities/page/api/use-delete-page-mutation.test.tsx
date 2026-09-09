@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 
-import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { type ReactNode } from 'react';
+import { renderHook, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
+import type * as PagesApi from './pages';
 import { deletePage, pageKeys } from './pages';
 import { useDeletePageMutation } from './use-delete-page-mutation';
-
-import type * as PagesApi from './pages';
 
 vi.mock('./pages', async (importOriginal) => {
   const actual = await importOriginal<typeof PagesApi>();
@@ -45,16 +44,30 @@ describe('useDeletePageMutation', () => {
     const queryClient = createTestQueryClient();
 
     const pageId = 'page-42';
+    const projectId = 'project-1';
+
     const detailKey = pageKeys.detail(pageId);
 
     queryClient.setQueryData(detailKey, {
       id: pageId,
+      projectId,
+      parentId: null,
       title: 'Обзор',
+      content: [],
+      position: 0,
+      createdAt: '2026-08-28T00:00:00.000Z',
+      updatedAt: '2026-08-28T00:00:00.000Z',
     });
 
     expect(queryClient.getQueryData(detailKey)).toEqual({
       id: pageId,
+      projectId,
+      parentId: null,
       title: 'Обзор',
+      content: [],
+      position: 0,
+      createdAt: '2026-08-28T00:00:00.000Z',
+      updatedAt: '2026-08-28T00:00:00.000Z',
     });
 
     const { result } = renderHook(() => useDeletePageMutation(), {
@@ -70,24 +83,38 @@ describe('useDeletePageMutation', () => {
     expect(queryClient.getQueryData(detailKey)).toBeUndefined();
   });
 
-  it('после успешного удаления инвалидирует список страниц', async () => {
+  it('после успешного удаления инвалидирует список страниц проекта', async () => {
     vi.mocked(deletePage).mockResolvedValue(undefined);
 
     const queryClient = createTestQueryClient();
     const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
 
+    const pageId = 'page-42';
+    const projectId = 'project-1';
+
+    queryClient.setQueryData(pageKeys.detail(pageId), {
+      id: pageId,
+      projectId,
+      parentId: null,
+      title: 'Обзор',
+      content: [],
+      position: 0,
+      createdAt: '2026-08-28T00:00:00.000Z',
+      updatedAt: '2026-08-28T00:00:00.000Z',
+    });
+
     const { result } = renderHook(() => useDeletePageMutation(), {
       wrapper: createWrapper(queryClient),
     });
 
-    result.current.mutate('page-42');
+    result.current.mutate(pageId);
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
     expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['pages', 'list'],
+      queryKey: pageKeys.list(projectId),
     });
   });
 });

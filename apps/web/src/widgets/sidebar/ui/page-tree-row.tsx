@@ -32,7 +32,7 @@ export function PageTreeRow({
   return (
     <div
       className={cn(
-        'group flex items-center gap-1 rounded-md pr-1 text-body-compact text-foreground',
+        'flex items-center gap-1 rounded-md pr-1 text-body-compact text-foreground',
         'hover:bg-surface-hover has-[[aria-current=page]]:bg-surface-selected',
       )}
       style={{ paddingLeft: `${depth * 12 + 4}px` }}
