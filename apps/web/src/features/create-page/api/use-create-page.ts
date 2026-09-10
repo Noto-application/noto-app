@@ -2,35 +2,38 @@
 
 import type { Page } from '@noto/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 
-import { createPage, pageKeys } from '@/src/entities/page';
+import { createPage, pageKeys, usePage } from '@/src/entities/page';
 import { createProject, projectKeys, useProjects } from '@/src/entities/project';
 import { ApiClientError } from '@/src/shared/api';
 import { toast } from '@/src/shared/ui/toast';
-import { useActiveProjectId } from './use-active-project-id';
 
 const DEFAULT_PAGE_TITLE = 'Без названия';
 const DEFAULT_PROJECT_NAME = 'Мой проект';
 
+type CreatePageInput = { title?: string; parentId?: string | null };
+
 /**
- * Создаёт страницу в известном проекте. Когда проект не передан, берёт
- * активный (проект открытой страницы, иначе первый загруженный) или сначала
- * создаёт «Мой проект», если проектов ещё нет вовсе.
+ * Создаёт страницу в активном проекте: если открыта страница — в её
+ * проекте, иначе в первом загруженном; если проектов ещё нет вовсе —
+ * сначала создаёт «Мой проект». Активный проект выводится из URL, а не
+ * хранится отдельным состоянием (ADR-005).
  */
-export function useCreatePage(projectId?: string) {
+export function useCreatePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { pageId } = useParams<{ pageId?: string }>();
+  const pageQuery = usePage(pageId);
   const projectsQuery = useProjects();
-  const activeProjectId = useActiveProjectId();
 
-  const mutation = useMutation<
-    Page,
-    ApiClientError,
-    { title?: string; parentId?: string | null } | undefined
-  >({
+  const activeProjectId = pageId ? pageQuery.data?.projectId : projectsQuery.data?.[0]?.id;
+  const isActiveProjectPending = pageId ? pageQuery.isPending : projectsQuery.isPending;
+  const isActiveProjectError = pageId ? pageQuery.isError : projectsQuery.isError;
+
+  const mutation = useMutation<Page, Error, CreatePageInput | undefined>({
     mutationFn: async ({ title = DEFAULT_PAGE_TITLE, parentId } = {}) => {
-      let targetProjectId = projectId ?? activeProjectId.projectId;
+      let targetProjectId = activeProjectId;
 
       if (!targetProjectId) {
         const projects = projectsQuery.data;
@@ -73,7 +76,7 @@ export function useCreatePage(projectId?: string) {
     ...mutation,
     isProjectsPending: projectsQuery.isPending,
     isProjectsError: projectsQuery.isError,
-    isActiveProjectPending: activeProjectId.isPending,
-    isActiveProjectError: activeProjectId.isError,
+    isActiveProjectPending,
+    isActiveProjectError,
   };
 }
