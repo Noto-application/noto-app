@@ -12,7 +12,20 @@
 
   "eslint.workingDirectories": [{ "mode": "auto" }],
 
+  // Jest живёт только в apps/api и apps/collab. Явные virtualFolders отключают
+  // авто-детект (иначе расширение находит несколько кандидатов в монорепе и
+  // сканирует мусорные .next/*). apps/web на Vitest — сюда не входит.
+  "jest.virtualFolders": [
+    { "name": "api", "rootPath": "apps/api" },
+    { "name": "collab", "rootPath": "apps/collab" }
+  ],
+
   "files.eol": "\n",
+  "files.watcherExclude": {
+    "**/.next/**": true,
+    "**/dist/**": true,
+    "**/.turbo/**": true
+  },
   "search.exclude": {
     "**/node_modules": true,
     "**/dist": true,
