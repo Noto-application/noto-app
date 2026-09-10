@@ -99,6 +99,7 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
+      COLLAB_SHARED_SECRET: ci-collab-secret
 
     steps:
       - uses: actions/checkout@v4

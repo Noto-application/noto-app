@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { pageKeys } from '@/src/entities/page/api/pages';
 import { projectKeys } from '@/src/entities/project/api/projects';
 import { apiClient } from '@/src/shared/api';
-import { toast } from '@/src/shared/ui/toast';
+import { Toaster } from '@/src/shared/ui/toast';
 
 import { CreatePageProvider } from '../model/create-page-context';
 import { CreatePageButton } from '../ui/create-page-button';
@@ -202,8 +202,14 @@ describe('useCreatePage', () => {
       body: { code: 'FORBIDDEN', message: 'Forbidden' },
       headers: new Headers(),
     } satisfies CreatePageResponse);
-    const error = vi.spyOn(toast, 'error');
+
     const { Wrapper } = createWrapper();
+
+    render(
+      <Wrapper>
+        <Toaster />
+      </Wrapper>,
+    );
 
     const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
 
@@ -211,10 +217,9 @@ describe('useCreatePage', () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
 
-    expect(error).toHaveBeenCalledWith(
-      'Недостаточно прав',
-      'Вы не можете создавать страницы в этом проекте.',
-    );
+    expect(await screen.findByText('Недостаточно прав')).toBeInTheDocument();
+    expect(screen.getByText('Вы не можете создавать страницы в этом проекте.')).toBeInTheDocument();
+
     expect(push).not.toHaveBeenCalled();
   });
 });

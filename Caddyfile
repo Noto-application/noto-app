@@ -1,0 +1,26 @@
+# Единый origin для dev (#108): фронт, API и collab за одним хостом, чтобы
+# HttpOnly access-cookie сама долетала на WS /collab. Caddy умеет WebSocket
+# Upgrade из коробки (reverse_proxy прозрачно проксирует Upgrade).
+#
+# Запуск: caddy run --config ./Caddyfile
+# Наружу открыты только /api/* и /collab. Путь /internal/* НЕ проксируется —
+# internal collab-authorize endpoint недоступен снаружи (его зовёт только
+# collab-сервис напрямую по API_INTERNAL_URL).
+
+:8080 {
+	# API (REST). host.docker.internal — если Caddy в контейнере; на хосте
+	# замените на localhost.
+	handle /api/* {
+		reverse_proxy localhost:4000
+	}
+
+	# Collaborative editing (Yjs WS). reverse_proxy проксирует Upgrade сам.
+	handle /collab {
+		reverse_proxy localhost:5555
+	}
+
+	# Фронт (Next.js) — всё остальное.
+	handle {
+		reverse_proxy localhost:3000
+	}
+}

@@ -22,10 +22,12 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const port = config.get('PORT', { infer: true });
-  // '0.0.0.0' — иначе Fastify слушает только 127.0.0.1, недоступен из контейнера.
-  await app.listen(port, '0.0.0.0');
+  const host = config.get('HOST', { infer: true });
+  // HOST: loopback в dev (internal endpoint не в обход Caddy, #108), 0.0.0.0 в
+  // контейнере/проде — тогда изоляцию порта даёт приватная сеть.
+  await app.listen(port, host);
 
-  Logger.log(`API слушает http://localhost:${port} (health: /health)`, 'Bootstrap');
+  Logger.log(`API слушает http://${host}:${port} (health: /health)`, 'Bootstrap');
 }
 
 void bootstrap();

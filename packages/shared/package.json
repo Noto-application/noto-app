@@ -12,6 +12,17 @@
     "./api": {
       "types": "./dist/api/index.d.ts",
       "default": "./dist/api/index.js"
+    },
+    "./internal": {
+      "types": "./dist/api/internal/index.d.ts",
+      "default": "./dist/api/internal/index.js"
+    }
+  },
+  "// typesVersions": "Резолвит subpath-типы под classic moduleResolution=node (tsconfig.base). Рантайм Node читает exports выше.",
+  "typesVersions": {
+    "*": {
+      "api": ["./dist/api/index.d.ts"],
+      "internal": ["./dist/api/internal/index.d.ts"]
     }
   },
   "files": [

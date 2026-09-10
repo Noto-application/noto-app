@@ -90,6 +90,7 @@ liveness. Само приложение при этом не стартует б
 | `JWT_REFRESH_SECRET` | **да** | —                       | Секрет для подписи refresh-токена                             |
 | `JWT_ACCESS_TTL`     | нет    | `15m`                   | Время жизни access-токена                                     |
 | `JWT_REFRESH_TTL`    | нет    | `7d`                    | Время жизни refresh-токена                                    |
+| `JWT_REFRESH_GRACE_TTL`    | нет    | `10s`                    | Время grace-окна                                    |
 
 ## База данных и кэш
 
