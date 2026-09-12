@@ -15,20 +15,29 @@ import { CreatePageButton } from '../ui/create-page-button';
 import { useCreatePage } from './use-create-page';
 
 const push = vi.fn();
+const paramsRef: { current: { pageId?: string } } = { current: {} };
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
+  useParams: () => paramsRef.current,
 }));
 
 type ProjectsResponse = Awaited<ReturnType<typeof apiClient.projects.list>>;
 type CreateProjectResponse = Awaited<ReturnType<typeof apiClient.projects.create>>;
 type CreatePageResponse = Awaited<ReturnType<typeof apiClient.pages.create>>;
+type PageResponse = Awaited<ReturnType<typeof apiClient.pages.get>>;
 
 const project: Project = {
   id: '00000000-0000-4000-8000-000000000001',
   name: 'Мой проект',
   createdAt: '2026-08-28T00:00:00.000Z',
   updatedAt: '2026-08-28T00:00:00.000Z',
+};
+
+const otherProject: Project = {
+  ...project,
+  id: '00000000-0000-4000-8000-000000000005',
+  name: 'Второй проект',
 };
 
 const page: Page = {
@@ -58,10 +67,117 @@ function createWrapper() {
 afterEach(() => {
   vi.restoreAllMocks();
   push.mockReset();
+  paramsRef.current = {};
 });
 
 describe('useCreatePage', () => {
+  it('без явного projectId использует проект открытой страницы, а не первый в списке', async () => {
+    const openPage: Page = { ...page, projectId: otherProject.id };
+    paramsRef.current = { pageId: openPage.id };
+    vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
+      status: 200,
+      body: { page: openPage },
+      headers: new Headers(),
+    } satisfies PageResponse);
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
+    const create = vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
+      status: 201,
+      body: { page: { ...page, projectId: otherProject.id } },
+      headers: new Headers(),
+    } satisfies CreatePageResponse);
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useCreatePage(), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
+    act(() => result.current.mutate(undefined));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(create).toHaveBeenCalledWith({
+      params: { projectId: otherProject.id },
+      body: { title: 'Без названия' },
+    });
+  });
+
+  it('ошибка загрузки открытой страницы не считается ошибкой списка проектов', async () => {
+    paramsRef.current = { pageId: page.id };
+    vi.spyOn(apiClient.pages, 'get').mockRejectedValue(new TypeError('Network error'));
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useCreatePage(), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.isActiveProjectError).toBe(true));
+
+    expect(result.current.isProjectsError).toBe(false);
+  });
+
+  it('без pageId и с ещё не загруженными проектами остаётся в isActiveProjectPending, не зависая из-за отключённого usePage', () => {
+    let resolveList: (response: ProjectsResponse) => void = () => undefined;
+    vi.spyOn(apiClient.projects, 'list').mockReturnValue(
+      new Promise((resolve) => {
+        resolveList = resolve;
+      }),
+    );
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useCreatePage(), { wrapper: Wrapper });
+
+    expect(result.current.isActiveProjectPending).toBe(true);
+    expect(result.current.isActiveProjectError).toBe(false);
+
+    resolveList({ status: 200, body: { projects: [] }, headers: new Headers() });
+  });
+
+  it('если открытая страница не найдена, при создании страницы использует список проектов', async () => {
+    paramsRef.current = { pageId: page.id };
+    vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
+      status: 404,
+      body: { code: 'NOT_FOUND', message: 'Not found' },
+      headers: new Headers(),
+    } satisfies PageResponse);
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
+    const create = vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
+      status: 201,
+      body: { page },
+      headers: new Headers(),
+    } satisfies CreatePageResponse);
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useCreatePage(), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
+    expect(result.current.isActiveProjectError).toBe(false);
+
+    act(() => result.current.mutate(undefined));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(create).toHaveBeenCalledWith({
+      params: { projectId: project.id },
+      body: { title: 'Без названия' },
+    });
+  });
+
   it('создаёт страницу с названием по умолчанию, инвалидирует список и переходит к ней', async () => {
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
     const create = vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
       status: 201,
       body: { page },
@@ -69,8 +185,9 @@ describe('useCreatePage', () => {
     } satisfies CreatePageResponse);
     const { Wrapper, invalidateQueries } = createWrapper();
 
-    const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
+    const { result } = renderHook(() => useCreatePage(), { wrapper: Wrapper });
 
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
     act(() => result.current.mutate(undefined));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -84,6 +201,11 @@ describe('useCreatePage', () => {
   });
 
   it('передаёт указанные название и родительскую страницу', async () => {
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
     const create = vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
       status: 201,
       body: { page: { ...page, title: 'План проекта' } },
@@ -91,8 +213,9 @@ describe('useCreatePage', () => {
     } satisfies CreatePageResponse);
     const { Wrapper } = createWrapper();
 
-    const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
+    const { result } = renderHook(() => useCreatePage(), { wrapper: Wrapper });
 
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
     act(() => result.current.mutate({ title: 'План проекта', parentId: page.id }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -137,6 +260,11 @@ describe('useCreatePage', () => {
   });
 
   it('показывает toast и не переходит при ошибке создания', async () => {
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
     vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
       status: 403,
       body: { code: 'FORBIDDEN', message: 'Forbidden' },
@@ -151,8 +279,9 @@ describe('useCreatePage', () => {
       </Wrapper>,
     );
 
-    const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
+    const { result } = renderHook(() => useCreatePage(), { wrapper: Wrapper });
 
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
     act(() => result.current.mutate(undefined));
 
     await waitFor(() => expect(result.current.isError).toBe(true));

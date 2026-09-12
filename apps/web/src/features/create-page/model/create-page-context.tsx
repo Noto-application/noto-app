@@ -9,6 +9,8 @@ type CreatePageAction = {
   isPending: boolean;
   isProjectsPending: boolean;
   isProjectsError: boolean;
+  isActiveProjectPending: boolean;
+  isActiveProjectError: boolean;
 };
 
 const CreatePageContext = createContext<CreatePageAction | null>(null);
@@ -22,8 +24,8 @@ export function CreatePageProvider({ children }: { children: ReactNode }) {
     if (
       isCreatingRef.current ||
       operation.isPending ||
-      operation.isProjectsPending ||
-      operation.isProjectsError
+      operation.isActiveProjectPending ||
+      operation.isActiveProjectError
     ) {
       return;
     }
@@ -43,6 +45,8 @@ export function CreatePageProvider({ children }: { children: ReactNode }) {
         isPending: operation.isPending,
         isProjectsPending: operation.isProjectsPending,
         isProjectsError: operation.isProjectsError,
+        isActiveProjectPending: operation.isActiveProjectPending,
+        isActiveProjectError: operation.isActiveProjectError,
       }}
     >
       {children}

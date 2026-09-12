@@ -13,13 +13,13 @@ type CreatePageButtonProps = Omit<
 
 /** Кнопка общей операции создания страницы для стартового экрана и сайдбара. */
 export function CreatePageButton({ children, ...props }: CreatePageButtonProps) {
-  const { create, isPending, isProjectsPending, isProjectsError } = useCreatePageAction();
+  const { create, isPending, isActiveProjectPending, isActiveProjectError } = useCreatePageAction();
 
   return (
     <Button
       {...props}
       loading={isPending}
-      disabled={isProjectsPending || isProjectsError}
+      disabled={isActiveProjectPending || isActiveProjectError}
       onClick={create}
     >
       {children}
