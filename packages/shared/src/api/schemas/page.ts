@@ -28,6 +28,10 @@ export const pageContentSchema = z
     message: `content exceeds ${PAGE_CONTENT_MAX_LENGTH} characters`,
   });
 
+/** Режим редактора страницы (#109/#110): REST-автосейв или collab поверх Yjs. */
+export const editorModeSchema = z.enum(['rest', 'collab']);
+export type EditorMode = z.infer<typeof editorModeSchema>;
+
 /** Публичное представление страницы (без deletedAt и внутренних полей). */
 export const pageSchema = z.object({
   id: z.string(),
@@ -36,6 +40,9 @@ export const pageSchema = z.object({
   title: z.string(),
   content: z.array(z.unknown()),
   position: z.number().int(),
+  // Режим редактора (#109). Optional до реализации #109; после — сервер всегда
+  // отдаёт поле (detail и list), фронт #110 выбирает режим по нему.
+  editorMode: editorModeSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

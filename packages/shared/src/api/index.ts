@@ -30,6 +30,8 @@ export {
   PAGE_TITLE_MAX_LENGTH,
   PAGE_TITLE_MIN_LENGTH,
   createPageSchema,
+  editorModeSchema,
+  type EditorMode,
   pageContentSchema,
   pageResponseSchema,
   pageSchema,

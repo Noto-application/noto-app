@@ -105,7 +105,11 @@ describe('Internal collab documents (e2e)', () => {
 
     it('GET неверный секрет → 403', async () => {
       const pageId = await seedPage();
-      await request(server).get(docPath(pageId)).set('X-Collab-Secret', 'wrong').expect(403);
+      const response = await request(server)
+        .get(docPath(pageId))
+        .set('X-Collab-Secret', 'wrong')
+        .expect(403);
+      expect(parseError(response.body).code).toBe('FORBIDDEN');
     });
 
     it('PUT без секрета → 403 и ничего не пишет', async () => {
@@ -127,6 +131,11 @@ describe('Internal collab documents (e2e)', () => {
     it('GET удалённой страницы → 404', async () => {
       const pageId = await seedPage({ deleted: true });
       const response = await get(pageId).expect(404);
+      expect(parseError(response.body).code).toBe('NOT_FOUND');
+    });
+
+    it('GET несуществующей страницы → 404 (не 204 «нет снапшота»)', async () => {
+      const response = await get(MISSING_ID).expect(404);
       expect(parseError(response.body).code).toBe('NOT_FOUND');
     });
 
@@ -244,29 +253,35 @@ describe('Internal collab documents (e2e)', () => {
 
     it('невалидный base64 → 400', async () => {
       const pageId = await seedPage();
-      await put(pageId, { state: 'not!!base64', version: 1 }).expect(400);
+      const response = await put(pageId, { state: 'not!!base64', version: 1 }).expect(400);
+      expect(parseError(response.body).code).toBe('VALIDATION_ERROR');
     });
 
-    it('пустое состояние → 400', async () => {
+    it('пустое состояние → 400 и снапшот не появляется', async () => {
       const pageId = await seedPage();
       await put(pageId, { state: '', version: 1 }).expect(400);
+      await get(pageId).expect(204);
     });
 
-    it('отсутствует version → 400', async () => {
+    it('отсутствует version → 400 и снапшот не появляется', async () => {
       const pageId = await seedPage();
       await put(pageId, { state: stateA }).expect(400);
+      await get(pageId).expect(204);
     });
 
-    it('превышение лимита размера → 413, прежнее состояние сохраняется', async () => {
+    it('превышение лимита размера → 413 (PAYLOAD_TOO_LARGE), прежнее состояние сохраняется', async () => {
       const pageId = await seedPage();
       await put(pageId, { state: stateA, version: 1 }).expect(200);
 
-      // Свыше конфигурируемого лимита (черновик 8 MB) — точный порог в реализации.
-      const oversized = 'A'.repeat(12 * 1024 * 1024);
-      await put(pageId, { state: oversized, version: 2 }).expect(413);
+      // Валидный Yjs-update свыше лимита снапшота (черновик 8 MB) — проверяем
+      // именно лимит снапшота, а не decode/битость и не 1 MB-дефолт bodyLimit
+      // (реализация поднимает bodyLimit ≥ лимита снапшота).
+      const oversized = yjsState('x'.repeat(9 * 1024 * 1024));
+      const response = await put(pageId, { state: oversized, version: 2 }).expect(413);
+      expect(parseError(response.body).code).toBe('PAYLOAD_TOO_LARGE');
 
-      const response = await get(pageId).expect(200);
-      expect(response.body).toMatchObject({ state: stateA, version: 1 });
+      const after = await get(pageId).expect(200);
+      expect(after.body).toMatchObject({ state: stateA, version: 1 });
     });
   });
 });

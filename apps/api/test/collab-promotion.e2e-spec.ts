@@ -1,8 +1,8 @@
 import type { Server } from 'node:http';
 import request from 'supertest';
 import { ConfigService } from '@nestjs/config';
-import type { ApiError } from '@noto/shared';
-import { apiErrorSchema, authUserResponseSchema } from '@noto/shared';
+import type { ApiError, Page } from '@noto/shared';
+import { apiErrorSchema, authUserResponseSchema, pageResponseSchema } from '@noto/shared';
 
 import { createTestApp, resetAuthState } from './helpers/test-app';
 import type { Env } from '../src/config/env.schema';
@@ -30,11 +30,10 @@ function parseError(body: unknown): ApiError {
   return apiErrorSchema.parse(body);
 }
 
-// DTO страницы после реализации #109 получит editorMode; читаем типизированно,
-// не как any (lint).
-type PageDtoView = { editorMode?: string; content?: unknown[] };
-function pageView(body: unknown): PageDtoView {
-  return body as PageDtoView;
+// DTO: `GET /api/pages/:id` → `{ page: {...} }` (pageResponseSchema). Читаем
+// именно `.page` (не верхний уровень), через схему — как в pages.e2e-spec.ts.
+function parsePage(body: unknown): Page {
+  return pageResponseSchema.parse(body).page;
 }
 
 describe('Collab promotion & REST race (e2e)', () => {
@@ -108,7 +107,7 @@ describe('Collab promotion & REST race (e2e)', () => {
     const pageId = await seedPage(userId);
 
     const response = await getPage(cookie, pageId).expect(200);
-    expect(pageView(response.body).editorMode).toBe('rest');
+    expect(parsePage(response.body).editorMode).toBe('rest');
   });
 
   it('authorize пустой rest-страницы промоутит её в collab', async () => {
@@ -118,7 +117,7 @@ describe('Collab promotion & REST race (e2e)', () => {
     await authorize(cookie, pageId).expect(200);
 
     const response = await getPage(cookie, pageId).expect(200);
-    expect(pageView(response.body).editorMode).toBe('collab');
+    expect(parsePage(response.body).editorMode).toBe('collab');
   });
 
   it('authorize rest-страницы с контентом отклоняет collab (409), режим не меняется', async () => {
@@ -129,7 +128,7 @@ describe('Collab promotion & REST race (e2e)', () => {
     expect(parseError(response.body).code).toBe('CONFLICT');
 
     const page = await getPage(cookie, pageId).expect(200);
-    expect(pageView(page.body).editorMode).toBe('rest');
+    expect(parsePage(page.body).editorMode).toBe('rest');
   });
 
   it('уже collab → повторный authorize пускает к общему документу', async () => {
@@ -140,7 +139,7 @@ describe('Collab promotion & REST race (e2e)', () => {
     await authorize(cookie, pageId).expect(200); // join
 
     const page = await getPage(cookie, pageId).expect(200);
-    expect(pageView(page.body).editorMode).toBe('collab');
+    expect(parsePage(page.body).editorMode).toBe('collab');
   });
 
   it('два одновременных первых подключения → оба 200, режим стал collab (промоут один раз)', async () => {
@@ -152,26 +151,54 @@ describe('Collab promotion & REST race (e2e)', () => {
     expect(b.status).toBe(200);
 
     const page = await getPage(cookie, pageId).expect(200);
-    expect(pageView(page.body).editorMode).toBe('collab');
+    expect(parsePage(page.body).editorMode).toBe('collab');
   });
 
   describe('PATCH тела ↔ режим', () => {
-    it('PATCH content на collab-странице → 409, заголовок PATCH-ается', async () => {
+    it('PATCH content на collab → 409 (тело не записалось); PATCH title → 200 (заголовок сменился)', async () => {
       const { cookie, userId } = await registerUser('pr-patch-collab@example.com');
       const pageId = await seedPage(userId);
       await authorize(cookie, pageId).expect(200); // → collab
 
-      await request(server)
+      const conflict = await request(server)
         .patch(`/api/pages/${pageId}`)
         .set('Cookie', cookie)
         .send({ content: [{ type: 'paragraph', content: 'x' }] })
         .expect(409);
+      expect(parseError(conflict.body).code).toBe('CONFLICT');
 
+      // Тело не записалось.
+      const afterContent = await getPage(cookie, pageId).expect(200);
+      expect(parsePage(afterContent.body).content).toEqual([]);
+
+      // Заголовок меняется независимо от режима.
       await request(server)
         .patch(`/api/pages/${pageId}`)
         .set('Cookie', cookie)
         .send({ title: 'Новый заголовок' })
         .expect(200);
+      const afterTitle = await getPage(cookie, pageId).expect(200);
+      expect(parsePage(afterTitle.body).title).toBe('Новый заголовок');
+    });
+
+    it('смешанный PATCH {title, content} на collab → 409 целиком, ничего не меняется', async () => {
+      const { cookie, userId } = await registerUser('pr-patch-mixed@example.com');
+      const pageId = await seedPage(userId);
+      await authorize(cookie, pageId).expect(200); // → collab
+
+      const before = parsePage((await getPage(cookie, pageId).expect(200)).body);
+
+      const conflict = await request(server)
+        .patch(`/api/pages/${pageId}`)
+        .set('Cookie', cookie)
+        .send({ title: 'Смешанный', content: [{ type: 'paragraph', content: 'y' }] })
+        .expect(409);
+      expect(parseError(conflict.body).code).toBe('CONFLICT');
+
+      // Ни тело, ни заголовок не изменились (запрос с content отклонён целиком).
+      const after = parsePage((await getPage(cookie, pageId).expect(200)).body);
+      expect(after.title).toBe(before.title);
+      expect(after.content).toEqual(before.content);
     });
 
     it('гонка промоут ↔ PATCH тела: взаимное исключение (не collab с контентом)', async () => {
@@ -193,7 +220,7 @@ describe('Collab promotion & REST race (e2e)', () => {
       expect(pair).toEqual([200, 409]);
 
       const page = await getPage(cookie, pageId).expect(200);
-      const view = pageView(page.body);
+      const view = parsePage(page.body);
       if (authRes.status === 200) {
         // Промоут выиграл → collab, тело осталось пустым (PATCH отклонён).
         expect(view.editorMode).toBe('collab');
