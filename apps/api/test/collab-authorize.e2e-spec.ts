@@ -44,9 +44,6 @@ describe('Internal collab authorize (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.page.deleteMany();
-    await prisma.projectMember.deleteMany();
-    await prisma.project.deleteMany();
     await resetAuthState(prisma, redis);
   });
 

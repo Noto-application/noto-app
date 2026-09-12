@@ -1,6 +1,7 @@
 {
   "rootDir": ".",
   "testEnvironment": "node",
+  "setupFiles": ["<rootDir>/setup-e2e.ts"],
   "maxWorkers": 1,
   "testRegex": ".e2e-spec.ts$",
   "moduleFileExtensions": ["js", "json", "ts"],
