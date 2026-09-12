@@ -124,20 +124,30 @@ describe('proxy', () => {
     expect(response.headers.getSetCookie()).toEqual([]);
   });
 
-  // Ограничение миграции: существующая сессия со СТАРОЙ узкой cookie
-  // (Path=/api/auth/refresh) на ПЕРВОМ заходе в /app не восстановится — браузер
-  // такую cookie на /app не шлёт, middleware её не видит. Само-исцеление —
-  // на следующем клиентском /api/auth/refresh (там path совпадает) или ре-логином.
-  it('cannot restore on first /app hit when no refresh cookie reaches the middleware', async () => {
+  // Ограничение миграции. Пользователь со СТАРОЙ узкой cookie (Path=/api/auth/refresh)
+  // на ПЕРВОМ заходе в /app: браузер такую cookie на /app не шлёт → middleware её
+  // не видит → refresh 401 → proxy делает logout (очищает cookie, в т.ч. legacy) и
+  // редиректит на /login. После этого нужен ПОВТОРНЫЙ вход. Само-исцеление через
+  // клиентский /api/auth/refresh возможно ТОЛЬКО до этого logout, не после.
+  it('with only the legacy cookie on /app: proxy logs out (clears it) and requires re-login', async () => {
+    const clear = new Headers();
+    clear.append('set-cookie', 'access_token=; Max-Age=0; Path=/');
+    clear.append('set-cookie', 'refresh_token=; Max-Age=0; Path=/');
+    clear.append('set-cookie', 'refresh_token=; Max-Age=0; Path=/api/auth/refresh');
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(null, { status: 401 })) // /auth/me (нет access)
       .mockResolvedValueOnce(new Response(null, { status: 401 })) // /auth/refresh (cookie не долетела)
-      .mockResolvedValueOnce(new Response(null, { status: 204 })); // /auth/logout
+      .mockResolvedValueOnce(new Response(null, { headers: clear })); // /auth/logout чистит cookie
     vi.stubGlobal('fetch', fetchMock);
 
-    const response = await proxy(new NextRequest('http://localhost/app/page-id')); // без cookie
+    const response = await proxy(new NextRequest('http://localhost/app/page-id')); // без cookie на /app
 
     expect(new URL(response.headers.get('location') ?? '').pathname).toBe('/login');
+    expect(calledPath(fetchMock, '/auth/logout')).toBe(true); // logout вызван
+    // очищающие cookie проброшены в ответ → старая cookie удаляется, нужен ре-логин
+    expect(response.headers.getSetCookie()).toContain(
+      'refresh_token=; Max-Age=0; Path=/api/auth/refresh',
+    );
   });
 });

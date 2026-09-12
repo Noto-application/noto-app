@@ -516,7 +516,16 @@ function extractCookie(
   }
 
   const entries = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
-  const raw = entries.find((entry) => entry.startsWith(`${name}=`));
+  // Активная cookie — с непустым значением. После #102 refresh_token приходит
+  // дважды (активная корневая + очищающая legacy с пустым значением); берём
+  // активную независимо от порядка Set-Cookie.
+  const raw = entries.find((entry) => {
+    if (!entry.startsWith(`${name}=`)) {
+      return false;
+    }
+    const value = entry.split(';')[0]?.slice(name.length + 1) ?? '';
+    return value.length > 0;
+  });
   if (!raw) {
     return undefined;
   }
@@ -524,7 +533,11 @@ function extractCookie(
   return raw.split(';')[0]?.slice(name.length + 1);
 }
 
-/** Полная строка Set-Cookie (с атрибутами) — для проверки Max-Age/Expires. */
+/**
+ * Полная строка Set-Cookie (с атрибутами) активной cookie — для проверки
+ * Max-Age/Expires. Пропускает очищающие записи с пустым значением (после #102
+ * refresh_token приходит и как очистка legacy), чтобы не зависеть от порядка.
+ */
 function rawSetCookie(setCookieHeader: string | string[] | undefined, name: string): string {
   const entries = Array.isArray(setCookieHeader)
     ? setCookieHeader
@@ -532,7 +545,15 @@ function rawSetCookie(setCookieHeader: string | string[] | undefined, name: stri
       ? [setCookieHeader]
       : [];
 
-  return entries.find((entry) => entry.startsWith(`${name}=`)) ?? '';
+  return (
+    entries.find((entry) => {
+      if (!entry.startsWith(`${name}=`)) {
+        return false;
+      }
+      const value = entry.split(';')[0]?.slice(name.length + 1) ?? '';
+      return value.length > 0;
+    }) ?? ''
+  );
 }
 
 /** Все Set-Cookie по имени (их может быть несколько: активная + очистка legacy). */
