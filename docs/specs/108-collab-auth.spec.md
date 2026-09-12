@@ -86,10 +86,16 @@ apps/collab ──onAuthenticate──► apps/api  POST /internal/collab/author
   `404 NOT_FOUND`. Скрывает факт существования от постороннего.
 - Членство — `assertProjectRole(prisma, page.projectId, userId, 'viewer')`.
   Не участник → `403 FORBIDDEN`.
+- **Пригодность режима (поправка от #109):** после членства проверяется
+  `editorMode`. `collab` → пускаем; `rest` + пустой `content` (`[]`) →
+  промоутим в `collab` (атомарно) и пускаем; `rest` + непустой `content` →
+  `409 CONFLICT` (старую REST-страницу нельзя обнулить collab-документом).
+  Детали и гонки — в [persistence.spec.md](../../apps/api/src/collab/persistence.spec.md) (#109).
 - Успех → `200 { allowed: true, userId }`.
 
 **Порядок проверок (что течёт наружу):** секрет (403) → пользовательский JWT
-(401) → валидация тела (400) → существование (404) → членство (403).
+(401) → валидация тела (400) → существование (404) → членство (403) →
+пригодность режима (409, #109).
 
 ### Запуск (apps/collab)
 
