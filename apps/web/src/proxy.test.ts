@@ -3,13 +3,58 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { proxy } from './proxy';
 
-const request = new NextRequest('http://localhost/app/page-id');
+// Запрос к /app с refresh-cookie (после фикса Path=/ она долетает до middleware).
+function appRequest(cookie = 'refresh_token=refresh-value') {
+  return new NextRequest('http://localhost/app/page-id', { headers: { cookie } });
+}
+
+/** Была ли вызвана fetch на путь, содержащий `part`. */
+function calledPath(fetchMock: ReturnType<typeof vi.fn>, part: string): boolean {
+  return fetchMock.mock.calls.some((args) => String(args[0]).includes(part));
+}
+
+/** cookie-заголовок, с которым звали fetch на путь `part`. */
+function forwardedCookie(fetchMock: ReturnType<typeof vi.fn>, part: string): unknown {
+  const call = fetchMock.mock.calls.find((args) => String(args[0]).includes(part));
+  return (call?.[1] as { headers?: Record<string, unknown> } | undefined)?.headers?.cookie;
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('proxy', () => {
+  it('passes access → next() without refresh when /me is ok', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await proxy(appRequest());
+
+    expect(response.headers.get('location')).toBeNull();
+    expect(calledPath(fetchMock, '/auth/refresh')).toBe(false);
+  });
+
+  it('restores the session and forwards the refresh cookie to /auth/refresh', async () => {
+    const refreshHeaders = new Headers();
+    refreshHeaders.append('set-cookie', 'access_token=new-access; HttpOnly; Path=/');
+    refreshHeaders.append('set-cookie', 'refresh_token=new-refresh; HttpOnly; Path=/');
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 })) // /auth/me
+      .mockResolvedValueOnce(new Response(null, { headers: refreshHeaders })); // /auth/refresh
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await proxy(appRequest('refresh_token=abc'));
+
+    expect(response.headers.get('location')).toBeNull();
+    // refresh-cookie реально проброшена на /auth/refresh
+    expect(forwardedCookie(fetchMock, '/auth/refresh')).toBe('refresh_token=abc');
+    expect(response.headers.getSetCookie()).toEqual([
+      'access_token=new-access; HttpOnly; Path=/',
+      'refresh_token=new-refresh; HttpOnly; Path=/',
+    ]);
+  });
+
   it('forwards separate refresh cookies without parsing Expires', async () => {
     const refreshHeaders = new Headers();
     refreshHeaders.append(
@@ -23,7 +68,7 @@ describe('proxy', () => {
       .mockResolvedValueOnce(new Response(null, { headers: refreshHeaders }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const response = await proxy(request);
+    const response = await proxy(appRequest());
 
     expect(response.headers.getSetCookie()).toEqual([
       'access_token=access-value; Expires=Wed, 21 Oct 2026 07:28:00 GMT; HttpOnly; Path=/',
@@ -31,79 +76,68 @@ describe('proxy', () => {
     ]);
   });
 
-  it('does not add cookies when refresh returns none', async () => {
+  it('redirects to /login and clears session when refresh is genuinely invalid (401)', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(new Response(null));
+      .mockResolvedValueOnce(new Response(null, { status: 401 })) // /auth/me
+      .mockResolvedValueOnce(new Response(null, { status: 401 })) // /auth/refresh
+      .mockResolvedValueOnce(new Response(null, { status: 204 })); // /auth/logout
     vi.stubGlobal('fetch', fetchMock);
 
-    const response = await proxy(request);
-
-    expect(response.headers.getSetCookie()).toEqual([]);
-  });
-
-  it('redirects to /login with the original path when both tokens are invalid', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(new Response(null, { status: 401 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    const response = await proxy(request);
+    const response = await proxy(appRequest());
 
     const location = new URL(response.headers.get('location') ?? '');
     expect(location.pathname).toBe('/login');
     expect(location.searchParams.get('redirectUrl')).toBe('/app/page-id');
+    expect(calledPath(fetchMock, '/auth/logout')).toBe(true); // явный logout при 401
   });
 
   // #102: транзиентная ошибка refresh (сервер/сеть) НЕ должна разлогинивать —
-  // только явный 401 (невалидный refresh) ведёт на /login.
-  it('does NOT logout on a transient refresh error (5xx) — keeps the session', async () => {
+  // без вызова /auth/logout и без очищающих Set-Cookie; только явный 401 логаутит.
+  it('does NOT logout on a transient refresh error (5xx)', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(null, { status: 401 })) // /auth/me
       .mockResolvedValueOnce(new Response(null, { status: 503 })); // /auth/refresh — транзиент
     vi.stubGlobal('fetch', fetchMock);
 
-    const response = await proxy(request);
+    const response = await proxy(appRequest());
 
-    // Не редирект на /login, сессия не очищается.
     expect(response.headers.get('location')).toBeNull();
     expect(response.status).toBe(503);
+    expect(calledPath(fetchMock, '/auth/logout')).toBe(false);
+    expect(response.headers.getSetCookie()).toEqual([]);
   });
 
-  it('does NOT logout when refresh throws (network error) — keeps the session', async () => {
+  it('does NOT logout when refresh throws (network error)', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(null, { status: 401 })) // /auth/me
       .mockRejectedValueOnce(new Error('network down')); // /auth/refresh
     vi.stubGlobal('fetch', fetchMock);
 
-    const response = await proxy(request);
+    const response = await proxy(appRequest());
 
     expect(response.headers.get('location')).toBeNull();
     expect(response.status).toBe(503);
+    expect(calledPath(fetchMock, '/auth/logout')).toBe(false);
+    expect(response.headers.getSetCookie()).toEqual([]);
   });
 
-  // #102: успешное восстановление на первом заходе в /app (refresh-cookie теперь
-  // Path=/, долетает до middleware) — пропускаем запрос с новой парой cookie.
-  it('restores the session on /app entry: /me 401 → refresh 200 → next() with cookies', async () => {
-    const refreshHeaders = new Headers();
-    refreshHeaders.append('set-cookie', 'access_token=new-access; HttpOnly; Path=/');
-    refreshHeaders.append('set-cookie', 'refresh_token=new-refresh; HttpOnly; Path=/');
+  // Ограничение миграции: существующая сессия со СТАРОЙ узкой cookie
+  // (Path=/api/auth/refresh) на ПЕРВОМ заходе в /app не восстановится — браузер
+  // такую cookie на /app не шлёт, middleware её не видит. Само-исцеление —
+  // на следующем клиентском /api/auth/refresh (там path совпадает) или ре-логином.
+  it('cannot restore on first /app hit when no refresh cookie reaches the middleware', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(new Response(null, { headers: refreshHeaders }));
+      .mockResolvedValueOnce(new Response(null, { status: 401 })) // /auth/me (нет access)
+      .mockResolvedValueOnce(new Response(null, { status: 401 })) // /auth/refresh (cookie не долетела)
+      .mockResolvedValueOnce(new Response(null, { status: 204 })); // /auth/logout
     vi.stubGlobal('fetch', fetchMock);
 
-    const response = await proxy(request);
+    const response = await proxy(new NextRequest('http://localhost/app/page-id')); // без cookie
 
-    expect(response.headers.get('location')).toBeNull(); // не редирект
-    expect(response.headers.getSetCookie()).toEqual([
-      'access_token=new-access; HttpOnly; Path=/',
-      'refresh_token=new-refresh; HttpOnly; Path=/',
-    ]);
+    expect(new URL(response.headers.get('location') ?? '').pathname).toBe('/login');
   });
 });
