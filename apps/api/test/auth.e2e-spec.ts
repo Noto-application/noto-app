@@ -433,6 +433,68 @@ describe('Auth (e2e)', () => {
       expect(rawSetCookie(response.headers['set-cookie'], 'refresh_token')).toMatch(/Max-Age=\d+/i);
     });
   });
+
+  // #102: серверный guard (ADR-003) на /app/* должен видеть refresh-cookie на
+  // первом запросе к /app. Прежний `Path=/api/auth/refresh` не доходил до /app →
+  // remember-me не восстанавливался. Ставим `Path=/`, старую cookie на узком
+  // path — вычищаем (иначе у существующих сессий останется висячая пара).
+  describe('refresh cookie path (#102)', () => {
+    beforeEach(async () => {
+      await request(server).post('/api/auth/register').send(credentials);
+    });
+
+    // активная refresh-cookie на login/register/refresh — Path=/
+    const isActiveRootRefresh = (c: string) =>
+      c.startsWith('refresh_token=') &&
+      c.split(';')[0].length > 'refresh_token='.length && // непустое значение
+      /;\s*Path=\/(;|\s|$)/i.test(c);
+
+    // очистка legacy-cookie на узком path (Max-Age=0 / Expires в прошлом)
+    const isLegacyRefreshClear = (c: string) =>
+      c.startsWith('refresh_token=') &&
+      /Path=\/api\/auth\/refresh/i.test(c) &&
+      /(Max-Age=0|Expires=)/i.test(c);
+
+    it('register: refresh-cookie с Path=/ и чистит legacy Path=/api/auth/refresh', async () => {
+      const agent = request.agent(server);
+      const res = await agent
+        .post('/api/auth/register')
+        .send({ email: 'p102-reg@example.com', password: 'password123' })
+        .expect(201);
+      const cookies = allSetCookies(res.headers['set-cookie'], 'refresh_token');
+      expect(cookies.some(isActiveRootRefresh)).toBe(true);
+      expect(cookies.some(isLegacyRefreshClear)).toBe(true);
+    });
+
+    it('login: refresh-cookie с Path=/ и чистит legacy', async () => {
+      const res = await request(server).post('/api/auth/login').send(credentials).expect(200);
+      const cookies = allSetCookies(res.headers['set-cookie'], 'refresh_token');
+      expect(cookies.some(isActiveRootRefresh)).toBe(true);
+      expect(cookies.some(isLegacyRefreshClear)).toBe(true);
+    });
+
+    it('refresh: новая refresh-cookie с Path=/ (self-heal существующей сессии)', async () => {
+      const agent = request.agent(server);
+      await agent.post('/api/auth/login').send(credentials).expect(200);
+      const res = await agent.post('/api/auth/refresh').expect(200);
+      const cookies = allSetCookies(res.headers['set-cookie'], 'refresh_token');
+      expect(cookies.some(isActiveRootRefresh)).toBe(true);
+      expect(cookies.some(isLegacyRefreshClear)).toBe(true);
+    });
+
+    it('logout: чистит refresh и на Path=/, и на legacy Path=/api/auth/refresh', async () => {
+      const agent = request.agent(server);
+      await agent.post('/api/auth/login').send(credentials).expect(200);
+      const res = await agent.post('/api/auth/logout').expect(204);
+      const cookies = allSetCookies(res.headers['set-cookie'], 'refresh_token');
+      // очистка на корневом path
+      expect(
+        cookies.some((c) => /Path=\/(;|\s|$)/i.test(c) && /(Max-Age=0|Expires=)/i.test(c)),
+      ).toBe(true);
+      // и на legacy path
+      expect(cookies.some(isLegacyRefreshClear)).toBe(true);
+    });
+  });
 });
 
 function extractCookie(
@@ -461,4 +523,15 @@ function rawSetCookie(setCookieHeader: string | string[] | undefined, name: stri
       : [];
 
   return entries.find((entry) => entry.startsWith(`${name}=`)) ?? '';
+}
+
+/** Все Set-Cookie по имени (их может быть несколько: активная + очистка legacy). */
+function allSetCookies(setCookieHeader: string | string[] | undefined, name: string): string[] {
+  const entries = Array.isArray(setCookieHeader)
+    ? setCookieHeader
+    : setCookieHeader
+      ? [setCookieHeader]
+      : [];
+
+  return entries.filter((entry) => entry.startsWith(`${name}=`));
 }
