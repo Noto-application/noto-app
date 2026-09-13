@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 
 import { usePagesList, usePageTree, type Page, type PageTreeNode } from '@/src/entities/page';
 import { DeletePage } from '@/src/features/delete-page';
+import { MovePageMenu } from '@/src/features/move-page';
 import { EmptyState } from '@/src/shared/ui/empty-state';
 import { InlineAlert } from '@/src/shared/ui/inline-alert';
 import { Skeleton } from '@/src/shared/ui/skeleton';
@@ -33,11 +34,13 @@ function TreeNodes({
   depth,
   activePageId,
   projectId,
+  pages,
 }: {
   nodes: PageTreeNode[];
   depth: number;
   activePageId: string | undefined;
   projectId: string;
+  pages: Page[];
 }) {
   const collapsedPageIds = useSidebarStore((state) => state.collapsedPageIds);
   const togglePage = useSidebarStore((state) => state.togglePage);
@@ -55,7 +58,18 @@ function TreeNodes({
               href={`/app/${node.id}`}
               depth={depth}
               isActive={node.id === activePageId}
-              actions={<DeletePage pageId={node.id} title={node.title} />}
+              actions={
+                <>
+                  <MovePageMenu
+                    pageId={node.id}
+                    projectId={projectId}
+                    parentId={node.parentId}
+                    title={node.title}
+                    pages={pages}
+                  />
+                  <DeletePage pageId={node.id} title={node.title} />
+                </>
+              }
               {...(hasChildren
                 ? {
                     hasChildren: true,
@@ -71,6 +85,7 @@ function TreeNodes({
                 depth={depth + 1}
                 activePageId={activePageId}
                 projectId={projectId}
+                pages={pages}
               />
             ) : null}
           </li>
@@ -140,7 +155,7 @@ export function PageTree({ projectId }: { projectId: string }) {
 
   return (
     <nav aria-label="Страницы" className="flex-1 overflow-y-auto">
-      <TreeNodes nodes={tree} depth={0} activePageId={pageId} projectId={projectId} />
+      <TreeNodes nodes={tree} depth={0} activePageId={pageId} projectId={projectId} pages={pages} />
     </nav>
   );
 }

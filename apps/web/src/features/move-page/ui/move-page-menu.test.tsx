@@ -1,0 +1,90 @@
+// @vitest-environment jsdom
+
+import type { Page } from '@noto/shared';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { MovePageMenu } from './move-page-menu';
+
+type MoveInput = {
+  pageId: string;
+  projectId: string;
+  parentId: string | null;
+  position: number;
+};
+
+type MoveOptions = {
+  onSuccess?: () => void;
+};
+
+const { mutate, useMovePageMock } = vi.hoisted(() => ({
+  mutate: vi.fn<(input: MoveInput, options: MoveOptions) => void>(),
+  useMovePageMock: vi.fn(),
+}));
+
+vi.mock('../api/use-move-page', () => ({
+  useMovePage: useMovePageMock,
+}));
+
+function page(id: string, parentId: string | null = null, position = 0): Page {
+  return {
+    id,
+    projectId: 'project-1',
+    parentId,
+    title: id,
+    content: [],
+    position,
+    createdAt: '2026-09-12T00:00:00.000Z',
+    updatedAt: '2026-09-12T00:00:00.000Z',
+  };
+}
+
+beforeEach(() => {
+  mutate.mockReset();
+  useMovePageMock.mockReturnValue({ isPending: false, mutate });
+});
+
+describe('MovePageMenu', () => {
+  it('открывает диалог, исключает поддерево и перемещает страницу в конец нового родителя', async () => {
+    const user = userEvent.setup();
+    const pages = [
+      page('root'),
+      page('moving', 'root', 0),
+      page('child', 'moving'),
+      page('parent'),
+      page('existing-child', 'parent', 0),
+    ];
+
+    render(
+      <MovePageMenu
+        pageId="moving"
+        projectId="project-1"
+        parentId="root"
+        title="moving"
+        pages={pages}
+      />,
+    );
+
+    screen.getByRole('button', { name: 'Действия для «moving»' }).focus();
+    await user.keyboard('{ArrowDown}');
+    await user.click(screen.getByRole('menuitem', { name: 'Переместить' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByRole('button', { name: 'child' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'root' })).toBeDisabled();
+
+    await user.click(within(dialog).getByRole('button', { name: 'parent' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Переместить' }));
+
+    const [input, options] = mutate.mock.calls[0];
+
+    expect(input).toEqual({
+      pageId: 'moving',
+      projectId: 'project-1',
+      parentId: 'parent',
+      position: 1,
+    });
+    expect(options.onSuccess).toEqual(expect.any(Function));
+  });
+});

@@ -34,6 +34,14 @@ vi.mock('@/src/features/delete-page', () => ({
   ),
 }));
 
+vi.mock('@/src/features/move-page', () => ({
+  MovePageMenu: ({ title }: { title: string }) => (
+    <button type="button" aria-label={`Действия для «${title}»`}>
+      Действия
+    </button>
+  ),
+}));
+
 type BranchState = { hasChildren: false } | { hasChildren: true; isExpanded: boolean };
 
 type ItemProps = BranchState & {
