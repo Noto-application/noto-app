@@ -433,6 +433,78 @@ describe('Auth (e2e)', () => {
       expect(rawSetCookie(response.headers['set-cookie'], 'refresh_token')).toMatch(/Max-Age=\d+/i);
     });
   });
+
+  // #102: серверный guard (ADR-003) на /app/* должен видеть refresh-cookie на
+  // первом запросе к /app. Прежний `Path=/api/auth/refresh` не доходил до /app →
+  // remember-me не восстанавливался. Ставим `Path=/`, старую cookie на узком
+  // path — вычищаем (иначе у существующих сессий останется висячая пара).
+  describe('refresh cookie path (#102)', () => {
+    beforeEach(async () => {
+      await request(server).post('/api/auth/register').send(credentials);
+    });
+
+    // активная refresh-cookie: непустое значение + Path=/ + НЕ очищающая.
+    const isActiveRootRefresh = (c: string) =>
+      c.startsWith('refresh_token=') &&
+      c.split(';')[0].length > 'refresh_token='.length &&
+      cookiePath(c) === '/' &&
+      !isCleared(c);
+
+    // очистка legacy-cookie строго на узком path.
+    const isLegacyRefreshClear = (c: string) =>
+      c.startsWith('refresh_token=') && cookiePath(c) === '/api/auth/refresh' && isCleared(c);
+
+    it('register: refresh-cookie с Path=/ и чистит legacy Path=/api/auth/refresh', async () => {
+      const res = await request(server)
+        .post('/api/auth/register')
+        .send({ email: 'p102-reg@example.com', password: 'password123' })
+        .expect(201);
+      const cookies = allSetCookies(res.headers['set-cookie'], 'refresh_token');
+      expect(cookies.some(isActiveRootRefresh)).toBe(true);
+      expect(cookies.some(isLegacyRefreshClear)).toBe(true);
+    });
+
+    it('login: refresh-cookie с Path=/ и чистит legacy', async () => {
+      const res = await request(server).post('/api/auth/login').send(credentials).expect(200);
+      const cookies = allSetCookies(res.headers['set-cookie'], 'refresh_token');
+      expect(cookies.some(isActiveRootRefresh)).toBe(true);
+      expect(cookies.some(isLegacyRefreshClear)).toBe(true);
+    });
+
+    it('миграция старой сессии: refresh со старой узкой cookie → корневая активна, старая удалена', async () => {
+      // Логинимся и берём валидный refresh-токен — он представляет СТАРУЮ сессию,
+      // чья cookie лежала на Path=/api/auth/refresh. Браузер с такой cookie шлёт её
+      // именно на /api/auth/refresh — воспроизводим это Cookie-заголовком.
+      const login = await request(server).post('/api/auth/login').send(credentials).expect(200);
+      const oldRefresh = extractCookie(login.headers['set-cookie'], 'refresh_token');
+      expect(oldRefresh).toBeDefined();
+
+      const res = await request(server)
+        .post('/api/auth/refresh')
+        .set('Cookie', `refresh_token=${oldRefresh}`)
+        .expect(200);
+
+      const cookies = allSetCookies(res.headers['set-cookie'], 'refresh_token');
+      expect(cookies.some(isActiveRootRefresh)).toBe(true); // новая корневая активна
+      expect(cookies.some(isLegacyRefreshClear)).toBe(true); // старая узкая удалена
+
+      // И новая корневая cookie реально рабочая — ею можно рефрешнуться снова.
+      const newRefresh = extractCookie(res.headers['set-cookie'], 'refresh_token');
+      await request(server)
+        .post('/api/auth/refresh')
+        .set('Cookie', `refresh_token=${newRefresh}`)
+        .expect(200);
+    });
+
+    it('logout: чистит refresh и на Path=/, и на legacy Path=/api/auth/refresh', async () => {
+      const agent = request.agent(server);
+      await agent.post('/api/auth/login').send(credentials).expect(200);
+      const res = await agent.post('/api/auth/logout').expect(204);
+      const cookies = allSetCookies(res.headers['set-cookie'], 'refresh_token');
+      expect(cookies.some((c) => cookiePath(c) === '/' && isCleared(c))).toBe(true);
+      expect(cookies.some(isLegacyRefreshClear)).toBe(true);
+    });
+  });
 });
 
 function extractCookie(
@@ -444,7 +516,16 @@ function extractCookie(
   }
 
   const entries = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
-  const raw = entries.find((entry) => entry.startsWith(`${name}=`));
+  // Активная cookie — с непустым значением. После #102 refresh_token приходит
+  // дважды (активная корневая + очищающая legacy с пустым значением); берём
+  // активную независимо от порядка Set-Cookie.
+  const raw = entries.find((entry) => {
+    if (!entry.startsWith(`${name}=`)) {
+      return false;
+    }
+    const value = entry.split(';')[0]?.slice(name.length + 1) ?? '';
+    return value.length > 0;
+  });
   if (!raw) {
     return undefined;
   }
@@ -452,7 +533,11 @@ function extractCookie(
   return raw.split(';')[0]?.slice(name.length + 1);
 }
 
-/** Полная строка Set-Cookie (с атрибутами) — для проверки Max-Age/Expires. */
+/**
+ * Полная строка Set-Cookie (с атрибутами) активной cookie — для проверки
+ * Max-Age/Expires. Пропускает очищающие записи с пустым значением (после #102
+ * refresh_token приходит и как очистка legacy), чтобы не зависеть от порядка.
+ */
 function rawSetCookie(setCookieHeader: string | string[] | undefined, name: string): string {
   const entries = Array.isArray(setCookieHeader)
     ? setCookieHeader
@@ -460,5 +545,47 @@ function rawSetCookie(setCookieHeader: string | string[] | undefined, name: stri
       ? [setCookieHeader]
       : [];
 
-  return entries.find((entry) => entry.startsWith(`${name}=`)) ?? '';
+  return (
+    entries.find((entry) => {
+      if (!entry.startsWith(`${name}=`)) {
+        return false;
+      }
+      const value = entry.split(';')[0]?.slice(name.length + 1) ?? '';
+      return value.length > 0;
+    }) ?? ''
+  );
+}
+
+/** Все Set-Cookie по имени (их может быть несколько: активная + очистка legacy). */
+function allSetCookies(setCookieHeader: string | string[] | undefined, name: string): string[] {
+  const entries = Array.isArray(setCookieHeader)
+    ? setCookieHeader
+    : setCookieHeader
+      ? [setCookieHeader]
+      : [];
+
+  return entries.filter((entry) => entry.startsWith(`${name}=`));
+}
+
+/** Значение атрибута Path (точно, по границе `;`). */
+function cookiePath(cookie: string): string | undefined {
+  return /(?:^|;\s*)Path=([^;]*)/i.exec(cookie)?.[1];
+}
+
+/**
+ * Очищающая ли cookie: Max-Age ≤ 0 (приоритетнее), иначе Expires в прошлом.
+ * Точные границы: `Max-Age=0123` — это 123 (>0), не «Max-Age=0»; будущий
+ * Expires не считается очисткой.
+ */
+function isCleared(cookie: string): boolean {
+  const maxAge = /(?:^|;\s*)Max-Age=(-?\d+)(?:;|$)/i.exec(cookie);
+  if (maxAge) {
+    return Number(maxAge[1]) <= 0;
+  }
+  const expires = /(?:^|;\s*)Expires=([^;]+)/i.exec(cookie);
+  if (expires) {
+    const ts = Date.parse(expires[1]);
+    return Number.isFinite(ts) && ts <= Date.now();
+  }
+  return false;
 }
