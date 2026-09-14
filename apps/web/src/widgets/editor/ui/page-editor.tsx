@@ -9,8 +9,10 @@ import Link from 'next/link';
 
 import type { Page } from '@/src/entities/page';
 import { ErrorBoundary } from '@/src/shared/ui/error-boundary';
+import { isCollabEnabled, shouldUseCollab } from '../model/collab-mode';
 import { usePageAutosave } from '../model/use-page-autosave';
 import { AutosaveIndicator } from './autosave-indicator';
+import { CollabEditor } from './collab-editor';
 
 type PageEditorProps = {
   pageId: string;
@@ -30,7 +32,7 @@ function EditorErrorFallback() {
 
 // Без `initialContent` BlockNote сам создаёт документ с одним пустым
 // блоком — поэтому для новой страницы (`content` пуст) его не передаём.
-function PageEditorContent({ pageId, content }: PageEditorProps) {
+function RestPageEditor({ pageId, content }: PageEditorProps) {
   const { onChange, status, retry } = usePageAutosave(pageId);
   const editor = useCreateBlockNote({
     initialContent: content.length > 0 ? (content as PartialBlock[]) : undefined,
@@ -42,6 +44,17 @@ function PageEditorContent({ pageId, content }: PageEditorProps) {
       <BlockNoteView editor={editor} onChange={() => onChange(editor.document)} />
     </>
   );
+}
+
+// Выбор режима — по collab-editing.spec.md. Ветка чисто разводит компоненты
+// (свои хуки у каждого), режим стабилен: content для открытой страницы не
+// меняется, а роут ремонтит редактор по `key={pageId}`.
+function PageEditorContent({ pageId, content }: PageEditorProps) {
+  if (shouldUseCollab({ enabled: isCollabEnabled(), content })) {
+    return <CollabEditor pageId={pageId} />;
+  }
+
+  return <RestPageEditor pageId={pageId} content={content} />;
 }
 
 export function PageEditor(props: PageEditorProps) {
