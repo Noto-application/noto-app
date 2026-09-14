@@ -1,9 +1,10 @@
 'use client';
 
 import type { Page } from '@noto/shared';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { buildPageTree, type PageTreeNode } from '@/src/entities/page';
+import { ApiClientError } from '@/src/shared/api';
 import { Button } from '@/src/shared/ui/button';
 import {
   Dialog,
@@ -14,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/src/shared/ui/dialog';
+import { toast } from '@/src/shared/ui/toast';
 
 import { useMovePage } from '../api/use-move-page';
 import { filterMovePageCandidates } from '../model/filter-move-page-candidates';
@@ -100,8 +102,10 @@ export function MovePageDialog({
 }: MovePageDialogProps) {
   const [selectedParentId, setSelectedParentId] = useState<string | null | undefined>(undefined);
   const movePage = useMovePage();
-  const candidates = filterMovePageCandidates(pages, pageId);
-  const candidateTree = buildPageTree(candidates);
+  const candidateTree = useMemo(
+    () => buildPageTree(filterMovePageCandidates(pages, pageId)),
+    [pages, pageId],
+  );
   const isRootCurrentParent = parentId === null;
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -127,6 +131,21 @@ export function MovePageDialog({
       {
         onSuccess: () => {
           handleOpenChange(false);
+        },
+        onError: (error) => {
+          if (error instanceof ApiClientError && error.code === 'UNAUTHORIZED') {
+            return;
+          }
+
+          if (error instanceof ApiClientError && error.code === 'FORBIDDEN') {
+            toast.error('Недостаточно прав', 'Вы не можете перемещать страницы в этом проекте.');
+            return;
+          }
+
+          toast.error(
+            'Не удалось переместить страницу',
+            'Проверьте соединение и повторите попытку.',
+          );
         },
       },
     );

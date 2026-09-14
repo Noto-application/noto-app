@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 
 import type { Page } from '@noto/shared';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { Toaster } from '@/src/shared/ui/toast';
 
 import { MovePageMenu } from './move-page-menu';
 
@@ -16,6 +18,7 @@ type MoveInput = {
 
 type MoveOptions = {
   onSuccess?: () => void;
+  onError?: (error: Error) => void;
 };
 
 const { mutate, useMovePageMock } = vi.hoisted(() => ({
@@ -86,5 +89,38 @@ describe('MovePageMenu', () => {
       position: 1,
     });
     expect(options.onSuccess).toEqual(expect.any(Function));
+  });
+
+  it('показывает ошибку, если страницу не удалось переместить', async () => {
+    const user = userEvent.setup();
+    const pages = [page('moving'), page('parent')];
+
+    render(
+      <>
+        <Toaster />
+        <MovePageMenu
+          pageId="moving"
+          projectId="project-1"
+          parentId={null}
+          title="moving"
+          pages={pages}
+        />
+      </>,
+    );
+
+    screen.getByRole('button', { name: 'Действия для «moving»' }).focus();
+    await user.keyboard('{ArrowDown}');
+    await user.click(screen.getByRole('menuitem', { name: 'Переместить' }));
+
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'parent' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Переместить' }));
+
+    act(() => {
+      mutate.mock.calls[0][1].onError?.(new Error('Network error'));
+    });
+
+    expect(await screen.findByText('Не удалось переместить страницу')).toBeInTheDocument();
+    expect(screen.getByText('Проверьте соединение и повторите попытку.')).toBeInTheDocument();
   });
 });

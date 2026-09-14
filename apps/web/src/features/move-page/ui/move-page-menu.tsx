@@ -38,15 +38,17 @@ export function MovePageMenu({ pageId, projectId, parentId, title, pages }: Move
           <DropdownMenuItem onClick={() => setOpen(true)}>Переместить</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <MovePageDialog
-        pageId={pageId}
-        projectId={projectId}
-        parentId={parentId}
-        title={title}
-        pages={pages}
-        open={open}
-        onOpenChange={setOpen}
-      />
+      {open ? (
+        <MovePageDialog
+          pageId={pageId}
+          projectId={projectId}
+          parentId={parentId}
+          title={title}
+          pages={pages}
+          open={open}
+          onOpenChange={setOpen}
+        />
+      ) : null}
     </>
   );
 }
