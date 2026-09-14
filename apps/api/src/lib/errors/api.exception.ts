@@ -71,6 +71,14 @@ export const ApiErrors = {
     return new ApiException('NOT_FOUND', message);
   },
 
+  conflict(message = 'Conflict'): ApiException {
+    return new ApiException('CONFLICT', message);
+  },
+
+  payloadTooLarge(message = 'Payload too large'): ApiException {
+    return new ApiException('PAYLOAD_TOO_LARGE', message);
+  },
+
   internal(message = 'Internal server error'): ApiException {
     return new ApiException('INTERNAL', message);
   },

@@ -13,7 +13,8 @@
   "dependencies": {
     "@hocuspocus/server": "2.15.3",
     "@noto/shared": "workspace:*",
-    "@ts-rest/core": "3.53.0-rc.1"
+    "@ts-rest/core": "3.53.0-rc.1",
+    "yjs": "13.6.32"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",

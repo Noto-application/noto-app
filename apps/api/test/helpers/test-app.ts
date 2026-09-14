@@ -21,7 +21,10 @@ export async function createTestApp(): Promise<TestAppContext> {
     imports: [AppModule],
   }).compile();
 
-  const app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+  // bodyLimit как в main.ts — под collab-снапшоты (#109).
+  const app = moduleRef.createNestApplication<NestFastifyApplication>(
+    new FastifyAdapter({ bodyLimit: 16 * 1024 * 1024 }),
+  );
   // Тот же HTTP-обвес, что и в проде (cookie/prefix/CORS) — issue #96.
   await configureApp(app, app.get(ConfigService<Env, true>));
   await app.init();
