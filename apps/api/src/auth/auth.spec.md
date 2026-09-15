@@ -34,7 +34,17 @@
 
 - `user` = `{ id, email, createdAt }` — без `passwordHash`.
 - Cookie: `access_token` и `refresh_token`, оба `HttpOnly`, `SameSite`, `Secure`
-  в production. `refresh_token` — с `Path=/api/auth/refresh` (уже cookie).
+  в production. Оба с **`Path=/`**. `refresh_token` — на `Path=/` (не узкий
+  `Path=/api/auth/refresh`), чтобы серверный guard из [ADR-003](../../../../docs/adr/003-authentication.md)
+  (Next-middleware) видел refresh на первом запросе к `/app` и восстанавливал
+  сессию (#102). Узкий path не долетал до `/app` → «запомнить меня» не работал.
+  Расширение path митигировано `HttpOnly` + `SameSite=lax` + `Secure`.
+- **Миграция (#102):** `login`/`register`/`refresh` дополнительно **очищают**
+  старую cookie на `Path=/api/auth/refresh` (Max-Age=0); `logout` чистит
+  `refresh_token` на обоих path. Существующая узкая cookie само-исцеляется на
+  следующем клиентском `/api/auth/refresh` (там path совпадает). На **первом**
+  заходе в `/app` только со старой узкой cookie восстановления нет — браузер её
+  на `/app` не шлёт, middleware делает logout → требуется повторный вход.
 - Валидация тела — Zod (задел под [RFC-001](../../../../docs/rfc/001-api-contract.md)); email нормализуется (trim, lowercase).
 
 ## Поведение
