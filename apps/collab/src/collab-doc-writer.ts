@@ -95,10 +95,19 @@ export class DocWriter {
       }
       if (status === 409) {
         const server = await this.deps.loadVersion();
+        // Ресинк удался и продвинул версию → повтор сразу. Если loadVersion не
+        // ответил (null) или версия не выросла — тот же PUT снова даст 409:
+        // ставим backoff, иначе tight-loop + шторм запросов к API.
+        if (server !== null && server >= next) {
+          this.version = server;
+          continue;
+        }
         if (server !== null) {
           this.version = server;
         }
-        continue; // ресинк и повтор
+        attempt += 1;
+        await sleep(backoff(attempt));
+        continue;
       }
       if (status >= 500) {
         attempt += 1;

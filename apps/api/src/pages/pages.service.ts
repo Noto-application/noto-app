@@ -182,11 +182,17 @@ export class PagesService {
   ): Promise<Page> {
     const current = await tx.page.findFirst({
       where: { id, deletedAt: null },
-      select: { projectId: true, parentId: true, position: true },
+      select: { projectId: true, parentId: true, position: true, editorMode: true },
     });
 
     if (!current) {
       throw ApiErrors.notFound('Page not found');
+    }
+
+    // #109: любой запрос с `content` на collab-странице отклоняется целиком —
+    // тело живёт в Yjs. Проверка в той же (serializable) транзакции, что и запись.
+    if (input.content !== undefined && current.editorMode === 'collab') {
+      throw ApiErrors.conflict('Page content is managed by collaborative editing');
     }
 
     // Unchecked-вариант — скалярный FK `parentId` пишем напрямую.

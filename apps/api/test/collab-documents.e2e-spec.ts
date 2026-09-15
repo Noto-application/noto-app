@@ -185,7 +185,8 @@ describe('Internal collab documents (e2e)', () => {
     it('устаревшая версия отклоняется (409) и не откатывает состояние', async () => {
       const pageId = await seedPage();
       await put(pageId, { state: stateB, version: 2 }).expect(200);
-      await put(pageId, { state: stateA, version: 1 }).expect(409);
+      const stale = await put(pageId, { state: stateA, version: 1 }).expect(409);
+      expect(parseError(stale.body).code).toBe('CONFLICT');
 
       const response = await get(pageId).expect(200);
       expect(response.body).toMatchObject({ state: stateB, version: 2 });

@@ -181,6 +181,25 @@ describe('Collab promotion & REST race (e2e)', () => {
       expect(parsePage(afterTitle.body).title).toBe('Новый заголовок');
     });
 
+    it('PATCH {content, position} (move + тело) на collab → 409 целиком', async () => {
+      const { cookie, userId } = await registerUser('pr-patch-move@example.com');
+      const pageId = await seedPage(userId);
+      await authorize(cookie, pageId).expect(200); // → collab
+
+      const before = parsePage((await getPage(cookie, pageId).expect(200)).body);
+
+      const conflict = await request(server)
+        .patch(`/api/pages/${pageId}`)
+        .set('Cookie', cookie)
+        .send({ content: [{ type: 'paragraph', content: 'z' }], position: 3 })
+        .expect(409);
+      expect(parseError(conflict.body).code).toBe('CONFLICT');
+
+      const after = parsePage((await getPage(cookie, pageId).expect(200)).body);
+      expect(after.content).toEqual(before.content);
+      expect(after.position).toBe(before.position);
+    });
+
     it('смешанный PATCH {title, content} на collab → 409 целиком, ничего не меняется', async () => {
       const { cookie, userId } = await registerUser('pr-patch-mixed@example.com');
       const pageId = await seedPage(userId);

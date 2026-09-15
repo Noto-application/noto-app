@@ -47,6 +47,8 @@ export const internalCollabContract = c.router({
       401: apiErrorSchema,
       403: apiErrorSchema,
       404: apiErrorSchema,
+      // rest-страница с непустым контентом не может открыться в collab (#109).
+      409: apiErrorSchema,
     },
     summary: 'Authorize collab document access (internal, service secret required)',
   },
