@@ -49,8 +49,6 @@ describe('Projects (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.projectMember.deleteMany();
-    await prisma.project.deleteMany();
     await resetAuthState(prisma, redis);
   });
 

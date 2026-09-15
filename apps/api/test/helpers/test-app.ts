@@ -10,6 +10,8 @@ import type { Env } from '../../src/config/env.schema';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { RedisService } from '../../src/redis/redis.service';
 
+export const TEST_CORS_ORIGIN = 'http://localhost:3000';
+
 export interface TestAppContext {
   app: NestFastifyApplication;
   prisma: PrismaService;
@@ -22,26 +24,36 @@ export async function createTestApp(): Promise<TestAppContext> {
   }).compile();
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+  const config = app.get(ConfigService<Env, true>);
+  // Фиксируем origin тестового приложения независимо от локального .env.
+  config.set('CORS_ORIGIN', TEST_CORS_ORIGIN);
   // Тот же HTTP-обвес, что и в проде (cookie/prefix/CORS) — issue #96.
-  await configureApp(app, app.get(ConfigService<Env, true>));
+  await configureApp(app, config);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
+  // Один случайный порт на suite: supertest не переоткрывает сервер на каждый
+  // запрос и не переиспользует соединения к уже закрытому временному listener.
+  await app.listen(0, '127.0.0.1');
+
+  const prisma = app.get(PrismaService);
+  const redis = app.get(RedisService);
+  // Каждый suite начинает с пустого состояния, независимо от порядка запуска.
+  await resetAuthState(prisma, redis);
 
   return {
     app,
-    prisma: app.get(PrismaService),
-    redis: app.get(RedisService),
+    prisma,
+    redis,
   };
 }
 
-export async function resetAuthState(
-  prisma: PrismaService,
-  redis: RedisService,
-): Promise<void> {
-  // register создаёт дефолтный проект + membership (issue #88), поэтому чистим
-  // и их — иначе проекты копятся между тестами.
-  await prisma.projectMember.deleteMany();
-  await prisma.project.deleteMany();
-  await prisma.user.deleteMany();
+export async function resetAuthState(prisma: PrismaService, redis: RedisService): Promise<void> {
+  // Полный reset в порядке внешних ключей; одинаковый для всех suite.
+  await prisma.$transaction([
+    prisma.page.deleteMany(),
+    prisma.projectMember.deleteMany(),
+    prisma.project.deleteMany(),
+    prisma.user.deleteMany(),
+  ]);
   await redis.client.flushdb();
 }
