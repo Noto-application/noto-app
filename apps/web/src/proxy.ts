@@ -61,8 +61,14 @@ export async function proxy(request: NextRequest) {
   try {
     const refreshResponse = await apiRequest(request, '/auth/refresh', 'POST');
 
-    if (!refreshResponse.ok) {
+    // Только явный 401 = refresh невалиден → logout. Транзиентная ошибка
+    // (5xx/сеть) НЕ должна разлогинивать — держим сессию, отдаём 503 (#102).
+    if (refreshResponse.status === 401) {
       return logoutAndRedirect(request);
+    }
+
+    if (!refreshResponse.ok) {
+      return new NextResponse('Authentication service is unavailable.', { status: 503 });
     }
 
     const response = NextResponse.next();
