@@ -10,9 +10,10 @@ import type { Env } from './config/env.schema';
 
 async function bootstrap(): Promise<void> {
   // FastifyAdapter вместо Express: быстрее на HTTP и ближе к прод-нагрузке.
+  // bodyLimit поднят под collab-снапшоты (#109): лимит снапшота 8 MB, в base64 ~11 MB.
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter(),
+    new FastifyAdapter({ bodyLimit: 16 * 1024 * 1024 }),
   );
   const config = app.get(ConfigService<Env, true>);
 

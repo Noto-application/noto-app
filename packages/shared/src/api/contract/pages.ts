@@ -70,6 +70,8 @@ export const pagesContract = c.router({
       401: apiErrorSchema,
       403: apiErrorSchema,
       404: apiErrorSchema,
+      // Запрос с `content` на collab-странице (тело живёт в Yjs, #109).
+      409: apiErrorSchema,
     },
     summary: 'Update a page: title / content / move (editor+)',
   },

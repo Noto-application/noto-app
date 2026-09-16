@@ -74,6 +74,9 @@ importers:
       rxjs:
         specifier: 7.8.2
         version: 7.8.2
+      yjs:
+        specifier: 13.6.32
+        version: 13.6.32
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -123,6 +126,9 @@ importers:
       '@ts-rest/core':
         specifier: 3.53.0-rc.1
         version: 3.53.0-rc.1(@types/node@26.1.1)
+      yjs:
+        specifier: 13.6.32
+        version: 13.6.32
     devDependencies:
       '@types/jest':
         specifier: 30.0.0
