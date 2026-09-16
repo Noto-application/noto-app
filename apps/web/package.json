@@ -20,7 +20,11 @@
     "@blocknote/core": "^0.54.0",
     "@blocknote/mantine": "^0.54.0",
     "@blocknote/react": "^0.54.0",
+<<<<<<< Updated upstream
     "@hocuspocus/provider": "2.15.3",
+=======
+    "@dnd-kit/core": "6.3.1",
+>>>>>>> Stashed changes
     "@hookform/resolvers": "5.9.1",
     "@noto/shared": "workspace:*",
     "@tanstack/react-query": "5.90.21",

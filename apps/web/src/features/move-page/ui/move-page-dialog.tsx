@@ -4,7 +4,6 @@ import type { Page } from '@noto/shared';
 import { useMemo, useState } from 'react';
 
 import { buildPageTree, type PageTreeNode } from '@/src/entities/page';
-import { ApiClientError } from '@/src/shared/api';
 import { Button } from '@/src/shared/ui/button';
 import {
   Dialog,
@@ -15,10 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/src/shared/ui/dialog';
-import { toast } from '@/src/shared/ui/toast';
 
 import { useMovePage } from '../api/use-move-page';
 import { filterMovePageCandidates } from '../model/filter-move-page-candidates';
+import { getMovePageAppendPosition } from '../model/get-move-page-append-position';
+import { showMovePageError } from '../model/show-move-page-error';
 
 type MovePageDialogProps = {
   pageId: string;
@@ -80,17 +80,6 @@ function ParentTree({
   );
 }
 
-function getAppendPosition(pages: Page[], parentId: string | null, movingPageId: string) {
-  return (
-    Math.max(
-      -1,
-      ...pages
-        .filter((page) => page.parentId === parentId && page.id !== movingPageId)
-        .map((page) => page.position),
-    ) + 1
-  );
-}
-
 export function MovePageDialog({
   pageId,
   projectId,
@@ -126,27 +115,13 @@ export function MovePageDialog({
         pageId,
         projectId,
         parentId: selectedParentId,
-        position: getAppendPosition(pages, selectedParentId, pageId),
+        position: getMovePageAppendPosition(pages, selectedParentId, pageId),
       },
       {
         onSuccess: () => {
           handleOpenChange(false);
         },
-        onError: (error) => {
-          if (error instanceof ApiClientError && error.code === 'UNAUTHORIZED') {
-            return;
-          }
-
-          if (error instanceof ApiClientError && error.code === 'FORBIDDEN') {
-            toast.error('Недостаточно прав', 'Вы не можете перемещать страницы в этом проекте.');
-            return;
-          }
-
-          toast.error(
-            'Не удалось переместить страницу',
-            'Проверьте соединение и повторите попытку.',
-          );
-        },
+        onError: showMovePageError,
       },
     );
   };

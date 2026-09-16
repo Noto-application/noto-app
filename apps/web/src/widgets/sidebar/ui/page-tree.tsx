@@ -5,7 +5,13 @@ import { useEffect, useRef } from 'react';
 
 import { usePagesList, usePageTree, type Page, type PageTreeNode } from '@/src/entities/page';
 import { DeletePage } from '@/src/features/delete-page';
-import { MovePageMenu } from '@/src/features/move-page';
+import {
+  MovePageDndContext,
+  MovePageDropTarget,
+  MovePageMenu,
+  MovePagePositionDropTarget,
+  MovePageRootDropTarget,
+} from '@/src/features/move-page';
 import { EmptyState } from '@/src/shared/ui/empty-state';
 import { InlineAlert } from '@/src/shared/ui/inline-alert';
 import { Skeleton } from '@/src/shared/ui/skeleton';
@@ -53,31 +59,38 @@ function TreeNodes({
 
         return (
           <li key={node.id}>
-            <PageTreeRow
-              title={node.title}
-              href={`/app/${node.id}`}
-              depth={depth}
-              isActive={node.id === activePageId}
-              actions={
-                <>
-                  <MovePageMenu
-                    pageId={node.id}
-                    projectId={projectId}
-                    parentId={node.parentId}
-                    title={node.title}
-                    pages={pages}
-                  />
-                  <DeletePage pageId={node.id} title={node.title} />
-                </>
-              }
-              {...(hasChildren
-                ? {
-                    hasChildren: true,
-                    isExpanded,
-                    onToggle: () => togglePage(node.id),
+            <MovePagePositionDropTarget pageId={node.id} placement="before" />
+            <MovePageDropTarget pageId={node.id}>
+              {({ isOver, isDragging }) => (
+                <PageTreeRow
+                  title={node.title}
+                  href={`/app/${node.id}`}
+                  depth={depth}
+                  isActive={node.id === activePageId}
+                  isDropTarget={isOver}
+                  isDragging={isDragging}
+                  actions={
+                    <>
+                      <MovePageMenu
+                        pageId={node.id}
+                        projectId={projectId}
+                        parentId={node.parentId}
+                        title={node.title}
+                        pages={pages}
+                      />
+                      <DeletePage pageId={node.id} title={node.title} />
+                    </>
                   }
-                : { hasChildren: false })}
-            />
+                  {...(hasChildren
+                    ? {
+                        hasChildren: true,
+                        isExpanded,
+                        onToggle: () => togglePage(node.id),
+                      }
+                    : { hasChildren: false })}
+                />
+              )}
+            </MovePageDropTarget>
 
             {isExpanded ? (
               <TreeNodes
@@ -88,6 +101,7 @@ function TreeNodes({
                 pages={pages}
               />
             ) : null}
+            <MovePagePositionDropTarget pageId={node.id} placement="after" />
           </li>
         );
       })}
@@ -155,7 +169,16 @@ export function PageTree({ projectId }: { projectId: string }) {
 
   return (
     <nav aria-label="Страницы" className="flex-1 overflow-y-auto">
-      <TreeNodes nodes={tree} depth={0} activePageId={pageId} projectId={projectId} pages={pages} />
+      <MovePageDndContext projectId={projectId} pages={pages}>
+        <TreeNodes
+          nodes={tree}
+          depth={0}
+          activePageId={pageId}
+          projectId={projectId}
+          pages={pages}
+        />
+        <MovePageRootDropTarget pages={pages} />
+      </MovePageDndContext>
     </nav>
   );
 }
