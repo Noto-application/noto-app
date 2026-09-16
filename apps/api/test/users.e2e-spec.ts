@@ -28,6 +28,14 @@ function parseError(body: unknown): ApiError {
   return apiErrorSchema.parse(body);
 }
 
+/** Сырой `user` без Zod-strip: `z.object()` выкинул бы неизвестные поля вроде `passwordHash`. */
+function expectNoPasswordHash(body: unknown): void {
+  if (typeof body !== 'object' || body === null || !('user' in body)) {
+    throw new Error('expected { user }');
+  }
+  expect(body.user).not.toHaveProperty('passwordHash');
+}
+
 describe('Users (e2e)', () => {
   let server: Server;
   let app: Awaited<ReturnType<typeof createTestApp>>['app'];
@@ -77,7 +85,7 @@ describe('Users (e2e)', () => {
         email: 'me-null@example.com',
         username: null,
       });
-      expect(body.user).not.toHaveProperty('passwordHash');
+      expectNoPasswordHash(response.body);
     });
   });
 
@@ -89,7 +97,7 @@ describe('Users (e2e)', () => {
       const { user } = authUserResponseSchema.parse(response.body);
 
       expect(user.username).toBeNull();
-      expect(user).not.toHaveProperty('passwordHash');
+      expectNoPasswordHash(response.body);
     });
   });
 
@@ -194,7 +202,7 @@ describe('Users (e2e)', () => {
         id: userId,
         username: 'Alex',
       });
-      expect(parseUser(created.body).user).not.toHaveProperty('passwordHash');
+      expectNoPasswordHash(created.body);
 
       const me = await agent.get('/api/users/me').expect(200);
       expect(parseUser(me.body).user.username).toBe('Alex');
