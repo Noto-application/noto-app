@@ -11,11 +11,8 @@ import {
 import { createTestApp, resetAuthState } from './helpers/test-app';
 
 /**
- * E2E профиль / username — test-first (ADR-013), контракт из спеки
+ * E2E профиль / username — контракт из спеки
  * apps/api/src/users/users.spec.md, issue #124.
- *
- * Тесты красные до реализации (UsersController/Service): пока эндпоинтов нет,
- * ответы 404. GET /auth/me с `username: null` уже живой — общий DTO.
  */
 
 const MISSING_ID = '00000000-0000-0000-0000-000000000000';
