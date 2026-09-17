@@ -29,7 +29,12 @@ export function MovePageMenu({ pageId, projectId, parentId, title, pages }: Move
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button aria-label={`Действия для «${title}»`} size="icon" variant="ghost">
+            <Button
+              aria-label={`Действия для «${title}»`}
+              className="size-6 cursor-pointer hover:bg-surface-selected [&_svg]:size-4"
+              size="icon"
+              variant="ghost"
+            >
               <MoreHorizontal aria-hidden="true" />
             </Button>
           }
