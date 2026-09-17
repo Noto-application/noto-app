@@ -6,10 +6,12 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
+  pointerWithin,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import type { Page } from '@noto/shared';
@@ -43,6 +45,30 @@ function isPageDropData(value: unknown): value is PageDropData {
   return (
     typeof data.targetPageId === 'string' &&
     (data.placement === 'before' || data.placement === 'after' || data.placement === 'inside')
+  );
+}
+
+/**
+ * Указатель должен реально находиться над drop-зоной: closestCenter иначе
+ * возвращает ближайшую строку даже когда drag вынесен за пределы дерева.
+ * У KeyboardSensor нет координат указателя, для него остаётся навигация по
+ * ближайшей цели.
+ */
+const detectMovePageCollision: CollisionDetection = (args) =>
+  args.pointerCoordinates ? pointerWithin(args) : closestCenter(args);
+
+function isKeyboardInteractiveTarget(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    target.closest('button, a, input, textarea, select, [role="button"], [role="menuitem"]') !==
+      null
+  );
+}
+
+function isPointerDragBlockedTarget(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    target.closest('button, input, textarea, select, [role="button"], [role="menuitem"]') !== null
   );
 }
 
@@ -131,7 +157,7 @@ export function MovePageDndContext({ projectId, pages, children }: MovePageDndCo
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={detectMovePageCollision}
       onDragStart={({ active }) => setActivePageId(String(active.id))}
       onDragCancel={() => setActivePageId(null)}
       onDragEnd={handleDragEnd}
@@ -178,14 +204,16 @@ export function MovePageDropTarget({ pageId, children }: MovePageDropTargetProps
     },
     [setDraggableNodeRef, setDroppableNodeRef],
   );
-  const stopDragFromButton: PointerEventHandler<HTMLDivElement> = (event) => {
-    if (event.target instanceof Element && event.target.closest('button')) {
-      event.stopPropagation();
+  const handlePointerDown: PointerEventHandler<HTMLDivElement> = (event) => {
+    // Основная область строки — ссылка на страницу. Она остаётся draggable,
+    // иначе перетаскивание работало бы только вне текста страницы.
+    if (!isPointerDragBlockedTarget(event.target)) {
+      listeners?.onPointerDown?.(event);
     }
   };
-  const stopKeyboardDragFromInteractive: KeyboardEventHandler<HTMLDivElement> = (event) => {
-    if (event.target instanceof Element && event.target.closest('button, a')) {
-      event.stopPropagation();
+  const handleKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
+    if (!isKeyboardInteractiveTarget(event.target)) {
+      listeners?.onKeyDown?.(event);
     }
   };
 
@@ -193,11 +221,11 @@ export function MovePageDropTarget({ pageId, children }: MovePageDropTargetProps
     <div
       ref={setNodeRef}
       className="select-none"
-      onPointerDownCapture={stopDragFromButton}
-      onKeyDownCapture={stopKeyboardDragFromInteractive}
       {...attributes}
       role="group"
       {...listeners}
+      onPointerDown={handlePointerDown}
+      onKeyDown={handleKeyDown}
     >
       {children({ isOver: isOver && isValidTarget, isDragging })}
     </div>

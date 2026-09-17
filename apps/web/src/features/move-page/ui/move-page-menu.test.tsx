@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Toaster } from '@/src/shared/ui/toast';
 
+import { MovePageDndContext, MovePageDropTarget } from './move-page-dnd';
 import { MovePageMenu } from './move-page-menu';
 
 type MoveInput = {
@@ -49,6 +50,32 @@ beforeEach(() => {
 });
 
 describe('MovePageMenu', () => {
+  it('открывает меню с клавиатуры внутри draggable строки', async () => {
+    const user = userEvent.setup();
+    const pages = [page('moving')];
+
+    render(
+      <MovePageDndContext projectId="project-1" pages={pages}>
+        <MovePageDropTarget pageId="moving">
+          {() => (
+            <MovePageMenu
+              pageId="moving"
+              projectId="project-1"
+              parentId={null}
+              title="moving"
+              pages={pages}
+            />
+          )}
+        </MovePageDropTarget>
+      </MovePageDndContext>,
+    );
+
+    screen.getByRole('button', { name: 'Действия для «moving»' }).focus();
+    await user.keyboard('{ArrowDown}');
+
+    expect(await screen.findByRole('menuitem', { name: 'Переместить' })).toBeInTheDocument();
+  });
+
   it('открывает диалог, исключает поддерево и перемещает страницу в конец нового родителя', async () => {
     const user = userEvent.setup();
     const pages = [
