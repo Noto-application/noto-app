@@ -2,6 +2,7 @@ export { apiContract, type ApiContract } from './contract';
 export { authContract } from './contract/auth';
 export { pagesContract } from './contract/pages';
 export { projectsContract } from './contract/projects';
+export { usersContract } from './contract/users';
 export {
   apiErrorCodeSchema,
   apiErrorSchema,
@@ -14,7 +15,15 @@ export {
   authUserResponseSchema,
   loginBodySchema,
 } from './schemas/auth';
-export { userSchema, type User } from './schemas/user';
+export {
+  USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
+  updateUserSchema,
+  userResponseSchema,
+  userSchema,
+  usernameSchema,
+  type User,
+} from './schemas/user';
 export {
   PROJECT_NAME_MAX_LENGTH,
   PROJECT_NAME_MIN_LENGTH,
@@ -51,4 +60,6 @@ export type {
   ProjectsResponse,
   UpdatePageInput,
   UpdateProjectInput,
+  UpdateUserInput,
+  UserResponse,
 } from './types';

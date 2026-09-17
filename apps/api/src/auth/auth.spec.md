@@ -32,7 +32,8 @@
 | POST  | `/api/auth/logout`   | —                     | 200/204, обе cookie очищены  | —                                       |
 | GET   | `/api/auth/me`       | — (access cookie)     | 200, `{ user }`              | 401 нет/невалиден access                |
 
-- `user` = `{ id, email, createdAt }` — без `passwordHash`.
+- `user` = `{ id, email, username, createdAt }` — без `passwordHash`.
+  `username` — `string | null` (профиль, issue #124; см. [users.spec.md](../users/users.spec.md)).
 - Cookie: `access_token` и `refresh_token`, оба `HttpOnly`, `SameSite`, `Secure`
   в production. Оба с **`Path=/`**. `refresh_token` — на `Path=/` (не узкий
   `Path=/api/auth/refresh`), чтобы серверный guard из [ADR-003](../../../../docs/adr/003-authentication.md)
