@@ -14,6 +14,33 @@ describe('shouldUseCollab', () => {
   it('не включает на странице с REST-контентом (не открыть заметки пустыми)', () => {
     expect(shouldUseCollab({ enabled: true, content: [{ type: 'paragraph' }] })).toBe(false);
   });
+
+  // Durable-признак (#109): страница, однажды переведённая в collab, всегда
+  // открывается через Yjs — независимо от флага и от REST-контента.
+  it('включает collab на durable collab-странице при выключенном флаге', () => {
+    expect(shouldUseCollab({ enabled: false, editorMode: 'collab', content: [] })).toBe(true);
+  });
+
+  it('включает collab на durable collab-странице с непустым REST-контентом', () => {
+    expect(
+      shouldUseCollab({ enabled: false, editorMode: 'collab', content: [{ type: 'paragraph' }] }),
+    ).toBe(true);
+  });
+
+  // Спайк-путь (#110) не должен утаскивать rest-страницу с контентом в collab.
+  it('не включает collab на rest-странице с контентом даже при поднятом флаге', () => {
+    expect(
+      shouldUseCollab({ enabled: true, editorMode: 'rest', content: [{ type: 'paragraph' }] }),
+    ).toBe(false);
+  });
+
+  it('включает collab по спайк-пути на rest-странице без контента при флаге', () => {
+    expect(shouldUseCollab({ enabled: true, editorMode: 'rest', content: [] })).toBe(true);
+  });
+
+  it('не включает collab при выключенном флаге и editorMode rest', () => {
+    expect(shouldUseCollab({ enabled: false, editorMode: 'rest', content: [] })).toBe(false);
+  });
 });
 
 describe('isCollabEnabled', () => {

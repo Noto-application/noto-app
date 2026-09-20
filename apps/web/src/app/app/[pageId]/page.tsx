@@ -64,7 +64,12 @@ export default function PageRoute() {
     <div className="p-8">
       <PageTitle key={page.id} pageId={page.id} projectId={page.projectId} title={page.title} />
       <div className="mt-4">
-        <PageEditor key={page.id} pageId={page.id} content={page.content} />
+        <PageEditor
+          key={page.id}
+          pageId={page.id}
+          content={page.content}
+          editorMode={page.editorMode}
+        />
       </div>
     </div>
   );
