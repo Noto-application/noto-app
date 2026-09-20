@@ -37,7 +37,7 @@ export function PageTreeRow({
     <div
       className={cn(
         'flex items-center gap-1 rounded-md pr-1 text-body-compact text-foreground',
-        'transition-colors hover:bg-surface-hover has-aria-[aria-current=page]:bg-surface-selected',
+        'transition-colors hover:bg-surface-hover has-aria-[current=page]:bg-surface-selected',
         isDropTarget && 'bg-surface-hover ring-1 ring-border',
         isDragging && 'opacity-35',
       )}
