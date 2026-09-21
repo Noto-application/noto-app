@@ -1,0 +1,146 @@
+name: noto-dev
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging:
+    driver: local
+    options:
+      max-size: 10m
+      max-file: "3"
+  networks:
+    - noto
+
+services:
+  caddy:
+    <<: *service-defaults
+    image: caddy:2.10-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      NOTO_PUBLIC_HOST: ${NOTO_PUBLIC_HOST:?set NOTO_PUBLIC_HOST}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+      collab:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 160m
+
+  web:
+    <<: *service-defaults
+    image: ${GHCR_IMAGE_PREFIX:?set GHCR_IMAGE_PREFIX}/noto-web:${IMAGE_TAG:?set IMAGE_TAG}
+    environment:
+      # Не public: только Next auth proxy внутри Docker. Пока proxy ещё читает
+      # NEXT_PUBLIC_API_URL, deploy не должен включаться до merge малого фикса.
+      API_INTERNAL_URL: http://api:4000
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    mem_limit: 360m
+
+  api:
+    <<: *service-defaults
+    image: ${GHCR_IMAGE_PREFIX:?set GHCR_IMAGE_PREFIX}/noto-api:${IMAGE_TAG:?set IMAGE_TAG}
+    env_file: runtime/api.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    mem_limit: 420m
+
+  # Запускается только через `docker compose run --rm api-migrate` в deploy.sh.
+  api-migrate:
+    image: ${GHCR_IMAGE_PREFIX:?set GHCR_IMAGE_PREFIX}/noto-api-migrate:${IMAGE_TAG:?set IMAGE_TAG}
+    env_file: runtime/api.env
+    networks:
+      - noto
+    profiles: [maintenance]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 350m
+
+  collab:
+    <<: *service-defaults
+    image: ${GHCR_IMAGE_PREFIX:?set GHCR_IMAGE_PREFIX}/noto-collab:${IMAGE_TAG:?set IMAGE_TAG}
+    env_file: runtime/collab.env
+    depends_on:
+      api:
+        condition: service_healthy
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const s=require('net').connect(5555,'127.0.0.1'); s.on('connect', () => {s.end(); process.exit(0)}); s.on('error', () => process.exit(1)); setTimeout(() => process.exit(1), 3000)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    mem_limit: 300m
+
+  postgres:
+    <<: *service-defaults
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 420m
+
+  redis:
+    <<: *service-defaults
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 160m
+
+networks:
+  noto:
+    name: noto-dev-network
+
+volumes:
+  postgres-data:
+    name: noto-dev-postgres-data
+  redis-data:
+    name: noto-dev-redis-data
+  caddy-data:
+    name: noto-dev-caddy-data
+  caddy-config:
+    name: noto-dev-caddy-config

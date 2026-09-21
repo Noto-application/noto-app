@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+// Proxy выполняется только на сервере Next. В контейнере ему не нужен внешний
+// DNS/Caddy: используем private Docker address, но сохраняем public fallback
+// для локального запуска без Compose.
+const configuredApiUrl =
+  process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 const apiBaseUrl = `${configuredApiUrl.replace(/\/$/, '')}/api`;
 
 function getSetCookies(headers: Headers): string[] {
