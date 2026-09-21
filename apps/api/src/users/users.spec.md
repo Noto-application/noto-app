@@ -46,7 +46,8 @@ ts-rest контракт в `@noto/shared` (`usersContract`). Единый shape
 ## Поведение
 
 - **GET `/users/me`:** текущий пользователь из access cookie → `200 { user }`.
-  `username` может быть `null`.
+  `username` может быть `null`. Строки в БД нет, а токен ещё жив → `401`
+  (как `GET /auth/me`), не `404`.
 - **PATCH `/users/:userId`:** если `userId` не совпадает с id из токена →
   `403 FORBIDDEN` (без чтения БД, не раскрываем существование id). Свой id →
   trim пробелов по краям, длина 1–80 → сохранить → `200 { user }` с новым
@@ -62,6 +63,7 @@ Register/login **не** принимают `username`; у нового поль�
 | Случай | Ожидание |
 | ------ | -------- |
 | GET / PATCH без авторизации | `401 UNAUTHORIZED` |
+| GET `/users/me`, пользователя уже нет в БД (cookie ещё жива) | `401 UNAUTHORIZED` — как `/auth/me` |
 | PATCH чужого `userId` (существующего или нет) | `403 FORBIDDEN` |
 | PATCH своего id, пользователя уже нет в БД | `404 NOT_FOUND` |
 | `username` пустой / одни пробелы / длиннее 80 | `400 VALIDATION_ERROR` |

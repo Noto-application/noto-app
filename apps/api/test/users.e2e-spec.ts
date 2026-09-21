@@ -84,6 +84,14 @@ describe('Users (e2e)', () => {
       });
       expectNoPasswordHash(response.body);
     });
+
+    it('пользователя уже нет в БД, cookie ещё жива → 401 UNAUTHORIZED', async () => {
+      const { agent, userId } = await registerUser('me-deleted@example.com');
+      await prisma.user.delete({ where: { id: userId } });
+
+      const response = await agent.get('/api/users/me').expect(401);
+      expect(parseError(response.body).code).toBe('UNAUTHORIZED');
+    });
   });
 
   describe('GET /api/auth/me (тот же user DTO)', () => {
