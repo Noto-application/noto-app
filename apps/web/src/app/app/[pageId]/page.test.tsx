@@ -5,10 +5,26 @@ import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from '@/src/shared/api';
+import type * as EditorWidget from '@/src/widgets/editor';
 
 import PageRoute from './page';
 
 type PageResponse = Awaited<ReturnType<typeof apiClient.pages.get>>;
+
+const { pageEditorProps } = vi.hoisted(() => ({ pageEditorProps: vi.fn() }));
+
+// Мокаем на границе виджета: реальный PageEditor тянет BlockNote/Yjs и здесь не
+// нужен. PageTitle оставляем настоящим — на нём держатся существующие проверки.
+vi.mock('@/src/widgets/editor', async (importOriginal) => {
+  const actual = await importOriginal<typeof EditorWidget>();
+  return {
+    ...actual,
+    PageEditor: (props: { pageId: string; content: unknown; editorMode?: string }) => {
+      pageEditorProps(props);
+      return <div data-testid="page-editor" />;
+    },
+  };
+});
 
 const pageId = '00000000-0000-4000-8000-000000000001';
 
@@ -39,6 +55,7 @@ function renderRoute() {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  pageEditorProps.mockClear();
 });
 
 /** Маппинг кода ошибки в HTTP-статус покрыт в `pages.test.ts` и
@@ -107,5 +124,21 @@ describe('роут /app/[pageId]', () => {
 
     expect(await screen.findByRole('textbox', { name: 'Заголовок страницы' })).toHaveValue(page.title);
     expect(screen.queryByText('Страница не найдена')).not.toBeInTheDocument();
+  });
+
+  it('передаёт editorMode загруженной страницы в PageEditor', async () => {
+    const collabPage: Page = { ...page, editorMode: 'collab' };
+    vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
+      status: 200,
+      body: { page: collabPage },
+      headers: new Headers(),
+    } satisfies PageResponse);
+
+    renderRoute();
+
+    expect(await screen.findByTestId('page-editor')).toBeInTheDocument();
+    expect(pageEditorProps).toHaveBeenCalledWith(
+      expect.objectContaining({ pageId, editorMode: 'collab' }),
+    );
   });
 });
