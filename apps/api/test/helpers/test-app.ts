@@ -23,7 +23,10 @@ export async function createTestApp(): Promise<TestAppContext> {
     imports: [AppModule],
   }).compile();
 
-  const app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+  // bodyLimit как в main.ts — под collab-снапшоты (#109).
+  const app = moduleRef.createNestApplication<NestFastifyApplication>(
+    new FastifyAdapter({ bodyLimit: 16 * 1024 * 1024 }),
+  );
   const config = app.get(ConfigService<Env, true>);
   // Фиксируем origin тестового приложения независимо от локального .env.
   config.set('CORS_ORIGIN', TEST_CORS_ORIGIN);

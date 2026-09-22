@@ -9,6 +9,8 @@ export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
   UNAUTHORIZED: HttpStatus.UNAUTHORIZED,
   FORBIDDEN: HttpStatus.FORBIDDEN,
   NOT_FOUND: HttpStatus.NOT_FOUND,
+  CONFLICT: HttpStatus.CONFLICT,
+  PAYLOAD_TOO_LARGE: HttpStatus.PAYLOAD_TOO_LARGE,
   INTERNAL: HttpStatus.INTERNAL_SERVER_ERROR,
 };
 
@@ -67,6 +69,14 @@ export const ApiErrors = {
 
   notFound(message = 'Not found'): ApiException {
     return new ApiException('NOT_FOUND', message);
+  },
+
+  conflict(message = 'Conflict'): ApiException {
+    return new ApiException('CONFLICT', message);
+  },
+
+  payloadTooLarge(message = 'Payload too large'): ApiException {
+    return new ApiException('PAYLOAD_TOO_LARGE', message);
   },
 
   internal(message = 'Internal server error'): ApiException {

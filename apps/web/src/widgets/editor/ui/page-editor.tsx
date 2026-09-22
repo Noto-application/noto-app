@@ -17,6 +17,7 @@ import { CollabEditor } from './collab-editor';
 type PageEditorProps = {
   pageId: string;
   content: Page['content'];
+  editorMode?: Page['editorMode'];
 };
 
 function EditorErrorFallback() {
@@ -49,8 +50,8 @@ function RestPageEditor({ pageId, content }: PageEditorProps) {
 // Выбор режима — по collab-editing.spec.md. Ветка чисто разводит компоненты
 // (свои хуки у каждого), режим стабилен: content для открытой страницы не
 // меняется, а роут ремонтит редактор по `key={pageId}`.
-function PageEditorContent({ pageId, content }: PageEditorProps) {
-  if (shouldUseCollab({ enabled: isCollabEnabled(), content })) {
+function PageEditorContent({ pageId, content, editorMode }: PageEditorProps) {
+  if (shouldUseCollab({ enabled: isCollabEnabled(), editorMode, content })) {
     return <CollabEditor pageId={pageId} />;
   }
 

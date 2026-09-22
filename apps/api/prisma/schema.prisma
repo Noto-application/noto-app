@@ -50,16 +50,27 @@ model Project {
 /// Страница внутри проекта (спека apps/api/src/pages/pages.spec.md). Дерево —
 /// через parentId (self-relation). Контент — BlockNote-док (Json). Права
 /// наследуются от проекта, своей записи доступа у страницы нет. Удаление мягкое.
+/// Режим редактора страницы (#109/#110). `rest` — контент в поле `content`
+/// (REST-автосейв); `collab` — тело живёт в Yjs (PageCollabState), `content`
+/// больше не источник истины. Раз переведённая в collab страница не возвращается.
+enum EditorMode {
+  rest
+  collab
+
+  @@map("editor_mode")
+}
+
 model Page {
-  id          String   @id @default(uuid())
+  id          String     @id @default(uuid())
   projectId   String
   parentId    String?
   createdById String?
   title       String
-  content     Json     @default("[]")
-  position    Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  content     Json       @default("[]")
+  position    Int        @default(0)
+  editorMode  EditorMode @default(rest)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
   deletedAt   DateTime?
 
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -68,10 +79,24 @@ model Page {
   // Автор (создатель) — для будущего байлайна при публикации. Не в публичном DTO.
   // При удалении пользователя страница остаётся, автор обнуляется.
   createdBy User?   @relation("PageAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  // Снапшот Yjs-состояния для collab-страниц (#109). 1:1, каскад при удалении.
+  collabState PageCollabState?
 
   @@index([projectId])
   @@index([parentId])
   @@map("pages")
+}
+
+/// Снапшот Yjs-документа страницы (#109). Полное состояние (Y.encodeStateAsUpdate)
+/// + монотонная версия — guard от отката запоздавшей записью. 1:1 со страницей.
+model PageCollabState {
+  pageId    String   @id
+  state     Bytes
+  version   Int      @default(0)
+  updatedAt DateTime @updatedAt
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@map("page_collab_states")
 }
 
 /// Явный грант доступа: (проект, пользователь) → роль. Источник правды по

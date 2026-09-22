@@ -9,10 +9,16 @@ export function isCollabEnabled(): boolean {
 }
 
 /**
- * Спайк-эвристика выбора режима: collab включаем только при поднятом флаге и на
- * пустой (новой/тестовой) странице — чтобы не открыть уже сохранённый
- * REST-контент пустым. Durable per-page признак придёт с #109.
+ * Выбор режима (#110): durable-признак `editorMode === 'collab'` — страница уже
+ * живёт в Yjs и открывается так всегда, независимо от флага и REST-контента.
+ * Иначе спайк-эвристика: collab только при поднятом флаге и пустой
+ * (новой/тестовой) странице — чтобы не открыть сохранённый REST-контент пустым.
+ * Отсутствующий `editorMode` (до #109) ведёт себя как `rest`.
  */
-export function shouldUseCollab(params: { enabled: boolean; content: Page['content'] }): boolean {
-  return params.enabled && params.content.length === 0;
+export function shouldUseCollab(params: {
+  enabled: boolean;
+  editorMode?: Page['editorMode'];
+  content: Page['content'];
+}): boolean {
+  return params.editorMode === 'collab' || (params.enabled && params.content.length === 0);
 }

@@ -8,6 +8,11 @@ export const apiErrorCodeSchema = z.enum([
   'FORBIDDEN',
   'NOT_FOUND',
   'VALIDATION_ERROR',
+  // 409 — конфликт состояния (устаревшая версия снапшота, collab-промоут,
+  // запись тела на collab-странице) — #109.
+  'CONFLICT',
+  // 413 — тело/снапшот превышает лимит размера — #109.
+  'PAYLOAD_TOO_LARGE',
   // Fallback для необработанных ошибок (не HttpException): catch-all фильтр
   // отдаёт его вместо голого 500 вне общего shape.
   'INTERNAL',

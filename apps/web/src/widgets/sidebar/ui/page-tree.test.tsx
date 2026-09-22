@@ -34,6 +34,22 @@ vi.mock('@/src/features/delete-page', () => ({
   ),
 }));
 
+vi.mock('@/src/features/move-page', () => ({
+  MovePageDndContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  MovePageDropTarget: ({
+    children,
+  }: {
+    children: (state: { isOver: boolean; isDragging: boolean }) => React.ReactNode;
+  }) => <>{children({ isOver: false, isDragging: false })}</>,
+  MovePageMenu: ({ title }: { title: string }) => (
+    <button type="button" aria-label={`Действия для «${title}»`}>
+      Действия
+    </button>
+  ),
+  MovePageRootDropTarget: () => null,
+  MovePagePositionDropTarget: () => null,
+}));
+
 type BranchState = { hasChildren: false } | { hasChildren: true; isExpanded: boolean };
 
 type ItemProps = BranchState & {

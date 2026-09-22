@@ -149,6 +149,26 @@ export class PagesService {
       data.content = input.content as Prisma.InputJsonValue;
     }
 
+    // #109: тело collab-страницы живёт в Yjs — запись `content` разрешена только
+    // в режиме `rest`. Пишем атомарно (updateMany с условием), устойчиво к гонке
+    // с промоутом; запрос с `content` на collab-странице отклоняется ЦЕЛИКОМ.
+    if (input.content !== undefined) {
+      const res = await this.prisma.page.updateMany({
+        where: { id, deletedAt: null, editorMode: 'rest' },
+        data,
+      });
+      if (res.count === 0) {
+        const exists = await this.prisma.page.findFirst({
+          where: { id, deletedAt: null },
+          select: { id: true },
+        });
+        throw exists
+          ? ApiErrors.conflict('Page content is managed by collaborative editing')
+          : ApiErrors.notFound('Page not found');
+      }
+      return toPublicPage(await this.prisma.page.findFirstOrThrow({ where: { id } }));
+    }
+
     const page = await this.prisma.page.update({ where: { id }, data });
 
     return toPublicPage(page);
@@ -162,11 +182,17 @@ export class PagesService {
   ): Promise<Page> {
     const current = await tx.page.findFirst({
       where: { id, deletedAt: null },
-      select: { projectId: true, parentId: true, position: true },
+      select: { projectId: true, parentId: true, position: true, editorMode: true },
     });
 
     if (!current) {
       throw ApiErrors.notFound('Page not found');
+    }
+
+    // #109: любой запрос с `content` на collab-странице отклоняется целиком —
+    // тело живёт в Yjs. Проверка в той же (serializable) транзакции, что и запись.
+    if (input.content !== undefined && current.editorMode === 'collab') {
+      throw ApiErrors.conflict('Page content is managed by collaborative editing');
     }
 
     // Unchecked-вариант — скалярный FK `parentId` пишем напрямую.

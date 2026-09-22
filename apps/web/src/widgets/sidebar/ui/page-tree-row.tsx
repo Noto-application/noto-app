@@ -12,6 +12,8 @@ type PageTreeRowProps = BranchState & {
   depth: number;
   isActive: boolean;
   onToggle?: () => void;
+  isDropTarget?: boolean;
+  isDragging?: boolean;
   actions?: ReactNode;
 };
 
@@ -26,6 +28,8 @@ export function PageTreeRow({
   href,
   depth,
   isActive,
+  isDropTarget = false,
+  isDragging = false,
   actions,
   ...branch
 }: PageTreeRowProps) {
@@ -33,7 +37,9 @@ export function PageTreeRow({
     <div
       className={cn(
         'flex items-center gap-1 rounded-md pr-1 text-body-compact text-foreground',
-        'hover:bg-surface-hover has-[[aria-current=page]]:bg-surface-selected',
+        'transition-colors hover:bg-surface-hover has-aria-[current=page]:bg-surface-selected',
+        isDropTarget && 'bg-surface-hover ring-1 ring-border',
+        isDragging && 'opacity-35',
       )}
       style={{ paddingLeft: `${depth * 12 + 4}px` }}
     >
