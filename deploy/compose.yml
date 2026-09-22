@@ -42,8 +42,7 @@ services:
     <<: *service-defaults
     image: ${GHCR_IMAGE_PREFIX:?set GHCR_IMAGE_PREFIX}/noto-web:${IMAGE_TAG:?set IMAGE_TAG}
     environment:
-      # Не public: только Next auth proxy внутри Docker. Пока proxy ещё читает
-      # NEXT_PUBLIC_API_URL, deploy не должен включаться до merge малого фикса.
+      # Только server-side Next auth proxy внутри Docker.
       API_INTERNAL_URL: http://api:4000
     depends_on:
       api:
@@ -73,7 +72,7 @@ services:
       start_period: 15s
     mem_limit: 420m
 
-  # Запускается только через `docker compose run --rm api-migrate` в deploy.sh.
+  # Запускается вручную до старта application services.
   api-migrate:
     image: ${GHCR_IMAGE_PREFIX:?set GHCR_IMAGE_PREFIX}/noto-api-migrate:${IMAGE_TAG:?set IMAGE_TAG}
     env_file: runtime/api.env
