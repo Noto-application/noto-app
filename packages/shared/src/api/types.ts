@@ -3,6 +3,7 @@ import type { ServerInferRequest, ServerInferResponses } from '@ts-rest/core';
 import type { authContract } from './contract/auth';
 import type { pagesContract } from './contract/pages';
 import type { projectsContract } from './contract/projects';
+import type { usersContract } from './contract/users';
 
 /** Типы запросов/ответов выводятся из ts-rest контракта (single source of truth). */
 export type AuthCredentials = ServerInferRequest<
@@ -15,6 +16,13 @@ export type LoginCredentials = ServerInferRequest<
 
 export type AuthUserResponse = Extract<
   ServerInferResponses<typeof authContract.me>,
+  { status: 200 }
+>['body'];
+
+export type UpdateUserInput = ServerInferRequest<typeof usersContract.update>['body'];
+
+export type UserResponse = Extract<
+  ServerInferResponses<typeof usersContract.me>,
   { status: 200 }
 >['body'];
 

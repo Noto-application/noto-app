@@ -10,11 +10,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Пользователь. Голая модель под auth (BE-2/BE-3): только идентификация.
-/// Роли, профиль и связи добавляются отдельными миграциями по мере надобности.
+/// Пользователь. Профиль: опциональный username (issue #124).
+/// Роли и связи добавляются отдельными миграциями по мере надобности.
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
+  username     String?
   passwordHash String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

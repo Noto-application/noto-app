@@ -8,6 +8,7 @@
 | Фича                                    | Спека                                                                                                                | Статус |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------ |
 | Auth (register/login/refresh/logout/me) | [apps/api/src/auth/auth.spec.md](../../apps/api/src/auth/auth.spec.md)                                               | Ready  |
+| Users (профиль / username)              | [apps/api/src/users/users.spec.md](../../apps/api/src/users/users.spec.md)                                           | Draft  |
 | Projects CRUD                           | [apps/api/src/projects/projects.spec.md](../../apps/api/src/projects/projects.spec.md)                               | Draft  |
 | Pages data layer                        | [apps/web/src/entities/page/page.spec.md](../../apps/web/src/entities/page/page.spec.md)                             | Ready  |
 | Pages CRUD                              | [apps/api/src/pages/pages.spec.md](../../apps/api/src/pages/pages.spec.md)                                           | Draft  |
