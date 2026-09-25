@@ -26,10 +26,10 @@ vi.mock('@/src/entities/page', () => ({
   usePageTree: usePageTreeMock,
 }));
 
-vi.mock('@/src/features/delete-page', () => ({
-  DeletePage: ({ pageId, title }: { pageId: string; title: string }) => (
-    <button type="button" aria-label={`Удалить «${title}»`} data-page-id={pageId}>
-      Удалить
+vi.mock('./page-actions-menu', () => ({
+  PageActionsMenu: ({ title }: { title: string }) => (
+    <button type="button" aria-label={`Действия для «${title}»`}>
+      Действия
     </button>
   ),
 }));
@@ -41,11 +41,6 @@ vi.mock('@/src/features/move-page', () => ({
   }: {
     children: (state: { isOver: boolean; isDragging: boolean }) => React.ReactNode;
   }) => <>{children({ isOver: false, isDragging: false })}</>,
-  MovePageMenu: ({ title }: { title: string }) => (
-    <button type="button" aria-label={`Действия для «${title}»`}>
-      Действия
-    </button>
-  ),
   MovePageRootDropTarget: () => null,
   MovePagePositionDropTarget: () => null,
 }));
@@ -415,15 +410,16 @@ describe('PageTree', () => {
     expect(screen.getByRole('link', { name: 'Обзор' })).not.toHaveAttribute('aria-current');
   });
 
-  it('показывает действие удаления для страницы', () => {
+  it('показывает общее меню действий без отдельной кнопки удаления', () => {
     mockTree([{ id: 'page-1', title: 'Обзор', children: [] }]);
 
     render(<PageTree projectId="project-1" />);
 
     expect(
       screen.getByRole('button', {
-        name: 'Удалить «Обзор»',
+        name: 'Действия для «Обзор»',
       }),
     ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Удалить «Обзор»' })).not.toBeInTheDocument();
   });
 });
