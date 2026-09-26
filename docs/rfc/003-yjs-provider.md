@@ -1,7 +1,13 @@
 # RFC-003: Yjs provider для collaborative editing
 
-**Статус:** Draft (рекомендация к принятию — на ратификацию командой)  
-**Дата:** 2026-07-14, обновлён 2026-09-04
+**Статус:** Superseded by [ADR-006](../adr/006-realtime.md)  
+**Дата:** 2026-07-14  
+**Обновлён:** 2026-09-26
+
+> Решение (**Hocuspocus**) ратифицировано командой и вынесено в
+> [ADR-006](../adr/006-realtime.md), раздел «Yjs provider».
+> Этот RFC оставлен как история проработки: контекст, альтернативы, результаты
+> спайка. Актуальное состояние стека — в ADR-006.
 
 ## Контекст
 
@@ -37,17 +43,19 @@ Custom websocket gateway на NestJS с y-protocols.
 
 ## Требования
 
-- [ ] Аутентификация: только участники проекта могут подключиться к doc
-- [ ] Persistence: сохранение Yjs state в PostgreSQL или через REST snapshot
-- [ ] Multi-instance prod: Redis pub/sub или dedicated collaboration pod
-- [ ] Отделение от Socket.io (presence/комментарии остаются на Socket.io)
+- [x] Аутентификация: только участники проекта могут подключиться к doc — `onAuthenticate` (#108)
+- [x] Persistence: сохранение Yjs state в PostgreSQL через REST snapshot — `onLoadDocument`/`onStoreDocument` (#109)
+- [ ] Multi-instance prod: Redis pub/sub или dedicated collaboration pod — не сделано, MVP на одном инстансе
+- [x] Отделение от Socket.io (presence/комментарии остаются на Socket.io) — Yjs-канал отдельный сервис; сам Socket.io-канал ещё не начат
 
 ## Архитектурная схема (целевая)
+
+Yjs-ветка реализована, Socket.io-ветка — план.
 
 ```
 Browser (BlockNote + Yjs)
     │
-    ├── Yjs WebSocket ──► Hocuspocus / y-websocket ──► PostgreSQL (snapshots)
+    ├── Yjs WebSocket ──► Hocuspocus (apps/collab) ──► PostgreSQL (snapshots)
     │
     └── Socket.io ──► NestJS Gateway ──► presence, comments, notifications
 ```
@@ -71,24 +79,37 @@ Browser (BlockNote + Yjs)
 - **Persistence:** хуки `onLoadDocument` / `onStoreDocument` (или
   `@hocuspocus/extension-database`) — снапшот Yjs-state в PostgreSQL.
 - **BlockNote (FE):** `useCreateBlockNote({ collaboration: { provider,
-  fragment, user } })` с тем же провайдером.
+fragment, user } })` с тем же провайдером.
 
-## Предлагаемое решение
+## Решение: Hocuspocus (принято, см. [ADR-006](../adr/006-realtime.md))
 
 **Вариант B — Hocuspocus.** Он закрывает наши требования (auth, persistence,
 multi-instance) готовыми хуками/расширениями — меньше кастомного кода, чем у
 голого y-websocket (A) или собственного NestJS-gateway (C), и без внешней
 зависимости SaaS (D). Presence/комментарии остаются на Socket.io, как в схеме.
 
-## Следующие шаги
+## Что сделано
 
-1. ~~Spike Hocuspocus локально~~ — сделано (PoC, relay доказан).
-2. Ратифицировать выбор на планёрке → продвинуть RFC в ADR.
-3. Auth hook (access-токен на `onAuthenticate`) — следующий спринт.
-4. Persistence strategy (снапшоты в PostgreSQL) — следующий спринт.
-5. BlockNote ↔ Yjs binding на фронте — задача спринта (FE).
+1. ~~Spike Hocuspocus локально~~ — PoC, relay доказан (#99).
+2. ~~Ратификация выбора~~ — принято, зафиксировано в [ADR-006](../adr/006-realtime.md) (#150).
+3. ~~Auth hook на `onAuthenticate`~~ — сервис `apps/collab` проверяет access-cookie
+   через internal-endpoint API, fail-closed (#108).
+4. ~~Persistence~~ — снапшоты Yjs-state в PostgreSQL через `onLoadDocument` /
+   `onStoreDocument` с дебаунсом (#109).
+5. ~~BlockNote ↔ Yjs binding~~ — `HocuspocusProvider` + `withCollaboration` на
+   общем `Y.Doc` (#110).
+
+Стек в коде: `@hocuspocus/server` / `@hocuspocus/provider` 2.15.3, `yjs` 13.6.32.
+
+## Границы и будущая работа
+
+- **MVP — один collab-инстанс.** Документ живёт в памяти процесса; нескольким
+  инстансам нужны sticky sessions или Redis-расширение Hocuspocus. Отдельная задача.
+- **Socket.io-канал** (presence, курсоры, комментарии, уведомления) в коде **не
+  начат** — целевая схема выше описывает план, не текущее состояние.
+- Права на запись (`viewer` read-only) — [#149](https://github.com/Noto-application/noto-app/issues/149).
 
 ## Связанные документы
 
-- [ADR-006](../adr/006-realtime.md)
+- [ADR-006](../adr/006-realtime.md) — принятое решение
 - [RFC-002](./002-rich-text-editor.md)

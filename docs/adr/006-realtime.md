@@ -1,7 +1,8 @@
 # ADR-006: Realtime-архитектура
 
 **Статус:** Accepted  
-**Дата:** 2026-07-14
+**Дата:** 2026-07-14  
+**Обновлён:** 2026-09-26 — зафиксирован выбор Yjs provider (Hocuspocus)
 
 ## Контекст
 
@@ -33,7 +34,20 @@
 
 ### Yjs provider
 
-Конкретный provider (y-websocket, Hocuspocus, self-hosted) — **не выбран**, см. [RFC-003](../rfc/003-yjs-provider.md).
+Provider — **Hocuspocus** (self-hosted, сервис `apps/collab`). Выбор проработан в
+[RFC-003](../rfc/003-yjs-provider.md) и ратифицирован командой 2026-09-26; RFC
+переведён в Superseded и оставлен как история проработки.
+
+Почему Hocuspocus, а не голый y-websocket или собственный gateway на NestJS:
+готовые хуки закрывают наши требования без кастомного протокольного кода.
+
+| Требование              | Как закрыто                                                           |
+| ----------------------- | --------------------------------------------------------------------- |
+| Auth на хендшейке       | `onAuthenticate` → проверка access-cookie через internal-endpoint API |
+| Persistence Yjs-state   | `onLoadDocument` / `onStoreDocument` → снапшоты в PostgreSQL          |
+| Редактор на том же доке | BlockNote + `HocuspocusProvider` на общем `Y.Doc`                     |
+
+Реализовано: auth-hook, persistence-снапшоты, BlockNote ↔ Yjs binding.
 
 ## Альтернативы
 
@@ -47,10 +61,16 @@
 
 - Бэкенд: два realtime-канала — Yjs websocket server + Socket.io gateway
 - Фронтенд: Socket.io client только в `/app`, не на public pages
-- Prod в нескольких инстансах: Socket.io Redis adapter; Yjs — sticky sessions или dedicated collaboration server
+- Collab — отдельный сервис (`apps/collab`), а не часть NestJS-процесса
+- **MVP работает на одном collab-инстансе**: дока живёт в памяти одного процесса,
+  горизонтальное масштабирование не поддержано. Несколько инстансов потребуют
+  sticky sessions или Redis-расширения Hocuspocus — отдельная будущая работа
+- Socket.io-канал (presence, комментарии, уведомления) в коде пока **не начат** —
+  раздел выше описывает целевую архитектуру, не текущее состояние. Его
+  multi-instance режим потребует Redis adapter
 
 ## Связанные документы
 
 - [ADR-005](./005-state-management.md) — контент только в Yjs
 - [RFC-002](../rfc/002-rich-text-editor.md)
-- [RFC-003](../rfc/003-yjs-provider.md)
+- [RFC-003](../rfc/003-yjs-provider.md) — проработка выбора provider (Superseded)
