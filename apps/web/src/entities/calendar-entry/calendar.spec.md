@@ -1,6 +1,6 @@
 # Spec: Календарь страниц — frontend
 
-**Статус:** Draft
+**Статус:** In progress
 **Дата:** 2026-09-21
 **Связанные:** [ADR-002](../../../../../docs/adr/002-routing-and-domains.md), [ADR-004](../../../../../docs/adr/004-data-fetching.md), [ADR-005](../../../../../docs/adr/005-state-management.md), [ADR-008](../../../../../docs/adr/008-fsd-structure.md), [ADR-011](../../../../../docs/adr/011-authorization-acl.md), [ADR-014](../../../../../docs/adr/014-responsive-strategy.md), [ADR-015](../../../../../docs/adr/015-rich-text-editor.md), issue #132 (эта спека), #133–#139 (декомпозиция); API-источник правды — [calendar.spec.md](../../../../../apps/api/src/calendar/calendar.spec.md); библиотека-кандидат — [RFC-005](../../../../../docs/rfc/005-supplementary-libraries.md) (Draft, не утверждён)
 
@@ -92,14 +92,14 @@ calendarEntryKeys.range(projectId, from, to); // [...calendarEntryKeys.project(p
 Для календарных диапазонов переопределяем текущие дефолты: refetch при
 возврате фокуса окна и переподключении, плюс polling раз в 60 секунд, только
 пока компонент смонтирован и документ видим. Данные «eventual» — realtime не
-обещаем.
+обещаем. Интервал 60 секунд принят (бывший открытый вопрос №2).
 
 ### Роль пользователя
 
-`projectSchema` сейчас не содержит прав. Нужно минимальное расширение общего
-контракта: `currentUserRole: owner | editor | viewer` в ответах Project,
-серверно-вычисляемая для запрашивающего, как часть #134 (или явная
-prerequisite-задача до UI). UI выводит мутационные аффордансы из неё; дубля
+`projectSchema` сейчас не содержит прав. Принято добавить `currentUserRole`
+(`owner | editor | viewer`) в ответы Project, серверно-вычисляемый для
+запрашивающего, — как отдельную prerequisite-задачу до UI, **вне #134** (бывший
+открытый вопрос №1). UI выводит мутационные аффордансы из неё; дубля
 capabilities нет; никогда не определяем права пробным запросом/`403`.
 
 ### Действие в TopbarMenu текущей Page
@@ -182,7 +182,9 @@ assign/change/remove, что и из формы карточки календа�
 2. Состояния: loading, empty, error + retry, forbidden, unavailable, invalid
    URL / нет проекта, read-only viewer.
 3. Клик по дню создаёт Page на дату в корне проекта (`parentId = null`); форма
-   заголовка — правила Page.
+   заголовка — правила Page. `clientRequestId` минтится один раз на намерение
+   создать и переиспользуется при повторных попытках (retry) той же формы —
+   без второго create.
 4. Карточка открывает `/app/[pageId]`; форма меняет/снимает дату.
 5. `TopbarMenu` текущей Page даёт «Назначить дату» для Page без даты и смену/
    снятие даты для Page с датой; аффорданс только у `owner`/`editor` (#136).
@@ -269,9 +271,9 @@ assign/change/remove, что и из формы карточки календа�
 
 ## Открытые вопросы
 
-1. **`currentUserRole` в #134 или отдельная prerequisite-задача.** Рекомендация
-   — в #134: расширение `projectSchema` необходимо API/UI и является частью
-   той же работы. Альтернатива — отдельный prerequisite-issue до старта UI.
-2. **Подтвердить polling 60 секунд при видимом документе + refetch на
-   focus/reconnect.** Рекомендация — оставить (eventual-модель без realtime).
-   Альтернатива — длиннее интервал или только focus/reconnect.
+Нет. Ранее открытые пункты закрыты и перенесены в разделы выше:
+
+1. `currentUserRole` — отдельная prerequisite-задача, **вне #134** (см. «Роль
+   пользователя»).
+2. Polling 60 секунд при видимом документе + refetch на focus/reconnect —
+   принят, eventual-модель без realtime (см. «Обновление на клиенте»).

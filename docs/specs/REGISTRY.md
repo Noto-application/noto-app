@@ -16,8 +16,8 @@
 | Строка дерева страниц (SidebarTreeItem) | [apps/web/src/shared/ui/sidebar-tree-item.spec.md](../../apps/web/src/shared/ui/sidebar-tree-item.spec.md)           | Draft  |
 | Создание страницы                       | [apps/web/src/features/create-page/create-page.spec.md](../../apps/web/src/features/create-page/create-page.spec.md) | Draft  |
 | Collab persistence · Yjs-снапшоты (#109) | [apps/api/src/collab/persistence.spec.md](../../apps/api/src/collab/persistence.spec.md)                             | Draft  |
-| Календарь страниц — API (#132)          | [apps/api/src/calendar/calendar.spec.md](../../apps/api/src/calendar/calendar.spec.md)                               | Draft  |
-| Календарь страниц — frontend (#132)     | [apps/web/src/entities/calendar-entry/calendar.spec.md](../../apps/web/src/entities/calendar-entry/calendar.spec.md) | Draft  |
+| Календарь страниц — API (#132)          | [apps/api/src/calendar/calendar.spec.md](../../apps/api/src/calendar/calendar.spec.md)                               | In progress |
+| Календарь страниц — frontend (#132)     | [apps/web/src/entities/calendar-entry/calendar.spec.md](../../apps/web/src/entities/calendar-entry/calendar.spec.md) | In progress |
 
 ## Кросс-модульные (в `docs/specs/`)
 

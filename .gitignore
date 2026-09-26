@@ -26,3 +26,7 @@ pnpm-debug.log*
 .opencode/
 opencode.jsonc
 docs/ai-workflow.md
+
+# Graphify generated knowledge graph
+
+graphify-out/
