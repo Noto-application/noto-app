@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import type { Page } from '@noto/shared';
+import type { ComponentProps } from 'react';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -22,9 +23,37 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ pageId: 'other' }),
-  useRouter: () => ({ push: mocks.push }),
+vi.mock('next/navigation', async () => {
+  const { useSyncExternalStore } = await import('react');
+  const subscribe = (onChange: () => void) => {
+    window.addEventListener('popstate', onChange);
+    return () => window.removeEventListener('popstate', onChange);
+  };
+
+  return {
+    useParams: () => {
+      const pathname = useSyncExternalStore(subscribe, () => window.location.pathname);
+      return { pageId: pathname.split('/')[2] };
+    },
+    useRouter: () => ({ push: mocks.push }),
+  };
+});
+
+// Ссылки и useRouter используют одну навигацию: jsdom сам переходы не выполняет.
+vi.mock('next/link', () => ({
+  default: ({ href, onClick, ...props }: ComponentProps<'a'>) => (
+    <a
+      {...props}
+      href={href}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented && href) {
+          event.preventDefault();
+          mocks.push(href);
+        }
+      }}
+    />
+  ),
 }));
 
 vi.mock('@/src/entities/page', async () => {
@@ -67,6 +96,11 @@ const initialSidebarState = useSidebarStore.getState();
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.history.replaceState(null, '', '/app/other');
+  mocks.push.mockImplementation((href: string) => {
+    window.history.pushState(null, '', href);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
   useSidebarStore.setState(initialSidebarState, true);
   mocks.usePagesList.mockReturnValue({ data: pages, isLoading: false });
   mocks.usePageTree.mockReturnValue({ data: buildPageTree(pages), isError: false });
@@ -84,6 +118,18 @@ async function openDelete(user: ReturnType<typeof userEvent.setup>, title = 'О�
 
 /** Меню, диалоги, строка, стор и DnD настоящие; подменены данные, мутации и роутер. */
 describe('PageTree actions', () => {
+  it('меняет URL и активную ссылку при переходе на другую страницу', async () => {
+    const user = userEvent.setup();
+    render(<PageTree projectId="project-1" />);
+
+    expect(screen.getByRole('link', { current: 'page' })).toHaveAttribute('href', '/app/other');
+    await user.click(screen.getByRole('link', { name: 'Обзор' }));
+
+    expect(window.location.pathname).toBe('/app/parent');
+    expect(screen.getByRole('link', { current: 'page' })).toHaveAttribute('href', '/app/parent');
+    expect(screen.getByRole('link', { name: 'Бэклог' })).not.toHaveAttribute('aria-current');
+  });
+
   it('показывает общее меню без отдельной кнопки удаления в каждой строке', async () => {
     const user = userEvent.setup();
     render(<PageTree projectId="project-1" />);
@@ -195,15 +241,16 @@ describe('PageTree actions', () => {
   });
 
   it.each(['Переместить', 'Удалить'])(
-    '%s доступно с клавиатуры без навигации, раскрытия и drag',
+    '%s доступно с клавиатуры без навигации и раскрытия ветки',
     async (action) => {
       const user = userEvent.setup();
       render(<PageTree projectId="project-1" />);
       await user.click(screen.getByRole('button', { name: 'Свернуть «Обзор»' }));
 
+      const activeLink = screen.getByRole('link', { current: 'page' });
+      const initialUrl = window.location.href;
+      expect(activeLink).toHaveAttribute('href', '/app/other');
       const trigger = screen.getByRole('button', { name: 'Действия для «Обзор»' });
-      const row = trigger.closest('[role="group"]');
-      expect(row).not.toBeNull();
       trigger.focus();
       await user.keyboard('{ArrowDown}');
       const item = await screen.findByRole('menuitem', { name: action });
@@ -215,7 +262,8 @@ describe('PageTree actions', () => {
       await user.keyboard('{Enter}');
 
       const dialog = await screen.findByRole(action === 'Удалить' ? 'alertdialog' : 'dialog');
-      expect(row).not.toHaveAttribute('aria-pressed', 'true');
+      expect(window.location.href).toBe(initialUrl);
+      expect(screen.getByRole('link', { current: 'page', hidden: true })).toBe(activeLink);
       expect(useSidebarStore.getState().collapsedPageIds.has('parent')).toBe(true);
       expect(mocks.push).not.toHaveBeenCalled();
       expect(mocks.movePage).not.toHaveBeenCalled();
@@ -223,7 +271,9 @@ describe('PageTree actions', () => {
 
       await user.click(within(dialog).getByRole('button', { name: 'Отмена' }));
       await waitFor(() => expect(trigger).toHaveFocus());
-      expect(screen.getByRole('link', { name: 'Бэклог' })).toHaveAttribute('aria-current', 'page');
+      expect(window.location.href).toBe(initialUrl);
+      expect(screen.getByRole('link', { current: 'page' })).toBe(activeLink);
+      expect(mocks.push).not.toHaveBeenCalled();
     },
   );
 });
