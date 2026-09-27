@@ -5,11 +5,26 @@ import { usePathname } from 'next/navigation';
 
 import { buttonVariants } from '@/src/shared/ui/button';
 
-export function PublicNav() {
+type PublicNavProps = Readonly<{
+  /** Есть auth-cookie — вместо входа/регистрации ведём сразу в приложение. */
+  hasSession: boolean;
+}>;
+
+export function PublicNav({ hasSession }: PublicNavProps) {
   const pathname = usePathname();
 
   if (pathname !== '/') {
     return null;
+  }
+
+  if (hasSession) {
+    return (
+      <nav aria-label="Основная навигация" className="flex items-center gap-2">
+        <Link className={buttonVariants({ size: 'default' })} href="/app">
+          Открыть Noto
+        </Link>
+      </nav>
+    );
   }
 
   return (

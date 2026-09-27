@@ -61,6 +61,7 @@ describe('Auth (e2e)', () => {
 
       expect(body.user).toMatchObject({
         email: credentials.email,
+        username: null,
       });
       expect(body.user).not.toHaveProperty('passwordHash');
       expectNoTokensInBody(body);
@@ -380,6 +381,7 @@ describe('Auth (e2e)', () => {
 
       expect(body.user.id).toBe(registerBody.user.id);
       expect(body.user.email).toBe(credentials.email);
+      expect(body.user.username).toBeNull();
       expect(body.user).not.toHaveProperty('passwordHash');
     });
 

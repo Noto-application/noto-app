@@ -216,6 +216,27 @@
   --text-display--line-height: 1.3;
   --text-display--font-weight: 700;
 
+  /* Маркетинговые размеры лендинга (#143). В Foundations их нет — шкала
+     приложения заканчивается на display 36px. Значения предложены нами по
+     референсу крупной типографики, требуют подтверждения дизайнером. */
+  --text-hero: 64px;
+  --text-hero--line-height: 1.05;
+  --text-hero--font-weight: 700;
+  --text-hero--letter-spacing: -0.035em;
+
+  --text-section: 44px;
+  --text-section--line-height: 1.1;
+  --text-section--font-weight: 700;
+  --text-section--letter-spacing: -0.03em;
+
+  --text-lead: 18px;
+  --text-lead--line-height: 1.5;
+  --text-lead--font-weight: 400;
+
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 1.5;
+  --text-body-lg--font-weight: 400;
+
   --text-page-title: 28px;
   --text-page-title--line-height: 1.3;
   --text-page-title--font-weight: 700;

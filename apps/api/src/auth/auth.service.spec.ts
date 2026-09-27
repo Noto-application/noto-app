@@ -113,6 +113,7 @@ describe('AuthService', () => {
       expect(result.user).toEqual({
         id: 'user-1',
         email: 'user@example.com',
+        username: null,
         createdAt: '2026-01-01T00:00:00.000Z',
       });
       expect(result.tokens.accessToken).toBe('access-token');

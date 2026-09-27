@@ -9,6 +9,10 @@ import { extendTailwindMerge } from 'tailwind-merge';
  * кнопка остаётся с унаследованным тёмным текстом на тёмном фоне.
  */
 const fontSizeTokens = [
+  'hero',
+  'section',
+  'lead',
+  'body-lg',
   'display',
   'page-title',
   'heading-1',

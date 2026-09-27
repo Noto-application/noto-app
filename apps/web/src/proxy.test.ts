@@ -21,9 +21,44 @@ function forwardedCookie(fetchMock: ReturnType<typeof vi.fn>, part: string): unk
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe('proxy', () => {
+  // Deployment contract: server-side proxy must stay inside Docker while
+  // browser requests retain the public HTTPS origin. This test is intentionally
+  // added before the implementation and needs human review under ADR-013.
+  it('prefers server-only API_INTERNAL_URL for auth proxy requests', async () => {
+    vi.stubEnv('API_INTERNAL_URL', 'http://api:4000');
+    vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://noto-dev.example');
+    vi.resetModules();
+    const { proxy: isolatedProxy } = await import('./proxy');
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await isolatedProxy(appRequest());
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://api:4000/api/auth/me',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('falls back to NEXT_PUBLIC_API_URL when API_INTERNAL_URL is absent', async () => {
+    vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://noto-dev.example');
+    vi.resetModules();
+    const { proxy: isolatedProxy } = await import('./proxy');
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await isolatedProxy(appRequest());
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://noto-dev.example/api/auth/me',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   it('passes access → next() without refresh when /me is ok', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
