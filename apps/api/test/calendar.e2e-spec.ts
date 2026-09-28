@@ -463,6 +463,52 @@ describe('Calendar (e2e)', () => {
       expect(matching).toHaveLength(1);
     });
 
+    it('ошибка второго write транзакции (CalendarEntry) → 500 INTERNAL и полный откат: нет Page, записи и ключа идемпотентности', async () => {
+      const { userId, agent } = await registerUser('c-create-rollback@example.com');
+      const projectId = await seedProject([{ userId, role: 'editor' }]);
+      // Валидная каноническая дата: по ней второй доменный write (CalendarEntry)
+      // искусственно падает, первый (Page) успевает пройти.
+      const date = '2026-03-12';
+      const title = 'Rollback probe';
+      const clientRequestId = randomUUID();
+      const constraint = 'test_calendar_entries_reject_probe_date_134';
+
+      // DDL только внутри теста: форсируем падение второго write без
+      // production-хука инъекции сбоя. DROP IF EXISTS до ADD — устойчивость к
+      // прерванному прошлому прогону, оставившему constraint.
+      const dropConstraint = () =>
+        prisma.$executeRawUnsafe(
+          `ALTER TABLE "calendar_entries" DROP CONSTRAINT IF EXISTS "${constraint}"`,
+        );
+
+      try {
+        await dropConstraint();
+        await prisma.$executeRawUnsafe(
+          `ALTER TABLE "calendar_entries" ADD CONSTRAINT "${constraint}" CHECK ("date" <> '${date}')`,
+        );
+
+        const response = await createCalendarPage(agent, projectId, {
+          title,
+          date,
+          clientRequestId,
+        });
+
+        // Непредвиденный сбой БД — единый shape ошибок (RFC-001): 500 INTERNAL,
+        // без утечки деталей. Если бы транзакции не было, Page осталась бы.
+        expect(response.status).toBe(500);
+        expect(parseError(response.body).code).toBe('INTERNAL');
+
+        // Откат целиком: ни Page, ни CalendarEntry, ни строки идемпотентности.
+        expect(await prisma.page.count({ where: { projectId, title } })).toBe(0);
+        expect(await prisma.calendarEntry.count({ where: { page: { projectId } } })).toBe(0);
+        expect(await prisma.calendarCreateRequest.count({ where: { projectId } })).toBe(0);
+      } finally {
+        // Снимаем тестовый constraint даже при падении — он не должен утечь в
+        // другие тесты при перемешанном порядке.
+        await dropConstraint();
+      }
+    });
+
     it('конкурентный одинаковый create (Promise.all) → [200, 201], одна Page и одна запись', async () => {
       const { userId, agent } = await registerUser('c-create-race@example.com');
       const projectId = await seedProject([{ userId, role: 'editor' }]);
