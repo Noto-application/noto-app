@@ -64,9 +64,12 @@ caddy run --config ./Caddyfile
 - [ ] Отказ к чужому документу на уже открытом WS (переключение на чужой
       `documentName` → повторный `onAuthenticate` отклоняет).
 - [ ] При отказе клиент не получает контент документа.
+- [ ] `viewer` подключён к той же странице: видит правки `editor` сразу, его
+      собственный ввод у `editor` не появляется и после переоткрытия не сохранён.
 - [ ] `curl http://localhost:8080/internal/collab/authorize` снаружи → недоступен
       (Caddy не проксирует `/internal/*`).
 
 ## Вне scope #108
 
-Persistence Yjs-state (#109), viewer read-only на запись, presence/комментарии.
+Persistence Yjs-state (#109), скрытие ввода BlockNote у `viewer`, presence/комментарии.
+Серверный запрет записи `viewer` — `connection.readOnly` Hocuspocus (#149).

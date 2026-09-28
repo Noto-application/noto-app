@@ -12,6 +12,9 @@ import type { Env } from '../src/config/env.schema';
  * E2E internal collab-authorize endpoint — test-first (ADR-013), контракт из
  * docs/specs/108-collab-auth.spec.md.
  *
+ * Успех включает role участника (#149): collab по ней ставит Hocuspocus
+ * readOnly. viewer тоже 200, не 403.
+ *
  * Красные до реализации: пока эндпоинта нет, ответы 404.
  *
  * Эндпоинт живёт ВНЕ глобального префикса `/api` — путь `/internal/collab/authorize`.
@@ -99,7 +102,7 @@ describe('Internal collab authorize (e2e)', () => {
     return page.id;
   }
 
-  it('участник + валидная cookie + верный секрет → 200 { allowed, userId }', async () => {
+  it('viewer + валидная cookie + верный секрет → 200 { allowed, userId, role }', async () => {
     const { cookie, userId } = await registerUser('c-ok@example.com');
     const projectId = await seedProject([{ userId, role: 'viewer' }]);
     const pageId = await seedPage({ projectId });
@@ -111,10 +114,10 @@ describe('Internal collab authorize (e2e)', () => {
       .send({ documentName: pageId })
       .expect(200);
 
-    expect(response.body).toMatchObject({ allowed: true, userId });
+    expect(response.body).toMatchObject({ allowed: true, userId, role: 'viewer' });
   });
 
-  it('owner → 200 (viewer — минимум, не равенство)', async () => {
+  it('owner → 200 { role: owner } (viewer — минимум членства, не равенство)', async () => {
     const { cookie, userId } = await registerUser('c-owner-ok@example.com');
     const projectId = await seedProject([{ userId, role: 'owner' }]);
     const pageId = await seedPage({ projectId });
@@ -126,10 +129,10 @@ describe('Internal collab authorize (e2e)', () => {
       .send({ documentName: pageId })
       .expect(200);
 
-    expect(response.body).toMatchObject({ allowed: true, userId });
+    expect(response.body).toMatchObject({ allowed: true, userId, role: 'owner' });
   });
 
-  it('editor → 200', async () => {
+  it('editor → 200 { role: editor }', async () => {
     const { cookie, userId } = await registerUser('c-editor-ok@example.com');
     const projectId = await seedProject([{ userId, role: 'editor' }]);
     const pageId = await seedPage({ projectId });
@@ -141,7 +144,7 @@ describe('Internal collab authorize (e2e)', () => {
       .send({ documentName: pageId })
       .expect(200);
 
-    expect(response.body).toMatchObject({ allowed: true, userId });
+    expect(response.body).toMatchObject({ allowed: true, userId, role: 'editor' });
   });
 
   it('участник + валидная cookie + НЕВЕРНЫЙ секрет → 403', async () => {

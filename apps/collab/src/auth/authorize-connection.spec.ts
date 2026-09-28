@@ -6,8 +6,9 @@ import { authorizeConnection, type AuthorizeDeps } from './authorize-connection'
  *
  * Чистая логика решения на WS-хендшейке: allowlist origin, извлечение
  * access_token из cookie, делегирование в API и fail-closed на всё, кроме
- * валидного 200 { allowed: true, userId }. Сам Hocuspocus/WS — вне тестов
- * (realtime = спайк по CLAUDE.md).
+ * валидного 200 { allowed: true, userId, role }. role viewer → readOnly,
+ * editor/owner → запись. Сам живой WS — вне тестов (realtime = спайк по
+ * CLAUDE.md); флаг connection.readOnly — в hocuspocus-access.spec.ts.
  *
  * Красные до реализации: модуля ./authorize-connection ещё нет.
  */
@@ -51,6 +52,12 @@ const okInput = {
   documentName: '11111111-1111-1111-1111-111111111111',
 };
 
+type CollabRole = 'owner' | 'editor' | 'viewer';
+
+function granted(role: CollabRole, userId = 'user-1') {
+  return { status: 200, body: { allowed: true, userId, role } };
+}
+
 describe('authorizeConnection — origin allowlist (API не зовём)', () => {
   it('origin отсутствует → deny', async () => {
     const { deps, authorize } = makeDeps();
@@ -88,10 +95,10 @@ describe('authorizeConnection — origin allowlist (API не зовём)', () =>
 
   it('origin — ВТОРОЙ в allowlist → allow (не только [0])', async () => {
     const { deps } = makeDeps({
-      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
+      authorize: jest.fn().mockResolvedValue(granted('editor')),
     });
     const result = await authorizeConnection({ ...okInput, origin: SECOND_ORIGIN }, deps);
-    expect(result).toEqual({ allowed: true, userId: 'user-1' });
+    expect(result).toEqual({ allowed: true, userId: 'user-1', readOnly: false });
   });
 });
 
@@ -115,13 +122,13 @@ describe('authorizeConnection — предусловия (API не зовём)',
 
   it('access_token НЕ первый в списке → извлекается, allow', async () => {
     const { deps, authorize } = makeDeps({
-      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
+      authorize: jest.fn().mockResolvedValue(granted('editor')),
     });
     const result = await authorizeConnection(
       { ...okInput, cookieHeader: 'theme=dark; access_token=tok-123; other=1' },
       deps,
     );
-    expect(result).toEqual({ allowed: true, userId: 'user-1' });
+    expect(result).toEqual({ allowed: true, userId: 'user-1', readOnly: false });
     expect(authorize).toHaveBeenCalledWith(
       expect.objectContaining({ accessToken: 'tok-123' }),
     );
@@ -145,18 +152,36 @@ describe('authorizeConnection — предусловия (API не зовём)',
   });
 });
 
-describe('authorizeConnection — happy path и проброс в API', () => {
-  it('200 { allowed:true, userId } → allow, userId проброшен', async () => {
+describe('authorizeConnection — роль Hocuspocus readOnly (#149)', () => {
+  it('viewer → allow и readOnly (документ отдаётся, писать нельзя)', async () => {
     const { deps } = makeDeps({
-      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
+      authorize: jest.fn().mockResolvedValue(granted('viewer', 'user-viewer')),
     });
     const result = await authorizeConnection(okInput, deps);
-    expect(result).toEqual({ allowed: true, userId: 'user-1' });
+    expect(result).toEqual({ allowed: true, userId: 'user-viewer', readOnly: true });
+  });
+
+  it('owner → allow и не readOnly', async () => {
+    const { deps } = makeDeps({
+      authorize: jest.fn().mockResolvedValue(granted('owner', 'user-owner')),
+    });
+    const result = await authorizeConnection(okInput, deps);
+    expect(result).toEqual({ allowed: true, userId: 'user-owner', readOnly: false });
+  });
+});
+
+describe('authorizeConnection — happy path и проброс в API', () => {
+  it('200 { allowed:true, userId, role:editor } → allow, запись разрешена', async () => {
+    const { deps } = makeDeps({
+      authorize: jest.fn().mockResolvedValue(granted('editor')),
+    });
+    const result = await authorizeConnection(okInput, deps);
+    expect(result).toEqual({ allowed: true, userId: 'user-1', readOnly: false });
   });
 
   it('в API уходит documentName, ТОЛЬКО значение access_token и секрет', async () => {
     const { deps, authorize } = makeDeps({
-      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
+      authorize: jest.fn().mockResolvedValue(granted('editor')),
     });
     await authorizeConnection(okInput, deps);
     // documentName + значение access_token (не весь cookie-header) + секрет.
@@ -201,6 +226,25 @@ describe('authorizeConnection — fail-closed на не-happy ответы', () 
   it('200 { allowed:true } без userId → deny', async () => {
     const { deps } = makeDeps({
       authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true } }),
+    });
+    const result = await authorizeConnection(okInput, deps);
+    expect(result).toEqual({ allowed: false });
+  });
+
+  it('200 { allowed:true, userId } без role → deny', async () => {
+    const { deps } = makeDeps({
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
+    });
+    const result = await authorizeConnection(okInput, deps);
+    expect(result).toEqual({ allowed: false });
+  });
+
+  it('200 с неизвестной role → deny', async () => {
+    const { deps } = makeDeps({
+      authorize: jest.fn().mockResolvedValue({
+        status: 200,
+        body: { allowed: true, userId: 'user-1', role: 'commenter' },
+      }),
     });
     const result = await authorizeConnection(okInput, deps);
     expect(result).toEqual({ allowed: false });
@@ -297,7 +341,7 @@ describe('authorizeConnection — не логируем секреты', () => {
 
   it('при успехе (200) ни в warn/info/error нет access_token или секрета', async () => {
     const { deps, warn, info, error } = makeDeps({
-      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1' } }),
+      authorize: jest.fn().mockResolvedValue(granted('editor')),
     });
     await authorizeConnection(okInput, deps);
 
