@@ -28,7 +28,7 @@ Unit/integration — Vitest + RTL ([ADR-007](./007-tech-stack.md)), E2E-стра
 
 - Collaborative editing в E2E на MVP — **single-user edit**; Yjs-collaboration
   (2 браузера) остаётся integration-тестами с mock-provider, один Playwright
-  smoke на 2 context'а — после стабилизации [RFC-003](../rfc/003-yjs-provider.md).
+  smoke на 2 context'а — после стабилизации collab-стека ([ADR-006](./006-realtime.md)).
 - CI: на PR — только smoke (быстрые); полный E2E suite — на release/nightly.
 - Playwright добавляется в `apps/web` после инициализации приложения; первые
   тесты — login и create page.
