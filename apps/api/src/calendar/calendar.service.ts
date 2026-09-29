@@ -168,12 +168,14 @@ export class CalendarService {
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
       } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2034' &&
-          attempt < MAX_ATTEMPTS
-        ) {
-          continue;
+        if (error instanceof Prisma.PrismaClientKnownRequestError && attempt < MAX_ATTEMPTS) {
+          // P2034 — serialization failure; P2002 по уникальному pageId — проигравший
+          // INSERT в гонке двух create на недатированную Page. Оба сигнала означают
+          // «перечитать текущее состояние»: на повторе победившая запись уже видна.
+          const target = error.meta?.target;
+          const isPageIdConflict =
+            error.code === 'P2002' && Array.isArray(target) && target.includes('pageId');
+          if (error.code === 'P2034' || isPageIdConflict) continue;
         }
         throw error;
       }

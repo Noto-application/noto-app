@@ -989,5 +989,30 @@ describe('Calendar (e2e)', () => {
       expect(entries).toHaveLength(1);
       expect(entries[0]).toMatchObject({ pageId, date: D2 });
     });
+
+    it('конкурентные PUT на недатированной Page (C = E = null), одна ненулевая target → оба 200, одна запись', async () => {
+      const { userId, agent } = await registerUser('c-put-race-undated@example.com');
+      const projectId = await seedProject([{ userId, role: 'editor' }]);
+      const pageId = await seedPage({ projectId });
+
+      // C = null (записи нет), E = null, одна и та же target D1 ≠ C. Спека
+      // требует при E == C и одинаковых целях оба 200. Отличие от
+      // D1→D2-гонки выше: проигравший INSERT первой CalendarEntry может
+      // получить P2002 (unique pageId), а не P2034; update() ловит оба сигнала
+      // и на повторе перечитывает уже видимую запись-победителя.
+      const responses = await Promise.all([
+        putDate(agent, projectId, pageId, { date: D1, expectedDate: null }),
+        putDate(agent, projectId, pageId, { date: D1, expectedDate: null }),
+      ]);
+      expect(responses.map((response) => response.status)).toEqual([200, 200]);
+      for (const response of responses) {
+        expect(parseEntryResponse(response.body).entry).toMatchObject({ pageId, date: D1 });
+      }
+
+      const listed = await listEntries(agent, projectId, RANGE_FROM, RANGE_TO).expect(200);
+      const entries = parseEntries(listed.body).entries.filter((entry) => entry.pageId === pageId);
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ pageId, date: D1 });
+    });
   });
 });
