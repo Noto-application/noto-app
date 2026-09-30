@@ -3,7 +3,7 @@
 **Статус:** Draft
 **Автор:** Stas Kobles
 **Дата:** 2026-09-10
-**Связанные:** [ADR-005](../../../../../docs/adr/005-state-management.md), [ADR-006](../../../../../docs/adr/006-realtime.md), [RFC-002](../../../../../docs/rfc/002-rich-text-editor.md), [RFC-003](../../../../../docs/rfc/003-yjs-provider.md), issue #110, зависит от #108 (auth-hook, слит) и #109 (persistence)
+**Связанные:** [ADR-005](../../../../../docs/adr/005-state-management.md), [ADR-006](../../../../../docs/adr/006-realtime.md), [RFC-002](../../../../../docs/rfc/002-rich-text-editor.md), [RFC-003](../../../../../docs/rfc/003-yjs-provider.md), [collab auth spec](../../../../../apps/collab/src/auth/collab-auth.spec.md) (#149), issue #110, зависит от #108 (auth-hook, слит) и #109 (persistence)
 
 ## Цель
 
@@ -54,6 +54,7 @@ REST-контента; страницы со старым REST-контенто�
 
 **Провайдер:**
 `HocuspocusProvider({ url, name, document })`
+
 - `url` — WebSocket единого origin: `ws(s)://<host>/collab` (тот же хост, что
   и приложение; в dev через Caddy `:8080` → collab `:5555`). HttpOnly
   access-cookie уходит на хендшейк сама (единый origin, #108).
@@ -63,12 +64,14 @@ REST-контента; страницы со старым REST-контенто�
 
 **Редактор:**
 `useCreateBlockNote({ collaboration: { provider, fragment, user } })`
+
 - `fragment` — `doc.getXmlFragment('document-store')` (общий фрагмент BlockNote).
 - `user` — `{ name, color }` для CRDT-меток (минимально; курсоры — вне scope).
 - В collab-режиме `initialContent` **не передаётся** (контент приходит из Yjs).
 
 **Компонент `PageEditor`:** пропсы прежние (`pageId`, `content`). Выбирает
 режим:
+
 - **Спайк (этот PR):** collab включается, если флаг `NEXT_PUBLIC_COLLAB_ENABLED`
   поднят **и** REST-`content` пуст (новая/тестовая страница).
 - **Пользовательский режим (после #109):** страница с durable-признаком collab
@@ -87,7 +90,7 @@ REST-контента; страницы со старым REST-контенто�
    Успех → провайдер синхронизирует док.
 3. BlockNote привязан к фрагменту → правки применяются к `Y.Doc` и
    транслируются другим клиентам в реальном времени.
-4. `provider.on('synced')` → снимаем индикатор загрузки, редактор доступен.
+4. `provider.on('synced')` → снимаем индикатор загрузки. Редактор становится доступен для изменения только если `currentUserRole` равен `editor` или `owner`. Для `viewer` успешный sync не включает редактирование: он получает документ и live-обновления, но BlockNote остаётся `editable = false`. Источник роли и серверное enforcement описаны в [collab auth spec](../../../../../apps/collab/src/auth/collab-auth.spec.md); UI-проверка не заменяет серверный `connection.readOnly`.
 5. Смена `pageId` / размонтирование → `provider.destroy()` и уничтожение
    `Y.Doc` (без утечек соединений).
 
@@ -130,6 +133,7 @@ ADR-013: CRDT/realtime идёт **спайком**, но не «без тест�
 статусы синка), realtime-взаимодействие двух клиентов остаётся ручным.
 
 Спайк (ручная проверка, ожидаемый результат):
+
 1. Два клиента открыли одну страницу → правка в клиенте A появляется у B за
    ~секунду.
 2. Одновременная правка в A и B в разных местах → оба текста сохранены (CRDT не

@@ -1,13 +1,12 @@
 import { applyHocuspocusReadOnly } from './hocuspocus-access';
 
 /**
- * Unit флага записи Hocuspocus (#149), контракт из
- * docs/specs/108-collab-auth.spec.md, раздел «Запись на соединении Hocuspocus».
+ * Изолированный unit setter-функции connection.readOnly (#149), контракт из
+ * collab-auth.spec.md. Не проверяет вызов setter в production onAuthenticate.
  *
  * Красные до реализации: модуля ./hocuspocus-access ещё нет.
- * onAuthenticate выставляет connection.readOnly до выдачи документа.
- * viewer остаётся в соединении и получает чужие правки; его update сервер
- * не применяет. editor и owner пишут.
+ * Live WS-сценарий отдельно обязателен: viewer получает sync/live updates, но
+ * не пишет; editor/owner могут писать. Unit этого не доказывает.
  */
 
 describe('applyHocuspocusReadOnly', () => {
