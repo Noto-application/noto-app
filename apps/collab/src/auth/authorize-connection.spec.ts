@@ -6,9 +6,10 @@ import { authorizeConnection, type AuthorizeDeps } from './authorize-connection'
  *
  * Чистая логика решения на WS-хендшейке: allowlist origin, извлечение
  * access_token из cookie, делегирование в API и fail-closed на всё, кроме
- * валидного 200 { allowed: true, userId, role }. role viewer → readOnly,
- * editor/owner → запись. Сам живой WS — вне тестов (realtime = спайк по
- * CLAUDE.md); флаг connection.readOnly — в hocuspocus-access.spec.ts.
+ * валидного 200 { allowed: true, userId, role, canWrite }. role/viewer
+ * capability false → readOnly, editor/owner canWrite true → запись. Сам
+ * живой WS — вне тестов (realtime = спайк по CLAUDE.md); флаг
+ * connection.readOnly — в hocuspocus-access.spec.ts.
  *
  * Красные до реализации: модуля ./authorize-connection ещё нет.
  */
@@ -55,7 +56,7 @@ const okInput = {
 type CollabRole = 'owner' | 'editor' | 'viewer';
 
 function granted(role: CollabRole, userId = 'user-1') {
-  return { status: 200, body: { allowed: true, userId, role } };
+  return { status: 200, body: { allowed: true, userId, role, canWrite: role !== 'viewer' } };
 }
 
 describe('authorizeConnection — origin allowlist (API не зовём)', () => {
@@ -171,12 +172,20 @@ describe('authorizeConnection — роль Hocuspocus readOnly (#149)', () => {
 });
 
 describe('authorizeConnection — happy path и проброс в API', () => {
-  it('200 { allowed:true, userId, role:editor } → allow, запись разрешена', async () => {
+  it('200 { allowed:true, userId, role:editor, canWrite:true } → allow, запись разрешена', async () => {
     const { deps } = makeDeps({
       authorize: jest.fn().mockResolvedValue(granted('editor')),
     });
     const result = await authorizeConnection(okInput, deps);
     expect(result).toEqual({ allowed: true, userId: 'user-1', readOnly: false });
+  });
+
+  it('200 без canWrite → deny', async () => {
+    const { deps } = makeDeps({
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1', role: 'viewer' } }),
+    });
+    const result = await authorizeConnection(okInput, deps);
+    expect(result).toEqual({ allowed: false });
   });
 
   it('в API уходит documentName, ТОЛЬКО значение access_token и секрет', async () => {
@@ -210,6 +219,14 @@ describe('authorizeConnection — fail-closed на не-happy ответы', () 
   it('200 { allowed:false } → deny', async () => {
     const { deps } = makeDeps({
       authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: false } }),
+    });
+    const result = await authorizeConnection(okInput, deps);
+    expect(result).toEqual({ allowed: false });
+  });
+
+  it('200 { allowed:true, userId, role, canWrite: "yes" } → deny', async () => {
+    const { deps } = makeDeps({
+      authorize: jest.fn().mockResolvedValue({ status: 200, body: { allowed: true, userId: 'user-1', role: 'editor', canWrite: 'yes' } }),
     });
     const result = await authorizeConnection(okInput, deps);
     expect(result).toEqual({ allowed: false });

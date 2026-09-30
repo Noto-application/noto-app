@@ -12,8 +12,8 @@ import type { Env } from '../src/config/env.schema';
  * E2E internal collab-authorize endpoint — test-first (ADR-013), контракт из
  * docs/specs/108-collab-auth.spec.md.
  *
- * Успех включает role участника (#149): collab по ней ставит Hocuspocus
- * readOnly. viewer тоже 200, не 403.
+ * Успех включает role и canWrite (#149): collab по ней ставит Hocuspocus
+ * readOnly. viewer тоже 200, не 403, но canWrite=false.
  *
  * Красные до реализации: пока эндпоинта нет, ответы 404.
  *
@@ -102,7 +102,7 @@ describe('Internal collab authorize (e2e)', () => {
     return page.id;
   }
 
-  it('viewer + валидная cookie + верный секрет → 200 { allowed, userId, role }', async () => {
+  it('viewer + валидная cookie + верный секрет → 200 { allowed, userId, role, canWrite:false }', async () => {
     const { cookie, userId } = await registerUser('c-ok@example.com');
     const projectId = await seedProject([{ userId, role: 'viewer' }]);
     const pageId = await seedPage({ projectId });
@@ -114,10 +114,10 @@ describe('Internal collab authorize (e2e)', () => {
       .send({ documentName: pageId })
       .expect(200);
 
-    expect(response.body).toMatchObject({ allowed: true, userId, role: 'viewer' });
+    expect(response.body).toMatchObject({ allowed: true, userId, role: 'viewer', canWrite: false });
   });
 
-  it('owner → 200 { role: owner } (viewer — минимум членства, не равенство)', async () => {
+  it('owner → 200 { role: owner, canWrite: true } (viewer — минимум членства, не равенство)', async () => {
     const { cookie, userId } = await registerUser('c-owner-ok@example.com');
     const projectId = await seedProject([{ userId, role: 'owner' }]);
     const pageId = await seedPage({ projectId });
@@ -129,10 +129,10 @@ describe('Internal collab authorize (e2e)', () => {
       .send({ documentName: pageId })
       .expect(200);
 
-    expect(response.body).toMatchObject({ allowed: true, userId, role: 'owner' });
+    expect(response.body).toMatchObject({ allowed: true, userId, role: 'owner', canWrite: true });
   });
 
-  it('editor → 200 { role: editor }', async () => {
+  it('editor → 200 { role: editor, canWrite: true }', async () => {
     const { cookie, userId } = await registerUser('c-editor-ok@example.com');
     const projectId = await seedProject([{ userId, role: 'editor' }]);
     const pageId = await seedPage({ projectId });
@@ -144,7 +144,7 @@ describe('Internal collab authorize (e2e)', () => {
       .send({ documentName: pageId })
       .expect(200);
 
-    expect(response.body).toMatchObject({ allowed: true, userId, role: 'editor' });
+    expect(response.body).toMatchObject({ allowed: true, userId, role: 'editor', canWrite: true });
   });
 
   it('участник + валидная cookie + НЕВЕРНЫЙ секрет → 403', async () => {

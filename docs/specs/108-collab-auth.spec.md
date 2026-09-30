@@ -91,16 +91,17 @@ apps/collab ──onAuthenticate──► apps/api  POST /internal/collab/author
   проекте (`page.deletedAt === null && project.deletedAt === null`), иначе
   `404 NOT_FOUND`. Скрывает факт существования от постороннего.
 - Членство — `assertProjectRole(prisma, page.projectId, userId, 'viewer')`.
-  Не участник → `403 FORBIDDEN`. `viewer` в комнату **пускаем**: отказ по роли
-  ниже `editor` здесь не делаем.
+  Не участник → `403 FORBIDDEN`. `viewer` в комнату **пускаем**: это не запрет на
+  чтение, а только запрет на запись.
 - **Пригодность режима (поправка от #109):** после членства проверяется
   `editorMode`. `collab` → пускаем; `rest` + пустой `content` (`[]`) →
   промоутим в `collab` (атомарно) и пускаем; `rest` + непустой `content` →
   `409 CONFLICT` (старую REST-страницу нельзя обнулить collab-документом).
   Детали и гонки — в [persistence.spec.md](../../apps/api/src/collab/persistence.spec.md) (#109).
-- Успех → `200 { allowed: true, userId, role }`. `role` — роль
+- Успех → `200 { allowed: true, userId, role, canWrite }`. `role` — роль
   `ProjectMember` этого пользователя на проекте страницы (`owner`, `editor`
-  или `viewer`).
+  или `viewer`); `canWrite` — обязательный boolean, `true` для `editor`/`owner`,
+  `false` для `viewer`.
 
 **Порядок проверок (что течёт наружу):** секрет (403) → пользовательский JWT
 (401) → валидация тела (400) → существование (404) → членство (403) →
@@ -109,22 +110,26 @@ apps/collab ──onAuthenticate──► apps/api  POST /internal/collab/author
 ### Запись на соединении Hocuspocus (#149)
 
 Проверка «может ли писать» — на WebSocket, в `onAuthenticate`, через
-`connection.readOnly` Hocuspocus 2.15.3. Соединение `viewer` не отклоняем:
-он получает текущий документ и дальнейшие правки других участников.
+`connection.readOnly` Hocuspocus 2.15.3. `viewer` не отклоняется: он получает
+текущий документ и дальнейшие правки других участников, но не может изменять
+документ своим update.
 
-- `role === 'viewer'` → `connection.readOnly = true`.
-- `role === 'editor'` или `'owner'` → `connection.readOnly = false`.
+- `canWrite === false` → `connection.readOnly = true`.
+- `canWrite === true` → `connection.readOnly = false`.
 - Флаг выставляется **до** выдачи документа (Hocuspocus читает его и при
   ответе об успешной аутентификации, и при создании `Connection`).
 - Read-only соединение по-прежнему получает синк документа и рассылку чужих
   обновлений. Его собственные update (sync step 2 и update) сервер **не
   применяет** к `Y.Doc` и поэтому **не сохраняет** в persistence. Клиенту уходит
   sync status «не принято».
+- Отсутствующий, невалидный или ложный `canWrite` считается отказом в
+  подключении: документ не открывается. Нельзя подставлять `true` по умолчанию.
 - `403` за роль `viewer` не возвращаем и страницу в collab из-за этого не
   закрываем. Членство и промоут пустой REST-страницы (#109) не меняются.
 
 Клиентский `editable` редактора эту проверку не заменяет: граница — серверный
-`readOnly`.
+`readOnly`. UI-ограничение — только UX, не защита, и не отменяет серверное
+запрещение записи.
 
 ### Запуск (apps/collab)
 
@@ -145,16 +150,20 @@ apps/collab ──onAuthenticate──► apps/api  POST /internal/collab/author
 
 - **apps/api** — e2e internal endpoint: секрет, JWT (вкл. просроченный),
   контракт тела, членство, 404 на удалённую страницу/проект. Успех включает
-  `role` участника (`viewer` тоже `200`, не `403`).
+  `role` и обязательный `canWrite` (`viewer` → `false`, `editor`/`owner` → `true`,
+  но не `403` за роль `viewer`).
 - **apps/collab** — unit `authorizeConnection`: allowlist origin, извлечение
-  cookie, fail-closed на все не-`200 allowed` и на ответ без валидной `role`,
+  cookie, fail-closed на все не-`200 allowed` и на ответ без валидного `canWrite`,
   таймаут, ошибка, отсутствие логирования токена/секрета. `viewer` →
   `readOnly: true`, `editor`/`owner` → `readOnly: false`. Unit
   `applyHocuspocusReadOnly`: флаг пишется в `connection.readOnly`, соединение
   не отклоняется. Unit конфига — запрет пустого секрета.
 
-Живой WS (два клиента, рассылка, отказ update у `viewer`) — спайк, не unit
-(по CLAUDE.md realtime = спайк). Решение о `readOnly` unit-тестами покрыто.
+Живой WS (два клиента, рассылка, отказ update у `viewer`) — обязательный
+спайк/ручная проверка в реальном окружении, не unit (по CLAUDE.md realtime =
+спайк). Unit-тесты покрывают только контракт `canWrite`/`readOnly` и fail-closed
+логику; `viewer`/`editor` реальный обмен по WS должен быть проверен вручную
+перед закрытием issue. Без live-проверки поведение считается неподтверждённым.
 
 ## Браузерный спайк (без тестов)
 
