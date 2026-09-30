@@ -7,8 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Toaster } from '@/src/shared/ui/toast';
 
-import { MovePageDndContext, MovePageDropTarget } from './move-page-dnd';
-import { MovePageMenu } from './move-page-menu';
+import { MovePageDndContext, MovePageDropTarget } from '@/src/features/move-page';
+import { PageActionsMenu } from './page-actions-menu';
 
 type MoveInput = {
   pageId: string;
@@ -27,9 +27,21 @@ const { mutate, useMovePageMock } = vi.hoisted(() => ({
   useMovePageMock: vi.fn(),
 }));
 
-vi.mock('../api/use-move-page', () => ({
+vi.mock('@/src/features/move-page/api/use-move-page', () => ({
   useMovePage: useMovePageMock,
 }));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+vi.mock('@/src/entities/page', async () => {
+  const { buildPageTree } = await import('@/src/entities/page/lib/build-page-tree');
+  return {
+    buildPageTree,
+    useDeletePageMutation: () => ({ isPending: false, mutate: vi.fn() }),
+  };
+});
 
 function page(id: string, parentId: string | null = null, position = 0): Page {
   return {
@@ -49,7 +61,7 @@ beforeEach(() => {
   useMovePageMock.mockReturnValue({ isPending: false, mutate });
 });
 
-describe('MovePageMenu', () => {
+describe('PageActionsMenu', () => {
   it('открывает меню с клавиатуры внутри draggable строки', async () => {
     const user = userEvent.setup();
     const pages = [page('moving')];
@@ -58,7 +70,7 @@ describe('MovePageMenu', () => {
       <MovePageDndContext projectId="project-1" pages={pages}>
         <MovePageDropTarget pageId="moving">
           {() => (
-            <MovePageMenu
+            <PageActionsMenu
               pageId="moving"
               projectId="project-1"
               parentId={null}
@@ -87,7 +99,7 @@ describe('MovePageMenu', () => {
     ];
 
     render(
-      <MovePageMenu
+      <PageActionsMenu
         pageId="moving"
         projectId="project-1"
         parentId="root"
@@ -125,7 +137,7 @@ describe('MovePageMenu', () => {
     render(
       <>
         <Toaster />
-        <MovePageMenu
+        <PageActionsMenu
           pageId="moving"
           projectId="project-1"
           parentId={null}

@@ -4,11 +4,9 @@ import { useParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
 import { usePagesList, usePageTree, type Page, type PageTreeNode } from '@/src/entities/page';
-import { DeletePage } from '@/src/features/delete-page';
 import {
   MovePageDndContext,
   MovePageDropTarget,
-  MovePageMenu,
   MovePagePositionDropTarget,
   MovePageRootDropTarget,
 } from '@/src/features/move-page';
@@ -17,6 +15,7 @@ import { InlineAlert } from '@/src/shared/ui/inline-alert';
 import { Skeleton } from '@/src/shared/ui/skeleton';
 import { useSidebarStore } from '../model/use-sidebar-store';
 import { PageTreeRow } from './page-tree-row';
+import { PageActionsMenu } from './page-actions-menu';
 
 /** Путь от активной страницы к корню — по `parentId` из плоского списка. */
 function collectAncestorIds(pages: Page[], pageId: string | undefined) {
@@ -70,16 +69,13 @@ function TreeNodes({
                   isDropTarget={isOver}
                   isDragging={isDragging}
                   actions={
-                    <>
-                      <MovePageMenu
-                        pageId={node.id}
-                        projectId={projectId}
-                        parentId={node.parentId}
-                        title={node.title}
-                        pages={pages}
-                      />
-                      <DeletePage pageId={node.id} title={node.title} />
-                    </>
+                    <PageActionsMenu
+                      pageId={node.id}
+                      projectId={projectId}
+                      parentId={node.parentId}
+                      title={node.title}
+                      pages={pages}
+                    />
                   }
                   {...(hasChildren
                     ? {
