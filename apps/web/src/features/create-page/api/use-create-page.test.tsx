@@ -226,6 +226,44 @@ describe('useCreatePage', () => {
     });
   });
 
+  it('вложенное создание: инвалидация завершается до раскрытия родителя и перехода', async () => {
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
+    vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
+      status: 201,
+      body: { page: { ...page, parentId: 'parent' } },
+      headers: new Headers(),
+    } satisfies CreatePageResponse);
+    const { Wrapper, invalidateQueries } = createWrapper();
+    let finishInvalidation: () => void = () => undefined;
+    invalidateQueries.mockImplementation(
+      () => new Promise<void>((resolve) => (finishInvalidation = resolve)),
+    );
+    const expandParent = vi.fn<(parentId: string) => void>();
+    const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
+    act(() =>
+      result.current.mutate({ parentId: 'parent' }, { onSuccess: () => expandParent('parent') }),
+    );
+    await waitFor(() =>
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: pageKeys.list(project.id) }),
+    );
+    expect(expandParent).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+
+    act(() => finishInvalidation());
+    await waitFor(() => expect(push).toHaveBeenCalledWith(`/app/${page.id}`));
+    expect(expandParent).toHaveBeenCalledExactlyOnceWith('parent');
+    expect(invalidateQueries.mock.invocationCallOrder[0]).toBeLessThan(
+      expandParent.mock.invocationCallOrder[0],
+    );
+    expect(expandParent.mock.invocationCallOrder[0]).toBeLessThan(push.mock.invocationCallOrder[0]);
+  });
+
   it('при пустом списке сначала создаёт проект, затем страницу', async () => {
     vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
       status: 200,
@@ -290,6 +328,73 @@ describe('useCreatePage', () => {
     expect(screen.getByText('Вы не можете создавать страницы в этом проекте.')).toBeInTheDocument();
 
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it('с явным projectId создаёт страницу в нём, даже если метаданные открытой страницы недоступны и первый проект другой', async () => {
+    paramsRef.current = { pageId: page.id };
+    vi.spyOn(apiClient.pages, 'get').mockRejectedValue(new TypeError('Network error'));
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
+    const create = vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
+      status: 201,
+      body: { page: { ...page, projectId: otherProject.id } },
+      headers: new Headers(),
+    } satisfies CreatePageResponse);
+    const createProject = vi.spyOn(apiClient.projects, 'create');
+    const { Wrapper, invalidateQueries } = createWrapper();
+
+    const { result } = renderHook(() => useCreatePage(otherProject.id), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.isActiveProjectError).toBe(true));
+    act(() => result.current.mutate({ parentId: page.id }));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(create).toHaveBeenCalledWith({
+      params: { projectId: otherProject.id },
+      body: { title: 'Без названия', parentId: page.id },
+    });
+    expect(createProject).not.toHaveBeenCalled();
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: pageKeys.list(otherProject.id),
+    });
+    expect(push).toHaveBeenCalledExactlyOnceWith(`/app/${page.id}`);
+  });
+
+  it('с явным projectId при пустом списке проектов не создаёт новый проект', async () => {
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
+    const createProject = vi.spyOn(apiClient.projects, 'create').mockResolvedValue({
+      status: 201,
+      body: { project },
+      headers: new Headers(),
+    } satisfies CreateProjectResponse);
+    const create = vi.spyOn(apiClient.pages, 'create').mockResolvedValue({
+      status: 201,
+      body: { page: { ...page, projectId: otherProject.id } },
+      headers: new Headers(),
+    } satisfies CreatePageResponse);
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useCreatePage(otherProject.id), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
+    act(() => result.current.mutate({ parentId: page.id }));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(createProject).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledWith({
+      params: { projectId: otherProject.id },
+      body: { title: 'Без названия', parentId: page.id },
+    });
+    expect(push).toHaveBeenCalledExactlyOnceWith(`/app/${page.id}`);
   });
 });
 
