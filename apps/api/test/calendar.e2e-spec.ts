@@ -1,13 +1,20 @@
 import type { Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
-import { z } from 'zod';
-import type { ApiError, PageResponse } from '@noto/shared';
+import type {
+  ApiError,
+  CalendarEntriesResponse,
+  CalendarEntryResponse,
+  CalendarPageResponse,
+  PageResponse,
+} from '@noto/shared';
 import {
   apiErrorSchema,
   authUserResponseSchema,
+  calendarEntriesResponseSchema,
+  calendarEntryResponseSchema,
+  calendarPageResponseSchema,
   pageResponseSchema,
-  pageSchema,
 } from '@noto/shared';
 
 import { createTestApp, resetAuthState } from './helpers/test-app';
@@ -16,11 +23,8 @@ import { createTestApp, resetAuthState } from './helpers/test-app';
  * E2E Календарь страниц (API) — test-first (ADR-013), контракт из спеки
  * apps/api/src/calendar/calendar.spec.md и ADR-011.
  *
- * Тесты красные до реализации (CalendarController/Service + Prisma-модель
- * CalendarEntry): пока эндпоинтов нет, ответы 404. У календаря ещё нет
- * production-символов для импорта, поэтому здесь только публичные HTTP-пути и
- * прямые записи в уже существующие модели Prisma — без импорта несуществующих
- * схем/контрактов.
+ * Схемы ответов переиспользуются из @noto/shared (source of truth), без
+ * локальных дублей.
  *
  * Внутренняя механика атомарности (транзакция/лок/уникальный индекс) не
  * предписывается спекой и здесь не тестируется — только наблюдаемое поведение.
@@ -28,21 +32,6 @@ import { createTestApp, resetAuthState } from './helpers/test-app';
 
 type Role = 'owner' | 'editor' | 'viewer';
 type TestAgent = ReturnType<typeof request.agent>;
-
-/** Локальные схемы ответов календаря (в @noto/shared их ещё нет). */
-const calendarEntrySchema = z.object({
-  pageId: z.string(),
-  projectId: z.string(),
-  title: z.string(),
-  date: z.string(),
-  updatedAt: z.string(),
-});
-const calendarEntriesResponseSchema = z.object({ entries: z.array(calendarEntrySchema) });
-const calendarEntryResponseSchema = z.object({ entry: calendarEntrySchema.nullable() });
-const calendarPageResponseSchema = z.object({
-  page: pageSchema,
-  entry: calendarEntrySchema.nullable(),
-});
 
 const MISSING_ID = '00000000-0000-0000-0000-000000000000';
 const RANGE_FROM = '2026-03-01';
@@ -54,15 +43,15 @@ function parseError(body: unknown): ApiError {
   return apiErrorSchema.parse(body);
 }
 
-function parseEntryResponse(body: unknown): z.infer<typeof calendarEntryResponseSchema> {
+function parseEntryResponse(body: unknown): CalendarEntryResponse {
   return calendarEntryResponseSchema.parse(body);
 }
 
-function parseEntries(body: unknown): z.infer<typeof calendarEntriesResponseSchema> {
+function parseEntries(body: unknown): CalendarEntriesResponse {
   return calendarEntriesResponseSchema.parse(body);
 }
 
-function parseCalendarPage(body: unknown): z.infer<typeof calendarPageResponseSchema> {
+function parseCalendarPage(body: unknown): CalendarPageResponse {
   return calendarPageResponseSchema.parse(body);
 }
 
