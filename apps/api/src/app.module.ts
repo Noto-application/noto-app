@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
+import { CalendarModule } from './calendar/calendar.module';
 import { CollabModule } from './collab/collab.module';
 import { HealthModule } from './health/health.module';
 import { PagesModule } from './pages/pages.module';
@@ -25,6 +26,7 @@ import { ApiExceptionFilter } from './lib/errors';
     UsersModule,
     ProjectsModule,
     PagesModule,
+    CalendarModule,
     CollabModule,
     HealthModule,
   ],

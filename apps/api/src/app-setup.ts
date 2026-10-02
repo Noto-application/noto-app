@@ -5,9 +5,10 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { Env } from './config/env.schema';
 
 /** HTTP-методы, используемые REST-контрактом (ts-rest). Явный список нужен,
- * чтобы CORS-preflight разрешал `PATCH`/`DELETE` — дефолт `@fastify/cors`
- * (`GET,HEAD,POST`) их резал, ломая автосейв и удаление страницы (issue #96). */
-const CORS_METHODS = ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'];
+ * чтобы CORS-preflight разрешал `PATCH`/`DELETE`/`PUT` — дефолт `@fastify/cors`
+ * (`GET,HEAD,POST`) их резал, ломая автосейв и удаление страницы (issue #96), а
+ * также PUT календаря (issue #134). */
+const CORS_METHODS = ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'];
 
 /**
  * Единая конфигурация Fastify-приложения — общий источник для прод-бутстрапа
@@ -25,11 +26,7 @@ export async function configureApp(
   // /internal/collab/* вне префикса — internal endpoint-ы для collab (#108 auth,
   // #109 persistence), наружу не публикуются, зовутся только collab-сервисом.
   app.setGlobalPrefix('api', {
-    exclude: [
-      'health',
-      'internal/collab/authorize',
-      'internal/collab/documents/:pageId',
-    ],
+    exclude: ['health', 'internal/collab/authorize', 'internal/collab/documents/:pageId'],
   });
 
   // credentials: true обязателен — токены живут в HttpOnly cookie (ADR-003).
