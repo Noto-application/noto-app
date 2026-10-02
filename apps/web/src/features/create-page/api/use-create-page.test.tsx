@@ -264,6 +264,47 @@ describe('useCreatePage', () => {
     expect(expandParent.mock.invocationCallOrder[0]).toBeLessThan(push.mock.invocationCallOrder[0]);
   });
 
+  it('после размонтирования вложенное создание всё равно инвалидирует список, раскрывает родителя и переходит', async () => {
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
+    const createdPage: Page = { ...page, parentId: 'parent' };
+    let resolveCreate: (response: CreatePageResponse) => void = () => undefined;
+    const pendingCreate = new Promise<CreatePageResponse>((resolve) => {
+      resolveCreate = resolve;
+    });
+    const create = vi.spyOn(apiClient.pages, 'create').mockReturnValue(pendingCreate);
+    const { Wrapper, invalidateQueries } = createWrapper();
+    const expandParent = vi.fn<(parentId: string) => void>();
+    const { result, unmount } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
+    act(() =>
+      result.current.mutate({ parentId: 'parent' }, { onSuccess: () => expandParent('parent') }),
+    );
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+
+    // Компонент уходит со сцены раньше, чем API отвечает: колбэки не должны
+    // теряться вместе с наблюдателем мутации.
+    unmount();
+
+    act(() => {
+      resolveCreate({ status: 201, body: { page: createdPage }, headers: new Headers() });
+    });
+
+    await waitFor(() =>
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: pageKeys.list(project.id) }),
+    );
+    await waitFor(() => expect(expandParent).toHaveBeenCalledExactlyOnceWith('parent'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith(`/app/${createdPage.id}`));
+    expect(invalidateQueries.mock.invocationCallOrder[0]).toBeLessThan(
+      expandParent.mock.invocationCallOrder[0],
+    );
+    expect(expandParent.mock.invocationCallOrder[0]).toBeLessThan(push.mock.invocationCallOrder[0]);
+  });
+
   it('при пустом списке сначала создаёт проект, затем страницу', async () => {
     vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
       status: 200,
