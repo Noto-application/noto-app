@@ -1,6 +1,7 @@
 import { initContract } from '@ts-rest/core';
 
 import { authContract } from './auth';
+import { calendarContract } from './calendar';
 import { pagesContract } from './pages';
 import { projectsContract } from './projects';
 import { usersContract } from './users';
@@ -13,6 +14,7 @@ export const apiContract = c.router({
   users: usersContract,
   projects: projectsContract,
   pages: pagesContract,
+  calendar: calendarContract,
 });
 
 export type ApiContract = typeof apiContract;

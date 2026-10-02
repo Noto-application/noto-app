@@ -44,6 +44,8 @@ model Project {
   updatedAt DateTime        @updatedAt
   deletedAt DateTime?
 
+  calendarCreateRequests CalendarCreateRequest[]
+
   @@map("projects")
 }
 
@@ -73,14 +75,18 @@ model Page {
   updatedAt   DateTime   @updatedAt
   deletedAt   DateTime?
 
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  parent    Page?   @relation("PageTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children  Page[]  @relation("PageTree")
+  project               Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent                Page?                  @relation("PageTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children              Page[]                 @relation("PageTree")
   // Автор (создатель) — для будущего байлайна при публикации. Не в публичном DTO.
   // При удалении пользователя страница остаётся, автор обнуляется.
-  createdBy User?   @relation("PageAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy             User?                  @relation("PageAuthor", fields: [createdById], references: [id], onDelete: SetNull)
   // Снапшот Yjs-состояния для collab-страниц (#109). 1:1, каскад при удалении.
-  collabState PageCollabState?
+  collabState           PageCollabState?
+  // Календарная запись страницы (#134). 1:1, только у датированных страниц.
+  calendarEntry         CalendarEntry?
+  // Запись идемпотентности create из календаря (#134). Максимум одна на Page.
+  calendarCreateRequest CalendarCreateRequest?
 
   @@index([projectId])
   @@index([parentId])
@@ -97,6 +103,44 @@ model PageCollabState {
   page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
 
   @@map("page_collab_states")
+}
+
+/// Календарная запись страницы (#134; спека apps/api/src/calendar/calendar.spec.md).
+/// Отдельная опциональная 1:1 к Page: `pageId` — идентифицирующий FK. `title` и
+/// `projectId` не дублируются — выводятся из Page. `date` — date-only
+/// (канонический YYYY-MM-DD, без времени и зоны). Запись переживает soft-delete
+/// Page (deletedAt): каскад срабатывает только при физическом удалении Page.
+model CalendarEntry {
+  pageId    String   @id
+  date      String   @db.Char(10)
+  updatedAt DateTime @updatedAt
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@map("calendar_entries")
+}
+
+/// Запись идемпотентности create из календаря (#134). Ключ — пара
+/// `(projectId, clientRequestId)`: тот же `clientRequestId` в другом проекте —
+/// независимый create. Хранит нормализованный fingerprint исходного запроса
+/// (`title`, `date`), не зависящий от последующих переименований Page и снятия
+/// даты. `pageId` уникален — максимум один request на Page. Каскады — только на
+/// физическое удаление Project/Page, чтобы soft-delete их сохранял.
+model CalendarCreateRequest {
+  id              String   @id @default(uuid())
+  projectId       String
+  clientRequestId String
+  pageId          String   @unique
+  title           String
+  date            String   @db.Char(10)
+  createdAt       DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  page    Page    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, clientRequestId])
+  @@map("calendar_create_requests")
 }
 
 /// Явный грант доступа: (проект, пользователь) → роль. Источник правды по
