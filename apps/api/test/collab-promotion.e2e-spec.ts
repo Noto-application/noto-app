@@ -25,6 +25,7 @@ import type { Env } from '../src/config/env.schema';
  */
 
 const AUTHORIZE_PATH = '/internal/collab/authorize';
+type Role = 'owner' | 'editor' | 'viewer';
 
 function parseError(body: unknown): ApiError {
   return apiErrorSchema.parse(body);
@@ -73,10 +74,10 @@ describe('Collab promotion & REST race (e2e)', () => {
 
   async function seedPage(
     userId: string,
-    options: { content?: unknown[] } = {},
+    options: { content?: unknown[]; role?: Role } = {},
   ): Promise<string> {
     const project = await prisma.project.create({
-      data: { name: 'P', members: { create: { userId, role: 'owner' } } },
+      data: { name: 'P', members: { create: { userId, role: options.role ?? 'owner' } } },
     });
     const page = await prisma.page.create({
       data: {
@@ -118,6 +119,31 @@ describe('Collab promotion & REST race (e2e)', () => {
 
     const response = await getPage(cookie, pageId).expect(200);
     expect(parsePage(response.body).editorMode).toBe('collab');
+  });
+
+  it('viewer читает пустую rest-страницу через REST, но authorize не промоутит и ничего не меняет', async () => {
+    const { cookie, userId } = await registerUser('pr-viewer-rest@example.com');
+    const pageId = await seedPage(userId, { role: 'viewer' });
+
+    const collabResponse = await authorize(cookie, pageId).expect(403);
+    expect(parseError(collabResponse.body).code).toBe('FORBIDDEN');
+
+    const restResponse = await getPage(cookie, pageId).expect(200);
+    const page = parsePage(restResponse.body);
+    expect(page.editorMode).toBe('rest');
+    expect(page.content).toEqual([]);
+  });
+
+  it.each(['editor', 'owner'] as const)('%s может промоутить пустую rest-страницу без изменения content', async (role) => {
+    const { cookie, userId } = await registerUser(`pr-${role}-rest@example.com`);
+    const pageId = await seedPage(userId, { role });
+
+    await authorize(cookie, pageId).expect(200);
+
+    const response = await getPage(cookie, pageId).expect(200);
+    const page = parsePage(response.body);
+    expect(page.editorMode).toBe('collab');
+    expect(page.content).toEqual([]);
   });
 
   it('authorize rest-страницы с контентом отклоняет collab (409), режим не меняется', async () => {
