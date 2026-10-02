@@ -2,7 +2,7 @@
  * Решение авторизации Yjs-документа на WS-хендшейке (#108). Чистая логция:
  * allowlist origin → извлечение access_token → делегирование в API →
  * fail-closed на всё, кроме валидного 200 { allowed: true, userId }.
- * Контракт — docs/specs/108-collab-auth.spec.md.
+ * Контракт — apps/collab/src/auth/collab-auth.spec.md.
  */
 
 export interface CollabAuthApiRequest {

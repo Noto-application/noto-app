@@ -2,7 +2,7 @@ import { authorizeConnection, type AuthorizeDeps } from './authorize-connection'
 
 /**
  * Unit `authorizeConnection` — test-first (ADR-013), контракт из
- * docs/specs/108-collab-auth.spec.md.
+ * apps/collab/src/auth/collab-auth.spec.md.
  *
  * Чистая логика решения на WS-хендшейке: allowlist origin, извлечение
  * access_token из cookie, делегирование в API и fail-closed на всё, кроме

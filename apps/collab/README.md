@@ -1,7 +1,7 @@
 # @noto/collab
 
 Collaborative editing (Yjs) через Hocuspocus. Авторизация документа на
-WS-хендшейке (#108). Спека: [`docs/specs/108-collab-auth.spec.md`](../../docs/specs/108-collab-auth.spec.md).
+WS-хендшейке (#108). Спека: [`apps/collab/src/auth/collab-auth.spec.md`](/apps/collab/src/auth/collab-auth.spec.md).
 
 ## Что здесь
 

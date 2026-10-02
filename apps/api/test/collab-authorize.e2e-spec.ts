@@ -10,10 +10,10 @@ import type { Env } from '../src/config/env.schema';
 
 /**
  * E2E internal collab-authorize endpoint — test-first (ADR-013), контракт из
- * docs/specs/108-collab-auth.spec.md.
+ * apps/collab/src/auth/collab-auth.spec.md.
  *
  * Успех включает role и canWrite (#149): collab по ней ставит Hocuspocus
- * readOnly. viewer тоже 200, не 403, но canWrite=false.
+ * readOnly. Viewer получает 200 только для collab-страницы и canWrite=false.
  *
  * Красные до реализации: пока эндпоинта нет, ответы 404.
  *
@@ -88,6 +88,7 @@ describe('Internal collab authorize (e2e)', () => {
   async function seedPage(options: {
     projectId: string;
     deleted?: boolean;
+    editorMode?: 'rest' | 'collab';
   }): Promise<string> {
     const page = await prisma.page.create({
       data: {
@@ -96,16 +97,17 @@ describe('Internal collab authorize (e2e)', () => {
         parentId: null,
         position: 0,
         content: [],
+        editorMode: options.editorMode,
         deletedAt: options.deleted ? new Date() : null,
       },
     });
     return page.id;
   }
 
-  it('viewer + валидная cookie + верный секрет → 200 { allowed, userId, role, canWrite:false }', async () => {
+  it('viewer + collab-страница + валидная cookie + верный секрет → 200 с canWrite:false', async () => {
     const { cookie, userId } = await registerUser('c-ok@example.com');
     const projectId = await seedProject([{ userId, role: 'viewer' }]);
-    const pageId = await seedPage({ projectId });
+    const pageId = await seedPage({ projectId, editorMode: 'collab' });
 
     const response = await request(server)
       .post(AUTHORIZE_PATH)
@@ -147,7 +149,7 @@ describe('Internal collab authorize (e2e)', () => {
     expect(response.body).toMatchObject({ allowed: true, userId, role: 'editor', canWrite: true });
   });
 
-  it('участник + валидная cookie + НЕВЕРНЫЙ секрет → 403', async () => {
+  it('viewer + валидная cookie + НЕВЕРНЫЙ секрет → 403', async () => {
     const { cookie, userId } = await registerUser('c-badsecret@example.com');
     const projectId = await seedProject([{ userId, role: 'owner' }]);
     const pageId = await seedPage({ projectId });
@@ -162,7 +164,7 @@ describe('Internal collab authorize (e2e)', () => {
     expect(parseError(response.body).code).toBe('FORBIDDEN');
   });
 
-  it('участник + валидная cookie + БЕЗ секрета → 403', async () => {
+  it('viewer + валидная cookie + БЕЗ секрета → 403', async () => {
     const { cookie, userId } = await registerUser('c-nosecret@example.com');
     const projectId = await seedProject([{ userId, role: 'owner' }]);
     const pageId = await seedPage({ projectId });
