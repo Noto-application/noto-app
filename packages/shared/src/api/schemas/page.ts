@@ -11,7 +11,7 @@ export const PAGE_TITLE_MAX_LENGTH = 200;
  */
 export const PAGE_CONTENT_MAX_LENGTH = 1_000_000; // ~1 MB
 
-const pageTitleSchema = z
+export const pageTitleSchema = z
   .string()
   .trim()
   .min(PAGE_TITLE_MIN_LENGTH)
