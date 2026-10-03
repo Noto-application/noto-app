@@ -26,6 +26,11 @@ vi.mock('@/src/entities/page', () => ({
   usePageTree: usePageTreeMock,
 }));
 
+// Здесь проверяется только дерево; мутация требует QueryClientProvider и роутер.
+vi.mock('@/src/features/create-page', () => ({
+  useCreatePage: () => ({ isPending: false, mutate: vi.fn() }),
+}));
+
 vi.mock('./page-actions-menu', () => ({
   PageActionsMenu: ({ title }: { title: string }) => (
     <button type="button" aria-label={`Действия для «${title}»`}>
