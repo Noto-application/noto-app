@@ -28,9 +28,15 @@ export function useCreatePage(projectId?: string) {
   const { pageId } = useParams<{ pageId?: string }>();
   const pageQuery = usePage(pageId);
   const projectsQuery = useProjects();
-  const successCallback = useRef<
-    MutateOptions<Page, Error, CreatePageInput | undefined> | undefined
-  >(undefined);
+  const successCallbacks = useRef(
+    new Map<
+      CreatePageInput,
+      {
+        callback: NonNullable<MutateOptions<Page, Error, CreatePageInput | undefined>['onSuccess']>;
+        variables: CreatePageInput | undefined;
+      }
+    >(),
+  );
 
   const activeProjectId =
     projectId ?? (pageId ? pageQuery.data?.projectId : projectsQuery.data?.[0]?.id);
@@ -64,15 +70,15 @@ export function useCreatePage(projectId?: string) {
       return createPage(targetProjectId, { title, parentId });
     },
     onSuccess: async (page, variables, onMutateResult, context) => {
+      const entry = variables && successCallbacks.current.get(variables);
+      if (variables) successCallbacks.current.delete(variables);
       await queryClient.invalidateQueries({ queryKey: pageKeys.list(page.projectId) });
-      const callback = successCallback.current?.onSuccess;
-      successCallback.current = undefined;
-      callback?.(page, variables, onMutateResult, context);
+      entry?.callback(page, entry.variables, onMutateResult, context);
       router.push(`/app/${page.id}`);
       toast.success('Страница создана', `Вы перешли на страницу «${page.title}»`);
     },
-    onError: (error) => {
-      successCallback.current = undefined;
+    onError: (error, variables) => {
+      if (variables) successCallbacks.current.delete(variables);
       if (error instanceof ApiClientError && error.code === 'UNAUTHORIZED') {
         return;
       }
@@ -87,8 +93,19 @@ export function useCreatePage(projectId?: string) {
   });
 
   const mutate: typeof mutation.mutate = (variables, options) => {
-    successCallback.current = options;
-    mutation.mutate(variables, { onError: options?.onError, onSettled: options?.onSettled });
+    const invocationVariables = { ...variables };
+    if (options?.onSuccess) {
+      successCallbacks.current.set(invocationVariables, {
+        callback: options.onSuccess,
+        variables,
+      });
+    }
+    mutation.mutate(invocationVariables, {
+      onError: (error, _variables, onMutateResult, context) =>
+        options?.onError?.(error, variables, onMutateResult, context),
+      onSettled: (data, error, _variables, onMutateResult, context) =>
+        options?.onSettled?.(data, error, variables, onMutateResult, context),
+    });
   };
 
   return {

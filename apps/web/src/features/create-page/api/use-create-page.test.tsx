@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { Page, Project } from '@noto/shared';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, type MutateOptions } from '@tanstack/react-query';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -26,6 +26,29 @@ type ProjectsResponse = Awaited<ReturnType<typeof apiClient.projects.list>>;
 type CreateProjectResponse = Awaited<ReturnType<typeof apiClient.projects.create>>;
 type CreatePageResponse = Awaited<ReturnType<typeof apiClient.pages.create>>;
 type PageResponse = Awaited<ReturnType<typeof apiClient.pages.get>>;
+
+type CreatePageVariables = { title?: string; parentId?: string | null };
+type CreatePageMutateOptions = MutateOptions<Page, Error, CreatePageVariables | undefined>;
+type PendingCreate = {
+  resolve: (response: CreatePageResponse) => void;
+  reject: (error: unknown) => void;
+};
+
+/**
+ * Мок `pages.create`, отдающий управляемые промисы: тест сам решает, в каком
+ * порядке и с каким исходом завершать параллельные запросы.
+ */
+function mockPendingCreate() {
+  const pending: PendingCreate[] = [];
+  const create = vi.spyOn(apiClient.pages, 'create').mockImplementation(
+    () =>
+      new Promise<CreatePageResponse>((resolve, reject) => {
+        pending.push({ resolve, reject });
+      }),
+  );
+
+  return { create, pending };
+}
 
 const project: Project = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -303,6 +326,161 @@ describe('useCreatePage', () => {
       expandParent.mock.invocationCallOrder[0],
     );
     expect(expandParent.mock.invocationCallOrder[0]).toBeLessThan(push.mock.invocationCallOrder[0]);
+  });
+
+  it('колбэк второго параллельного создания не вызывается со страницей первого', async () => {
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
+    const { create, pending } = mockPendingCreate();
+    const { Wrapper } = createWrapper();
+    const parentA = 'parent-A';
+    const parentB = 'parent-B';
+    const pageA: Page = { ...page, id: '00000000-0000-4000-8000-0000000000aa', parentId: parentA };
+    const pageB: Page = { ...page, id: '00000000-0000-4000-8000-0000000000bb', parentId: parentB };
+    const successB = vi.fn<(created: Page, variables?: CreatePageVariables) => void>();
+
+    const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
+
+    act(() => {
+      result.current.mutate({ parentId: parentA });
+      result.current.mutate({ parentId: parentB }, { onSuccess: successB });
+    });
+
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
+    expect(create).toHaveBeenNthCalledWith(1, {
+      params: { projectId: project.id },
+      body: { title: 'Без названия', parentId: parentA },
+    });
+    expect(create).toHaveBeenNthCalledWith(2, {
+      params: { projectId: project.id },
+      body: { title: 'Без названия', parentId: parentB },
+    });
+
+    act(() => pending[0].resolve({ status: 201, body: { page: pageA }, headers: new Headers() }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith(`/app/${pageA.id}`));
+
+    // Пока завершилось только создание A, колбэк B ещё не должен сработать:
+    // тем более он не может получить страницу A.
+    expect(successB).not.toHaveBeenCalled();
+
+    act(() => pending[1].resolve({ status: 201, body: { page: pageB }, headers: new Headers() }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith(`/app/${pageB.id}`));
+
+    // Переходы идут в порядке завершения запросов, каждый — к своей странице.
+    expect(push).toHaveBeenNthCalledWith(1, `/app/${pageA.id}`);
+    expect(push).toHaveBeenNthCalledWith(2, `/app/${pageB.id}`);
+
+    // Колбэк B получает страницу и переменные именно своего вызова.
+    expect(successB).toHaveBeenCalledTimes(1);
+    expect(successB.mock.calls[0][0]).toBe(pageB);
+    expect(successB.mock.calls[0][1]).toMatchObject({ parentId: parentB });
+  });
+
+  it('ошибка первого из параллельных созданий не сбрасывает onSuccess второго', async () => {
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
+    const { pending } = mockPendingCreate();
+    const { Wrapper } = createWrapper();
+    const parentA = 'parent-A';
+    const parentB = 'parent-B';
+    const pageB: Page = { ...page, id: '00000000-0000-4000-8000-0000000000bb', parentId: parentB };
+    const successB = vi.fn<(created: Page, variables?: CreatePageVariables) => void>();
+    const failure = new Error('create failed');
+
+    render(
+      <Wrapper>
+        <Toaster />
+      </Wrapper>,
+    );
+
+    const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
+
+    act(() => {
+      result.current.mutate({ parentId: parentA });
+      result.current.mutate({ parentId: parentB }, { onSuccess: successB });
+    });
+
+    await waitFor(() => expect(pending).toHaveLength(2));
+
+    act(() => pending[0].reject(failure));
+
+    // Дожидаемся обработки ошибки A на уровне хука (toast), прежде чем
+    // завершать B — иначе порядок реакций недетерминирован.
+    await screen.findByText('Не удалось создать страницу');
+
+    act(() => pending[1].resolve({ status: 201, body: { page: pageB }, headers: new Headers() }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith(`/app/${pageB.id}`));
+
+    // A упал, но это не должно отнять колбэк у B.
+    expect(successB).toHaveBeenCalledTimes(1);
+    expect(successB.mock.calls[0][0]).toBe(pageB);
+    expect(successB.mock.calls[0][1]).toMatchObject({ parentId: parentB });
+    expect(push).toHaveBeenCalledExactlyOnceWith(`/app/${pageB.id}`);
+  });
+
+  it('передаёт в стандартный onSettled undefined, а не подменённый пустой объект', async () => {
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
+    const { create, pending } = mockPendingCreate();
+    const { Wrapper } = createWrapper();
+    const onSettled = vi.fn<NonNullable<CreatePageMutateOptions['onSettled']>>();
+
+    const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
+    act(() => result.current.mutate(undefined, { onSettled }));
+
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    act(() => pending[0].resolve({ status: 201, body: { page }, headers: new Headers() }));
+
+    await waitFor(() => expect(onSettled).toHaveBeenCalledTimes(1));
+    expect(onSettled.mock.calls[0][2]).toBeUndefined();
+  });
+
+  it('передаёт в стандартные onError и onSettled тот же объект переменных по ссылке', async () => {
+    vi.spyOn(apiClient.projects, 'list').mockResolvedValue({
+      status: 200,
+      body: { projects: [project] },
+      headers: new Headers(),
+    } satisfies ProjectsResponse);
+    const { create, pending } = mockPendingCreate();
+    const { Wrapper } = createWrapper();
+    const onError = vi.fn<NonNullable<CreatePageMutateOptions['onError']>>();
+    const onSettled = vi.fn<NonNullable<CreatePageMutateOptions['onSettled']>>();
+    const variables = { title: 'План проекта', parentId: page.id };
+
+    render(
+      <Wrapper>
+        <Toaster />
+      </Wrapper>,
+    );
+
+    const { result } = renderHook(() => useCreatePage(project.id), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
+    act(() => result.current.mutate(variables, { onError, onSettled }));
+
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    act(() => pending[0].reject(new Error('create failed')));
+
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    expect(onSettled).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][1]).toBe(variables);
+    expect(onSettled.mock.calls[0][2]).toBe(variables);
   });
 
   it('при пустом списке сначала создаёт проект, затем страницу', async () => {
