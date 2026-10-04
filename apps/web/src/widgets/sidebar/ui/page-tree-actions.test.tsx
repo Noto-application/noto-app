@@ -2,11 +2,13 @@
 
 import type { Page } from '@noto/shared';
 import type { ComponentProps } from 'react';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildPageTree } from '@/src/entities/page/lib/build-page-tree';
+import { CreatePageProvider } from '@/src/features/create-page/model/create-page-context';
+import { CreatePageButton } from '@/src/features/create-page/ui/create-page-button';
 import { useSidebarStore } from '../model/use-sidebar-store';
 import { PageTree } from './page-tree';
 
@@ -17,6 +19,14 @@ const mocks = vi.hoisted(() => ({
   usePageTree: vi.fn(),
   useDeletePageMutation: vi.fn(),
   deletePage: vi.fn<(pageId: string, options: DeleteOptions) => void>(),
+  useCreatePage: vi.fn(),
+  createPage:
+    vi.fn<
+      (
+        input: { parentId?: string | null },
+        options?: { onSuccess?: () => void; onError?: () => void },
+      ) => void
+    >(),
   movePage: vi.fn(),
   push: vi.fn(),
   success: vi.fn(),
@@ -70,6 +80,13 @@ vi.mock('@/src/features/move-page/api/use-move-page', () => ({
   useMovePage: () => ({ isPending: false, mutate: mocks.movePage }),
 }));
 
+// Вложенное создание (#84): хук берётся по глубокому пути, чтобы мок
+// сработал независимо от того, импортирует ли виджет сам хук или через barrel
+// `@/src/features/create-page`.
+vi.mock('@/src/features/create-page/api/use-create-page', () => ({
+  useCreatePage: mocks.useCreatePage,
+}));
+
 vi.mock('@/src/shared/ui/toast', () => ({
   toast: { success: mocks.success, error: mocks.error },
 }));
@@ -105,6 +122,7 @@ beforeEach(() => {
   mocks.usePagesList.mockReturnValue({ data: pages, isLoading: false });
   mocks.usePageTree.mockReturnValue({ data: buildPageTree(pages), isError: false });
   mocks.useDeletePageMutation.mockReturnValue({ isPending: false, mutate: mocks.deletePage });
+  mocks.useCreatePage.mockReturnValue({ isPending: false, mutate: mocks.createPage });
 });
 
 async function openDelete(user: ReturnType<typeof userEvent.setup>, title = 'Обзор') {
@@ -276,4 +294,132 @@ describe('PageTree actions', () => {
       expect(mocks.push).not.toHaveBeenCalled();
     },
   );
+
+  it('создаёт вложенную страницу из «+» строки с projectId дерева и parentId строки, не запуская переход', async () => {
+    const user = userEvent.setup();
+    render(<PageTree projectId="project-1" />);
+
+    const addButton = screen.getByRole('button', { name: 'Создать страницу внутри «Обзор»' });
+    expect(addButton).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Действия для «Обзор»' })).toBeInTheDocument();
+
+    await user.click(addButton);
+
+    expect(mocks.useCreatePage).toHaveBeenCalledWith('project-1');
+    expect(mocks.createPage).toHaveBeenCalledWith({ parentId: 'parent' }, expect.any(Object));
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it('держит одну вложенную мутацию за раз даже при быстрых кликах до обновления isPending; меню работает', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<PageTree projectId="project-1" />);
+
+    const addParent = screen.getByRole('button', { name: 'Создать страницу внутри «Обзор»' });
+    const addChild = screen.getByRole('button', { name: 'Создать страницу внутри «Роадмап»' });
+    act(() => {
+      fireEvent.click(addParent);
+      fireEvent.click(addParent);
+      fireEvent.click(addChild);
+    });
+    expect(mocks.createPage).toHaveBeenCalledTimes(1);
+
+    mocks.useCreatePage.mockReturnValue({ isPending: true, mutate: mocks.createPage });
+    rerender(<PageTree projectId="project-1" />);
+
+    for (const button of screen.getAllByRole('button', { name: /^Создать страницу внутри/ })) {
+      expect(button).toBeDisabled();
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Создать страницу внутри «Обзор»' }));
+    await user.click(screen.getByRole('button', { name: 'Создать страницу внутри «Роадмап»' }));
+    expect(mocks.createPage).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Действия для «Обзор»' }));
+    expect(await screen.findByRole('menuitem', { name: 'Переместить' })).toBeInTheDocument();
+  });
+
+  it('при вложенной мутации корневая кнопка остаётся доступной', async () => {
+    const user = userEvent.setup();
+    const createRoot = vi.fn();
+    let nestedPending = false;
+    mocks.useCreatePage.mockImplementation((projectId?: string) =>
+      projectId
+        ? { isPending: nestedPending, mutate: mocks.createPage }
+        : {
+            isPending: false,
+            isActiveProjectPending: false,
+            isActiveProjectError: false,
+            mutate: createRoot,
+          },
+    );
+    const view = () => (
+      <CreatePageProvider>
+        <CreatePageButton>Новая страница</CreatePageButton>
+        <PageTree projectId="project-1" />
+      </CreatePageProvider>
+    );
+    const { rerender } = render(view());
+
+    await user.click(screen.getByRole('button', { name: 'Создать страницу внутри «Обзор»' }));
+    expect(mocks.createPage).toHaveBeenCalledTimes(1);
+    nestedPending = true;
+    rerender(view());
+
+    expect(screen.getByRole('button', { name: 'Создать страницу внутри «Обзор»' })).toBeDisabled();
+    const root = screen.getByRole('button', { name: 'Новая страница' });
+    expect(root).toBeEnabled();
+    await user.click(root);
+    expect(createRoot).toHaveBeenCalledTimes(1);
+    expect(mocks.createPage).toHaveBeenCalledTimes(1);
+  });
+
+  it('после успеха вложенного создания раскрывает свёрнутого родителя', async () => {
+    const user = userEvent.setup();
+    render(<PageTree projectId="project-1" />);
+
+    await user.click(screen.getByRole('button', { name: 'Свернуть «Обзор»' }));
+    expect(useSidebarStore.getState().collapsedPageIds.has('parent')).toBe(true);
+    expect(screen.queryByRole('link', { name: 'Роадмап' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Создать страницу внутри «Обзор»' }));
+    const onSuccess = mocks.createPage.mock.calls[0][1]?.onSuccess;
+    expect(onSuccess).toBeTypeOf('function');
+    act(() => onSuccess?.());
+
+    expect(useSidebarStore.getState().collapsedPageIds.has('parent')).toBe(false);
+    expect(screen.getByRole('link', { name: 'Роадмап' })).toBeInTheDocument();
+  });
+
+  it('при ошибке вложенного создания не раскрывает родителя и позволяет повторить', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<PageTree projectId="project-1" />);
+
+    await user.click(screen.getByRole('button', { name: 'Свернуть «Обзор»' }));
+    await user.click(screen.getByRole('button', { name: 'Создать страницу внутри «Обзор»' }));
+    expect(mocks.createPage).toHaveBeenCalledTimes(1);
+
+    // Мутация завершилась ошибкой; виджет не должен зависеть от onError в mutate.
+    mocks.useCreatePage.mockReturnValue({
+      isPending: true,
+      isError: false,
+      mutate: mocks.createPage,
+    });
+    rerender(<PageTree projectId="project-1" />);
+    mocks.useCreatePage.mockReturnValue({
+      isPending: false,
+      isError: true,
+      mutate: mocks.createPage,
+    });
+    rerender(<PageTree projectId="project-1" />);
+
+    expect(mocks.useCreatePage).toHaveBeenCalled();
+    expect(useSidebarStore.getState().collapsedPageIds.has('parent')).toBe(true);
+    expect(screen.queryByRole('link', { name: 'Роадмап' })).not.toBeInTheDocument();
+    expect(mocks.push).not.toHaveBeenCalled();
+
+    const retry = screen.getByRole('button', { name: 'Создать страницу внутри «Обзор»' });
+    expect(retry).toBeEnabled();
+    await user.click(retry);
+    expect(mocks.createPage).toHaveBeenCalledTimes(2);
+  });
 });
