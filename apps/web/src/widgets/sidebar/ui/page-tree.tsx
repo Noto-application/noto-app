@@ -1,9 +1,11 @@
 'use client';
 
 import { useParams } from 'next/navigation';
+import { Plus } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 import { usePagesList, usePageTree, type Page, type PageTreeNode } from '@/src/entities/page';
+import { useCreatePage } from '@/src/features/create-page';
 import {
   MovePageDndContext,
   MovePageDropTarget,
@@ -13,6 +15,7 @@ import {
 import { EmptyState } from '@/src/shared/ui/empty-state';
 import { InlineAlert } from '@/src/shared/ui/inline-alert';
 import { Skeleton } from '@/src/shared/ui/skeleton';
+import { Button } from '@/src/shared/ui/button';
 import { useSidebarStore } from '../model/use-sidebar-store';
 import { PageTreeRow } from './page-tree-row';
 import { PageActionsMenu } from './page-actions-menu';
@@ -40,12 +43,16 @@ function TreeNodes({
   activePageId,
   projectId,
   pages,
+  createNestedPage,
+  isCreatingNestedPage,
 }: {
   nodes: PageTreeNode[];
   depth: number;
   activePageId: string | undefined;
   projectId: string;
   pages: Page[];
+  createNestedPage: (parentId: string) => void;
+  isCreatingNestedPage: boolean;
 }) {
   const collapsedPageIds = useSidebarStore((state) => state.collapsedPageIds);
   const togglePage = useSidebarStore((state) => state.togglePage);
@@ -69,13 +76,26 @@ function TreeNodes({
                   isDropTarget={isOver}
                   isDragging={isDragging}
                   actions={
-                    <PageActionsMenu
-                      pageId={node.id}
-                      projectId={projectId}
-                      parentId={node.parentId}
-                      title={node.title}
-                      pages={pages}
-                    />
+                    <div className="flex w-12 shrink-0 items-center">
+                      <Button
+                        type="button"
+                        aria-label={`Создать страницу внутри «${node.title}»`}
+                        size="icon"
+                        variant="ghost"
+                        disabled={isCreatingNestedPage}
+                        onClick={() => createNestedPage(node.id)}
+                        className="size-6 cursor-pointer opacity-0 hover:bg-surface-selected focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100 [&_svg]:size-4"
+                      >
+                        <Plus aria-hidden="true" />
+                      </Button>
+                      <PageActionsMenu
+                        pageId={node.id}
+                        projectId={projectId}
+                        parentId={node.parentId}
+                        title={node.title}
+                        pages={pages}
+                      />
+                    </div>
                   }
                   {...(hasChildren
                     ? {
@@ -95,6 +115,8 @@ function TreeNodes({
                 activePageId={activePageId}
                 projectId={projectId}
                 pages={pages}
+                createNestedPage={createNestedPage}
+                isCreatingNestedPage={isCreatingNestedPage}
               />
             ) : null}
             <MovePagePositionDropTarget pageId={node.id} placement="after" />
@@ -111,6 +133,29 @@ function TreeNodes({
  */
 export function PageTree({ projectId }: { projectId: string }) {
   const { pageId } = useParams<{ pageId?: string }>();
+  const nestedCreation = useCreatePage(projectId);
+  const isCreatingRef = useRef(false);
+  const wasPendingRef = useRef(false);
+  const expandPages = useSidebarStore((state) => state.expandPages);
+
+  useEffect(() => {
+    if (wasPendingRef.current && !nestedCreation.isPending) isCreatingRef.current = false;
+    wasPendingRef.current = nestedCreation.isPending;
+  }, [nestedCreation.isPending]);
+
+  const createNestedPage = (parentId: string) => {
+    if (isCreatingRef.current || nestedCreation.isPending) return;
+    isCreatingRef.current = true;
+    nestedCreation.mutate(
+      { parentId },
+      {
+        onSuccess: () => expandPages([parentId]),
+        onSettled: () => {
+          isCreatingRef.current = false;
+        },
+      },
+    );
+  };
 
   const { data: pages, isLoading } = usePagesList(projectId);
 
@@ -119,8 +164,6 @@ export function PageTree({ projectId }: { projectId: string }) {
   // данных (дубли id, циклы); в `select` throw уходит в `isError`, а не
   // роняет рендер.
   const { data: tree, isError: isTreeError } = usePageTree(projectId);
-
-  const expandPages = useSidebarStore((state) => state.expandPages);
 
   // Раскрытие только на смену pageId, не на любое обновление pages — иначе
   // вручную свёрнутая ветка раскрывалась бы обратно при каждой инвалидации
@@ -172,6 +215,8 @@ export function PageTree({ projectId }: { projectId: string }) {
           activePageId={pageId}
           projectId={projectId}
           pages={pages}
+          createNestedPage={createNestedPage}
+          isCreatingNestedPage={nestedCreation.isPending}
         />
         <MovePageRootDropTarget pages={pages} />
       </MovePageDndContext>

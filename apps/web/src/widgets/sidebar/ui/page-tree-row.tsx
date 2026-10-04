@@ -36,7 +36,7 @@ export function PageTreeRow({
   return (
     <div
       className={cn(
-        'flex items-center gap-1 rounded-md pr-1 text-body-compact text-foreground',
+        'group flex items-center gap-1 rounded-md pr-1 text-body-compact text-foreground',
         'transition-colors hover:bg-surface-hover has-aria-[current=page]:bg-surface-selected',
         isDropTarget && 'bg-surface-hover ring-1 ring-border',
         isDragging && 'opacity-35',
@@ -68,7 +68,7 @@ export function PageTreeRow({
         <span className="truncate">{title}</span>
       </Link>
 
-      {/* Слот действий: наполняется в задаче создания страницы и в FE-P3/P5. */}
+      {/* Слот действий сохраняет ширину даже без действий. */}
       {actions ?? <span className="size-5 shrink-0" />}
     </div>
   );
