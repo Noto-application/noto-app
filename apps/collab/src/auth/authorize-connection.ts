@@ -42,7 +42,7 @@ export interface AuthorizeInput {
   documentName?: string | null;
 }
 
-export type AuthorizeResult = { allowed: true; userId: string } | { allowed: false };
+export type AuthorizeResult = { allowed: true; userId: string; readOnly: boolean } | { allowed: false };
 
 const DENIED: AuthorizeResult = { allowed: false };
 
@@ -89,13 +89,26 @@ function callWithTimeout(
   });
 }
 
-function isGrant(body: unknown): body is { allowed: true; userId: string } {
+function isGrant(
+  body: unknown,
+): body is { allowed: true; userId: string; role: 'owner' | 'editor' | 'viewer'; canWrite: boolean } {
   if (!body || typeof body !== 'object') return false;
-  const candidate = body as { allowed?: unknown; userId?: unknown };
+  const candidate = body as {
+    allowed?: unknown;
+    userId?: unknown;
+    role?: unknown;
+    canWrite?: unknown;
+  };
+  const validRole =
+    typeof candidate.role === 'string' &&
+    ['owner', 'editor', 'viewer'].includes(candidate.role);
   return (
     candidate.allowed === true &&
     typeof candidate.userId === 'string' &&
-    candidate.userId.length > 0
+    candidate.userId.length > 0 &&
+    validRole &&
+    typeof candidate.canWrite === 'boolean' &&
+    candidate.canWrite === (candidate.role !== 'viewer')
   );
 }
 
@@ -145,5 +158,5 @@ export async function authorizeConnection(
   }
 
   logger.info('collab authorize granted', { documentName });
-  return { allowed: true, userId: response.body.userId };
+  return { allowed: true, userId: response.body.userId, readOnly: !response.body.canWrite };
 }
