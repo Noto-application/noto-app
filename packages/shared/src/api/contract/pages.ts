@@ -6,6 +6,8 @@ import {
   createPageSchema,
   pageResponseSchema,
   pagesResponseSchema,
+  trashQuerySchema,
+  trashResponseSchema,
   updatePageSchema,
 } from '../schemas/page';
 
@@ -13,6 +15,15 @@ const c = initContract();
 
 const projectIdParamSchema = z.object({ projectId: z.uuid() });
 const pageIdParamSchema = z.object({ pageId: z.uuid() });
+export const restoreConflictSchema = z.strictObject({
+  code: z.literal('CONFLICT'),
+  message: z.string(),
+  details: z
+    .strictObject({
+      blockedBy: z.strictObject({ id: z.uuid(), title: z.string() }),
+    })
+    .optional(),
+});
 
 /**
  * Pages CRUD (ADR-011; спека apps/api/src/pages/pages.spec.md). Страница живёт
@@ -20,6 +31,35 @@ const pageIdParamSchema = z.object({ pageId: z.uuid() });
  * item — плоско; для item-роутов guard резолвит projectId из страницы.
  */
 export const pagesContract = c.router({
+  trash: {
+    method: 'GET',
+    path: '/projects/:projectId/trash/pages',
+    pathParams: projectIdParamSchema,
+    query: trashQuerySchema,
+    responses: {
+      200: trashResponseSchema,
+      400: apiErrorSchema,
+      401: apiErrorSchema,
+      403: apiErrorSchema,
+      404: apiErrorSchema,
+    },
+    summary: 'List deleted pages of a project (viewer+)',
+  },
+  restore: {
+    method: 'POST',
+    path: '/pages/:pageId/restore',
+    pathParams: pageIdParamSchema,
+    body: c.noBody(),
+    responses: {
+      200: pageResponseSchema,
+      400: apiErrorSchema,
+      401: apiErrorSchema,
+      403: apiErrorSchema,
+      404: apiErrorSchema,
+      409: restoreConflictSchema,
+    },
+    summary: 'Restore one deleted page (editor+)',
+  },
   create: {
     method: 'POST',
     path: '/projects/:projectId/pages',

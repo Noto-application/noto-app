@@ -79,3 +79,23 @@ export const pageResponseSchema = z.object({
 export const pagesResponseSchema = z.object({
   pages: z.array(pageSchema),
 });
+
+/** Корзина не раскрывает контент страницы. */
+export const trashPageSchema = z.object({
+  id: z.uuid(),
+  projectId: z.uuid(),
+  parentId: z.uuid().nullable(),
+  title: z.string(),
+  position: z.number().int(),
+  deletedAt: z.iso.datetime(),
+});
+
+export const trashResponseSchema = z.object({
+  pages: z.array(trashPageSchema),
+  nextCursor: z.string().nullable(),
+});
+
+export const trashQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z.string().optional(),
+});

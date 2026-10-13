@@ -2,7 +2,9 @@ import type { Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import * as Y from 'yjs';
+import { z } from 'zod';
 import {
+  apiContract,
   apiErrorSchema,
   authUserResponseSchema,
   calendarEntriesResponseSchema,
@@ -73,12 +75,43 @@ describe('Page trash (e2e)', () => {
   const list = (agent: Agent, projectId: string, query = '') =>
     agent.get(`/api/projects/${projectId}/trash/pages${query}`);
   const restore = (agent: Agent, pageId: string) => agent.post(`/api/pages/${pageId}/restore`);
+  const restoreConflictSchema = () => {
+    const route = (apiContract.pages as Record<string, unknown>).restore as
+      { responses?: Record<number, unknown> } | undefined;
+    const schema = route?.responses?.[409];
+    if (!(schema instanceof z.ZodType)) throw new Error('Missing restore 409 Zod contract');
+    return schema;
+  };
   const error = (body: unknown, code: string) => {
     expect([
       ['code', 'message'],
       ['code', 'details', 'message'],
     ]).toContainEqual(Object.keys(body as object).sort());
     expect(apiErrorSchema.parse(body).code).toBe(code);
+  };
+  const conflict = (body: unknown, blockedBy?: { id: string; title: string }) => {
+    restoreConflictSchema().parse(body);
+    expect(Object.keys(body as object).sort()).toEqual(
+      blockedBy ? ['code', 'details', 'message'] : ['code', 'message'],
+    );
+    expect((body as { code: unknown }).code).toBe('CONFLICT');
+    expect(typeof (body as { message: unknown }).message).toBe('string');
+    if (blockedBy) {
+      const details = (body as { details: { blockedBy: unknown } }).details;
+      expect(Object.keys(details)).toEqual(['blockedBy']);
+      expect(Object.keys(details.blockedBy as object).sort()).toEqual(['id', 'title']);
+      expect(details.blockedBy).toEqual(blockedBy);
+      expect((details.blockedBy as { id: string }).id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+      expect(typeof (details.blockedBy as { title: string }).title).toBe('string');
+    }
+  };
+  // 401/403/404 и `409` без `details` несут обезличенное тело: даже `message`
+  // не должен раскрывать метаданные предка (title/id/чужой проект).
+  const noLeak = (body: unknown, ...tokens: string[]) => {
+    const serialized = JSON.stringify(body);
+    for (const token of tokens) expect(serialized).not.toContain(token);
   };
 
   function trash(body: unknown): {
@@ -274,6 +307,30 @@ describe('Page trash (e2e)', () => {
   });
 
   describe('POST /api/pages/:pageId/restore', () => {
+    it('validates restore conflicts with the route-specific shared 409 schema', () => {
+      const schema = restoreConflictSchema();
+      const generic = { code: 'CONFLICT', message: 'Cannot restore' };
+      const blockedBy = { id: randomUUID(), title: 'Deleted ancestor' };
+      expect(schema.safeParse(generic).success).toBe(true);
+      expect(schema.safeParse({ ...generic, details: { blockedBy } }).success).toBe(true);
+      for (const details of [
+        {},
+        null,
+        { blockedBy: { id: blockedBy.id } },
+        { blockedBy: { title: blockedBy.title } },
+        { blockedBy: { ...blockedBy, id: 'not-a-uuid' } },
+        // Строгая схема: варианта `reason` нет; лишние поля отвергаются и в
+        // `details`, и внутри `blockedBy`.
+        { reason: 'ancestor deleted' },
+        { blockedBy, reason: 'ancestor deleted' },
+        { blockedBy: { ...blockedBy, reason: 'ancestor deleted' } },
+      ]) {
+        expect(schema.safeParse({ ...generic, details }).success).toBe(false);
+      }
+      // `reason` не принимается и на корне ответа, а не только внутри `details`.
+      expect(schema.safeParse({ ...generic, reason: 'ancestor deleted' }).success).toBe(false);
+    });
+
     it('checks auth, deleted-aware existence, live project and editor access', async () => {
       const owner = await user('restore-owner@example.com');
       const viewer = await user('restore-viewer@example.com');
@@ -282,16 +339,30 @@ describe('Page trash (e2e)', () => {
         { userId: owner.userId, role: 'owner' },
         { userId: viewer.userId, role: 'viewer' },
       ]);
-      const deleted = await page({ projectId: id, deletedAt: new Date() });
+      const ancestorTitle = `SENTINEL-ANCESTOR-${randomUUID()}`;
+      const ancestor = await page({ projectId: id, title: ancestorTitle, deletedAt: new Date() });
+      const deleted = await page({ projectId: id, parentId: ancestor, deletedAt: new Date() });
       const alive = await page({ projectId: id });
-      error(
-        (await request(server).post(`/api/pages/${deleted}/restore`).expect(401)).body,
-        'UNAUTHORIZED',
-      );
-      error((await restore(owner.agent, MISSING_ID).expect(404)).body, 'NOT_FOUND');
-      error((await restore(owner.agent, alive).expect(404)).body, 'NOT_FOUND');
-      error((await restore(viewer.agent, deleted).expect(403)).body, 'FORBIDDEN');
-      error((await restore(outsider.agent, deleted).expect(403)).body, 'FORBIDDEN');
+      const unauthenticated: unknown = (
+        await request(server).post(`/api/pages/${deleted}/restore`).expect(401)
+      ).body;
+      error(unauthenticated, 'UNAUTHORIZED');
+      expect(Object.keys(unauthenticated as object).sort()).toEqual(['code', 'message']);
+      noLeak(unauthenticated, ancestorTitle, ancestor);
+      for (const pageId of [MISSING_ID, alive]) {
+        const notFound: unknown = (await restore(owner.agent, pageId).expect(404)).body;
+        error(notFound, 'NOT_FOUND');
+        expect(Object.keys(notFound as object).sort()).toEqual(['code', 'message']);
+        noLeak(notFound, ancestorTitle, ancestor);
+      }
+      const viewerDenied: unknown = (await restore(viewer.agent, deleted).expect(403)).body;
+      const outsiderDenied: unknown = (await restore(outsider.agent, deleted).expect(403)).body;
+      error(viewerDenied, 'FORBIDDEN');
+      error(outsiderDenied, 'FORBIDDEN');
+      expect(Object.keys(viewerDenied as object).sort()).toEqual(['code', 'message']);
+      expect(Object.keys(outsiderDenied as object).sort()).toEqual(['code', 'message']);
+      noLeak(viewerDenied, ancestorTitle, ancestor);
+      noLeak(outsiderDenied, ancestorTitle, ancestor);
       const otherProject = await project([{ userId: outsider.userId, role: 'editor' }]);
       expect(otherProject).not.toBe(id);
       error((await restore(outsider.agent, deleted).expect(403)).body, 'FORBIDDEN');
@@ -299,8 +370,20 @@ describe('Page trash (e2e)', () => {
         (await prisma.page.findUniqueOrThrow({ where: { id: deleted } })).deletedAt,
       ).not.toBeNull();
       const removed = await project([{ userId: owner.userId, role: 'owner' }], true);
-      const inRemoved = await page({ projectId: removed, deletedAt: new Date() });
-      error((await restore(owner.agent, inRemoved).expect(404)).body, 'NOT_FOUND');
+      const removedAncestor = await page({
+        projectId: removed,
+        title: ancestorTitle,
+        deletedAt: new Date(),
+      });
+      const inRemoved = await page({
+        projectId: removed,
+        parentId: removedAncestor,
+        deletedAt: new Date(),
+      });
+      const removedDenied: unknown = (await restore(owner.agent, inRemoved).expect(404)).body;
+      error(removedDenied, 'NOT_FOUND');
+      expect(Object.keys(removedDenied as object).sort()).toEqual(['code', 'message']);
+      noLeak(removedDenied, ancestorTitle, removedAncestor, removed);
     });
 
     it('allows an owner to restore a deleted page', async () => {
@@ -401,14 +484,27 @@ describe('Page trash (e2e)', () => {
       error((await restore(agent, target).expect(404)).body, 'NOT_FOUND');
     });
 
-    it('appends a root page and refuses deleted ancestors without changing the target', async () => {
+    it('suggests only the rootmost deleted ancestor and restores each step explicitly', async () => {
       const { agent, userId } = await user('restore-ancestor@example.com');
       const id = await project([{ userId, role: 'editor' }]);
       const root = await page({ projectId: id, position: 0 });
-      const removedRoot = await page({ projectId: id, position: 0, deletedAt: new Date() });
-      const child = await page({ projectId: id, parentId: removedRoot, deletedAt: new Date() });
+      const removedRoot = await page({
+        projectId: id,
+        title: 'Root to restore',
+        position: 0,
+        deletedAt: new Date(),
+      });
+      const child = await page({
+        projectId: id,
+        parentId: removedRoot,
+        title: 'Middle',
+        deletedAt: new Date(),
+      });
       const grandchild = await page({ projectId: id, parentId: child, deletedAt: new Date() });
-      error((await restore(agent, grandchild).expect(409)).body, 'CONFLICT');
+      conflict((await restore(agent, grandchild).expect(409)).body, {
+        id: removedRoot,
+        title: 'Root to restore',
+      });
       expect(
         (await prisma.page.findUniqueOrThrow({ where: { id: grandchild } })).deletedAt,
       ).not.toBeNull();
@@ -420,6 +516,10 @@ describe('Page trash (e2e)', () => {
       expect(
         (await prisma.page.findUniqueOrThrow({ where: { id: child } })).deletedAt,
       ).not.toBeNull();
+      conflict((await restore(agent, grandchild).expect(409)).body, {
+        id: child,
+        title: 'Middle',
+      });
       expect(
         pageResponseSchema.parse((await restore(agent, child).expect(200)).body).page,
       ).toMatchObject({
@@ -428,6 +528,37 @@ describe('Page trash (e2e)', () => {
       });
       expect(
         (await prisma.page.findUniqueOrThrow({ where: { id: grandchild } })).deletedAt,
+      ).not.toBeNull();
+      await restore(agent, grandchild).expect(200);
+      expect(
+        (await prisma.page.findUniqueOrThrow({ where: { id: grandchild } })).deletedAt,
+      ).toBeNull();
+    });
+
+    it('identifies the rootmost deleted ancestor outside the first trash page', async () => {
+      const { agent, userId } = await user('restore-off-page@example.com');
+      const id = await project([{ userId, role: 'editor' }]);
+      const root = await page({
+        projectId: id,
+        title: 'Older root',
+        deletedAt: new Date('2026-01-01'),
+      });
+      const middle = await page({
+        projectId: id,
+        parentId: root,
+        deletedAt: new Date('2026-01-02'),
+      });
+      const target = await page({
+        projectId: id,
+        parentId: middle,
+        deletedAt: new Date('2026-01-03'),
+      });
+      const first = trash((await list(agent, id, '?limit=1').expect(200)).body);
+      expect(first.pages.map((item) => item.id)).toEqual([target]);
+      expect(first.nextCursor).toEqual(expect.any(String));
+      conflict((await restore(agent, target).expect(409)).body, { id: root, title: 'Older root' });
+      expect(
+        (await prisma.page.findUniqueOrThrow({ where: { id: target } })).deletedAt,
       ).not.toBeNull();
     });
 
@@ -439,10 +570,107 @@ describe('Page trash (e2e)', () => {
       let ancestor: string | null = null;
       for (let i = 0; i < 9; i += 1) ancestor = await page({ projectId: id, parentId: ancestor });
       await agent.patch(`/api/pages/${parent}`).send({ parentId: ancestor }).expect(200);
-      error((await restore(agent, target).expect(409)).body, 'CONFLICT');
+      conflict((await restore(agent, target).expect(409)).body);
       expect(
         (await prisma.page.findUniqueOrThrow({ where: { id: target } })).deletedAt,
       ).not.toBeNull();
+    });
+
+    it('suggests a deleted ancestor before depth, but that ancestor can fail its own depth check', async () => {
+      const { agent, userId } = await user('restore-ancestor-depth@example.com');
+      const id = await project([{ userId, role: 'editor' }]);
+      let parent: string | null = null;
+      for (let i = 0; i < 10; i += 1) parent = await page({ projectId: id, parentId: parent });
+      const blocked = await page({
+        projectId: id,
+        parentId: parent,
+        title: 'Depth eleven',
+        deletedAt: new Date(),
+      });
+      const target = await page({ projectId: id, parentId: blocked, deletedAt: new Date() });
+      conflict((await restore(agent, target).expect(409)).body, {
+        id: blocked,
+        title: 'Depth eleven',
+      });
+      conflict((await restore(agent, blocked).expect(409)).body);
+      expect(
+        (await prisma.page.findUniqueOrThrow({ where: { id: target } })).deletedAt,
+      ).not.toBeNull();
+      expect(
+        (await prisma.page.findUniqueOrThrow({ where: { id: blocked } })).deletedAt,
+      ).not.toBeNull();
+    });
+
+    it.each(['cross-project', 'self-cycle', 'ancestor-cycle'] as const)(
+      'rejects a %s ancestry without leaking details or hanging',
+      async (kind) => {
+        const { agent, userId } = await user(`restore-${kind}@example.com`);
+        const id = await project([{ userId, role: 'editor' }]);
+        const sentinel = `SENTINEL-ANCESTOR-${randomUUID()}`;
+        const target = await page({ projectId: id, deletedAt: new Date() });
+        let parentId: string;
+        if (kind === 'self-cycle') {
+          parentId = target;
+        } else if (kind === 'ancestor-cycle') {
+          // Цикл выше цели (target → a → b → a): сама цель в цикл не входит,
+          // поэтому `blockedBy` не должен называть предка из цикла.
+          const b = await page({ projectId: id, title: sentinel, deletedAt: new Date() });
+          const a = await page({
+            projectId: id,
+            parentId: b,
+            title: sentinel,
+            deletedAt: new Date(),
+          });
+          await prisma.page.update({ where: { id: b }, data: { parentId: a } });
+          parentId = a;
+        } else {
+          const foreign = await project([{ userId, role: 'editor' }]);
+          parentId = await page({ projectId: foreign, title: sentinel });
+        }
+        await prisma.page.update({ where: { id: target }, data: { parentId } });
+        const body: unknown = (await restore(agent, target).timeout({ deadline: 3000 }).expect(409))
+          .body;
+        conflict(body);
+        noLeak(body, sentinel);
+        expect(
+          (await prisma.page.findUniqueOrThrow({ where: { id: target } })).deletedAt,
+        ).not.toBeNull();
+      },
+    );
+
+    it('rejects a foreign-project ancestor the caller cannot access without disclosing its title or id', async () => {
+      const { agent, userId } = await user('restore-foreign-denied@example.com');
+      const stranger = await user('restore-foreign-owner@example.com');
+      const id = await project([{ userId, role: 'editor' }]);
+      const foreign = await project([{ userId: stranger.userId, role: 'owner' }]);
+      const sentinel = `SENTINEL-ANCESTOR-${randomUUID()}`;
+      const ancestor = await page({ projectId: foreign, title: sentinel });
+      const target = await page({ projectId: id, parentId: ancestor, deletedAt: new Date() });
+
+      const body: unknown = (await restore(agent, target).timeout({ deadline: 3000 }).expect(409))
+        .body;
+      conflict(body);
+      noLeak(body, sentinel, ancestor, foreign);
+      expect(
+        (await prisma.page.findUniqueOrThrow({ where: { id: target } })).deletedAt,
+      ).not.toBeNull();
+    });
+
+    it('does not suggest a deleted ancestor if a foreign-project link is above it', async () => {
+      const { agent, userId } = await user('restore-mixed-chain@example.com');
+      const id = await project([{ userId, role: 'editor' }]);
+      const other = await project([{ userId, role: 'editor' }]);
+      const foreign = await page({ projectId: other });
+      const ancestor = await page({ projectId: id, deletedAt: new Date() });
+      const target = await page({ projectId: id, parentId: ancestor, deletedAt: new Date() });
+      await prisma.page.update({ where: { id: ancestor }, data: { parentId: foreign } });
+
+      conflict((await restore(agent, target).timeout({ deadline: 3000 }).expect(409)).body);
+      const rows = await prisma.page.findMany({ where: { id: { in: [ancestor, target] } } });
+      expect(rows).toHaveLength(2);
+      expect(rows.every((row) => row.deletedAt !== null)).toBe(true);
+      expect(rows.find((row) => row.id === ancestor)?.parentId).toBe(foreign);
+      expect(rows.find((row) => row.id === target)?.parentId).toBe(ancestor);
     });
 
     it('rechecks revoked membership after revocation commits', async () => {
