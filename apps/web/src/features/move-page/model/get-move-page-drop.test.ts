@@ -11,6 +11,7 @@ function page(id: string, parentId: string | null = null, position = 0): Page {
     title: id,
     content: [],
     position,
+    currentUserRole: 'owner',
     createdAt: '2026-09-14T00:00:00.000Z',
     updatedAt: '2026-09-14T00:00:00.000Z',
   };

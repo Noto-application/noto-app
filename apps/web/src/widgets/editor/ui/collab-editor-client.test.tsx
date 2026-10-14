@@ -4,7 +4,10 @@ import type { EventEmitter } from 'node:events';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { providers } = vi.hoisted(() => ({ providers: [] as EventEmitter[] }));
+const { providers, blockNoteViewProps } = vi.hoisted(() => ({
+  providers: [] as EventEmitter[],
+  blockNoteViewProps: vi.fn<(props: { editable: boolean }) => void>(),
+}));
 
 vi.mock('@hocuspocus/provider', async () => {
   const { EventEmitter } = await import('node:events');
@@ -25,7 +28,12 @@ vi.mock('@hocuspocus/provider', async () => {
 
 vi.mock('@blocknote/core/yjs', () => ({ withCollaboration: vi.fn() }));
 vi.mock('@blocknote/react', () => ({ useCreateBlockNote: () => ({}) }));
-vi.mock('@blocknote/mantine', () => ({ BlockNoteView: () => null }));
+vi.mock('@blocknote/mantine', () => ({
+  BlockNoteView: (props: { editable: boolean }) => {
+    blockNoteViewProps(props);
+    return null;
+  },
+}));
 vi.mock('@/src/entities/user', () => ({ useCurrentUser: () => ({ data: undefined }) }));
 
 import { CollabEditorClient } from './collab-editor-client';
@@ -33,6 +41,7 @@ import { CollabEditorClient } from './collab-editor-client';
 afterEach(() => {
   cleanup();
   providers.length = 0;
+  blockNoteViewProps.mockClear();
 });
 
 function attemptUnload() {
@@ -41,15 +50,22 @@ function attemptUnload() {
   return event.defaultPrevented;
 }
 
-function renderSyncedEditor() {
-  const view = render(<CollabEditorClient pageId="00000000-0000-4000-8000-000000000001" />);
+function renderSyncedEditor(currentUserRole: 'owner' | 'editor' | 'viewer' = 'owner') {
+  const view = render(
+    <CollabEditorClient
+      pageId="00000000-0000-4000-8000-000000000001"
+      currentUserRole={currentUserRole}
+    />,
+  );
   const provider = providers[0];
   act(() => {
     provider.emit('status', { status: 'connected' });
     provider.emit('synced', { state: true });
     provider.emit('unsyncedChanges', 0);
   });
-  expect(screen.queryByRole('status', { name: 'Collaboration connection' })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('status', { name: 'Collaboration connection' }),
+  ).not.toBeInTheDocument();
   return { ...view, provider };
 }
 
@@ -62,7 +78,9 @@ describe('CollabEditorClient: предупреждение при закрыти
       provider.emit('unsyncedChanges', 1);
     });
     // Соединение остаётся исправным: статус не заменяет подтверждение правки.
-    expect(screen.queryByRole('status', { name: 'Collaboration connection' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('status', { name: 'Collaboration connection' }),
+    ).not.toBeInTheDocument();
     expect(attemptUnload()).toBe(true);
 
     act(() => {
@@ -82,5 +100,37 @@ describe('CollabEditorClient: предупреждение при закрыти
 
     expect(attemptUnload()).toBe(false);
     expect(provider.eventNames()).toEqual([]);
+  });
+
+  it('оставляет viewer read-only до и после синхронизации', () => {
+    const view = render(
+      <CollabEditorClient pageId="00000000-0000-4000-8000-000000000001" currentUserRole="viewer" />,
+    );
+    const provider = providers[0];
+
+    expect(blockNoteViewProps.mock.calls.at(-1)?.[0].editable).toBe(false);
+
+    act(() => {
+      provider.emit('status', { status: 'connected' });
+      provider.emit('synced', { state: true });
+    });
+
+    expect(blockNoteViewProps.mock.calls.at(-1)?.[0].editable).toBe(false);
+    view.unmount();
+  });
+
+  it('разрешает editor редактировать только после синхронизации', () => {
+    const view = render(
+      <CollabEditorClient pageId="00000000-0000-4000-8000-000000000001" currentUserRole="editor" />,
+    );
+    const provider = providers[0];
+
+    expect(blockNoteViewProps.mock.calls.at(-1)?.[0].editable).toBe(false);
+    act(() => {
+      provider.emit('status', { status: 'connected' });
+      provider.emit('synced', { state: true });
+    });
+    expect(blockNoteViewProps.mock.calls.at(-1)?.[0].editable).toBe(true);
+    view.unmount();
   });
 });

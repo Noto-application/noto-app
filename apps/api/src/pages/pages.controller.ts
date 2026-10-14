@@ -1,6 +1,7 @@
 import { Controller, Req, UseGuards } from '@nestjs/common';
 import { TsRestHandler, tsRestHandler } from '@ts-rest/nest';
 import { pagesContract } from '@noto/shared';
+import type { ProjectRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { PageAccessGuard } from '../guards/page-access.guard';
@@ -10,6 +11,8 @@ import { toTsRestException } from '../lib/errors';
 import type { AuthenticatedRequest } from '../types/auth.types';
 import { PagesService } from './pages.service';
 
+type PageRequest = AuthenticatedRequest & { currentUserRole: ProjectRole };
+
 @Controller()
 export class PagesController {
   constructor(private readonly pagesService: PagesService) {}
@@ -17,10 +20,15 @@ export class PagesController {
   @UseGuards(JwtAuthGuard, ProjectAccessGuard)
   @RequireProjectRole('editor')
   @TsRestHandler(pagesContract.create)
-  create(@Req() request: AuthenticatedRequest) {
+  create(@Req() request: PageRequest) {
     return tsRestHandler(pagesContract.create, async ({ params, body }) => {
       try {
-        const page = await this.pagesService.create(params.projectId, request.user.sub, body);
+        const page = await this.pagesService.create(
+          params.projectId,
+          request.user.sub,
+          body,
+          request.currentUserRole,
+        );
         return { status: 201 as const, body: { page } };
       } catch (error) {
         throw toTsRestException(error, pagesContract.create);
@@ -31,10 +39,13 @@ export class PagesController {
   @UseGuards(JwtAuthGuard, ProjectAccessGuard)
   @RequireProjectRole('viewer')
   @TsRestHandler(pagesContract.list)
-  list() {
+  list(@Req() request: PageRequest) {
     return tsRestHandler(pagesContract.list, async ({ params }) => {
       try {
-        const pages = await this.pagesService.listByProject(params.projectId);
+        const pages = await this.pagesService.listByProject(
+          params.projectId,
+          request.currentUserRole,
+        );
         return { status: 200 as const, body: { pages } };
       } catch (error) {
         throw toTsRestException(error, pagesContract.list);
@@ -45,10 +56,10 @@ export class PagesController {
   @UseGuards(JwtAuthGuard, PageAccessGuard)
   @RequireProjectRole('viewer')
   @TsRestHandler(pagesContract.get)
-  get() {
+  get(@Req() request: PageRequest) {
     return tsRestHandler(pagesContract.get, async ({ params }) => {
       try {
-        const page = await this.pagesService.getById(params.pageId);
+        const page = await this.pagesService.getById(params.pageId, request.currentUserRole);
         return { status: 200 as const, body: { page } };
       } catch (error) {
         throw toTsRestException(error, pagesContract.get);
@@ -59,10 +70,10 @@ export class PagesController {
   @UseGuards(JwtAuthGuard, PageAccessGuard)
   @RequireProjectRole('editor')
   @TsRestHandler(pagesContract.update)
-  update() {
+  update(@Req() request: PageRequest) {
     return tsRestHandler(pagesContract.update, async ({ params, body }) => {
       try {
-        const page = await this.pagesService.update(params.pageId, body);
+        const page = await this.pagesService.update(params.pageId, body, request.currentUserRole);
         return { status: 200 as const, body: { page } };
       } catch (error) {
         throw toTsRestException(error, pagesContract.update);

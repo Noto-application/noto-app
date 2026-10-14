@@ -46,7 +46,9 @@ export {
   pageSchema,
   pagesResponseSchema,
   updatePageSchema,
+  userRoleSchema,
   type Page,
+  type UserRole,
 } from './schemas/page';
 export type {
   AuthCredentials,
