@@ -6,6 +6,7 @@ import type {
   CalendarPageResponse,
   CreateCalendarPageInput,
   UpdateCalendarEntryInput,
+  UserRole,
 } from '@noto/shared';
 
 import { ApiErrors } from '../lib/errors';
@@ -41,6 +42,7 @@ export class CalendarService {
     projectId: string,
     userId: string,
     input: CreateCalendarPageInput,
+    currentUserRole: UserRole,
   ): Promise<
     | { created: true; body: CalendarCreatedPageResponse }
     | { created: false; body: CalendarPageResponse }
@@ -49,7 +51,11 @@ export class CalendarService {
       projectId_clientRequestId: { projectId, clientRequestId: input.clientRequestId },
     };
     const existing = await this.prisma.calendarCreateRequest.findUnique({ where: key });
-    if (existing) return { created: false, body: await this.replay(projectId, existing, input) };
+    if (existing)
+      return {
+        created: false,
+        body: await this.replay(projectId, existing, input, currentUserRole),
+      };
 
     // Уникальный ключ остаётся арбитром гонки: проигравший откатывает все три
     // записи и читает уже зафиксированное состояние через replay.
@@ -85,7 +91,7 @@ export class CalendarService {
                 date: input.date,
               },
             });
-            return { page: toPublicPage(page), entry: toEntry(entry) };
+            return { page: toPublicPage(page, currentUserRole), entry: toEntry(entry) };
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
@@ -101,13 +107,19 @@ export class CalendarService {
           ) {
             const winner = await this.prisma.calendarCreateRequest.findUnique({ where: key });
             if (winner)
-              return { created: false, body: await this.replay(projectId, winner, input) };
+              return {
+                created: false,
+                body: await this.replay(projectId, winner, input, currentUserRole),
+              };
           }
           if (error.code === 'P2034') {
             if (attempt < MAX_ATTEMPTS) continue;
             const winner = await this.prisma.calendarCreateRequest.findUnique({ where: key });
             if (winner)
-              return { created: false, body: await this.replay(projectId, winner, input) };
+              return {
+                created: false,
+                body: await this.replay(projectId, winner, input, currentUserRole),
+              };
           }
         }
         throw error;
@@ -119,6 +131,7 @@ export class CalendarService {
     projectId: string,
     request: { pageId: string; title: string; date: string },
     input: CreateCalendarPageInput,
+    currentUserRole: UserRole,
   ): Promise<CalendarPageResponse> {
     const page = await this.prisma.page.findFirst({
       where: { id: request.pageId, projectId, deletedAt: null },
@@ -129,7 +142,7 @@ export class CalendarService {
       throw ApiErrors.conflict('Calendar create payload differs from original request');
     }
     return {
-      page: toPublicPage(page),
+      page: toPublicPage(page, currentUserRole),
       entry: page.calendarEntry ? toEntry({ ...page.calendarEntry, page }) : null,
     };
   }

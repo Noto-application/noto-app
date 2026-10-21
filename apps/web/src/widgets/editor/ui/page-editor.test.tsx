@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Page } from '@/src/entities/page';
 
-type BlockNoteViewStubProps = { onChange?: () => void; editable?: boolean };
+type BlockNoteViewStubProps = { editor?: unknown; onChange?: () => void; editable?: boolean };
 
 const {
   useCreateBlockNote,
@@ -189,10 +189,16 @@ describe('PageEditor', () => {
 
       expect(screen.queryByTestId('collab-editor')).not.toBeInTheDocument();
       expect(usePageAutosave).not.toHaveBeenCalled();
-      expect(blockNoteViewProps.mock.calls.at(-1)?.[0]).toEqual({
-        editor: expect.any(Object),
-        editable: false,
-      });
+      const { editor, editable } = blockNoteViewProps.mock.calls.at(-1)?.[0] ?? {};
+      // Сначала фиксируем, что хук вызван один раз и вернул объект: иначе
+      // проверка идентичности ниже прошла бы вхолостую при undefined === undefined.
+      expect(useCreateBlockNote).toHaveBeenCalledTimes(1);
+      expect(useCreateBlockNote.mock.results.at(-1)?.value).toBeDefined();
+      expect(useCreateBlockNote.mock.results.at(-1)?.value).toEqual(expect.any(Object));
+      // Строгая проверка идентичности: в BlockNoteView уходит ровно тот
+      // экземпляр, который вернул useCreateBlockNote (не просто «какой-то объект»).
+      expect(editor).toBe(useCreateBlockNote.mock.results.at(-1)?.value);
+      expect(editable).toBe(false);
     });
 
     it('viewer подключается к durable collab-странице', () => {
