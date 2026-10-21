@@ -111,6 +111,15 @@ describe('Collab promotion & REST race (e2e)', () => {
     expect(parsePage(response.body).editorMode).toBe('rest');
   });
 
+  it.each(['editor', 'owner', 'viewer'] as const)('%s получают корректную роль в ответе page', async (role) => {
+    const { cookie, userId } = await registerUser(`check-${role}-rest@example.com`);
+    const pageId = await seedPage(userId, { role });
+
+    const response = await getPage(cookie, pageId).expect(200);
+    const page = parsePage(response.body);
+    expect(page.currentUserRole).toBe(role);
+  });
+
   it('authorize пустой rest-страницы промоутит её в collab', async () => {
     const { cookie, userId } = await registerUser('pr-promote@example.com');
     const pageId = await seedPage(userId);
@@ -145,6 +154,8 @@ describe('Collab promotion & REST race (e2e)', () => {
     expect(page.editorMode).toBe('collab');
     expect(page.content).toEqual([]);
   });
+
+
 
   it('authorize rest-страницы с контентом отклоняет collab (409), режим не меняется', async () => {
     const { cookie, userId } = await registerUser('pr-hascontent@example.com');
