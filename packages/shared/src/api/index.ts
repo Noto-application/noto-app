@@ -1,7 +1,7 @@
 export { apiContract, type ApiContract } from './contract';
 export { authContract } from './contract/auth';
 export { calendarContract } from './contract/calendar';
-export { pagesContract } from './contract/pages';
+export { pagesContract, restoreConflictSchema } from './contract/pages';
 export { projectsContract } from './contract/projects';
 export { usersContract } from './contract/users';
 export { apiErrorCodeSchema, apiErrorSchema, type ApiError, type ApiErrorCode } from './errors';
@@ -42,6 +42,9 @@ export {
   pageSchema,
   pageTitleSchema,
   pagesResponseSchema,
+  trashPageSchema,
+  trashQuerySchema,
+  trashResponseSchema,
   updatePageSchema,
   userRoleSchema,
   type Page,

@@ -4,6 +4,7 @@ import { pagesContract } from '@noto/shared';
 import type { ProjectRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { DeletedPageAccessGuard } from '../guards/deleted-page-access.guard';
 import { PageAccessGuard } from '../guards/page-access.guard';
 import { ProjectAccessGuard } from '../guards/project-access.guard';
 import { RequireProjectRole } from '../guards/require-project-role.decorator';
@@ -16,6 +17,34 @@ type PageRequest = AuthenticatedRequest & { currentUserRole: ProjectRole };
 @Controller()
 export class PagesController {
   constructor(private readonly pagesService: PagesService) {}
+
+  @UseGuards(JwtAuthGuard, ProjectAccessGuard)
+  @RequireProjectRole('viewer')
+  @TsRestHandler(pagesContract.trash)
+  trash() {
+    return tsRestHandler(pagesContract.trash, async ({ params, query }) => {
+      try {
+        const body = await this.pagesService.listTrash(params.projectId, query);
+        return { status: 200 as const, body };
+      } catch (error) {
+        throw toTsRestException(error, pagesContract.trash);
+      }
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, DeletedPageAccessGuard)
+  @RequireProjectRole('editor')
+  @TsRestHandler(pagesContract.restore)
+  restore(@Req() request: AuthenticatedRequest) {
+    return tsRestHandler(pagesContract.restore, async ({ params }) => {
+      try {
+        const page = await this.pagesService.restore(params.pageId, request.user.sub);
+        return { status: 200 as const, body: { page } };
+      } catch (error) {
+        throw toTsRestException(error, pagesContract.restore);
+      }
+    });
+  }
 
   @UseGuards(JwtAuthGuard, ProjectAccessGuard)
   @RequireProjectRole('editor')
