@@ -1,7 +1,7 @@
 /**
  * Конфиг collab-сервиса (#108). Валидируется при загрузке: пустой/отсутствующий
  * COLLAB_SHARED_SECRET запрещает старт (а не падает на первом WS-коннекте).
- * Контракт — docs/specs/108-collab-auth.spec.md.
+ * Контракт — apps/collab/src/auth/collab-auth.spec.md.
  */
 
 export interface CollabConfig {

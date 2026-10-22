@@ -2,7 +2,7 @@ import { loadCollabConfig } from './collab-env';
 
 /**
  * Unit конфига collab — test-first (ADR-013), контракт из
- * docs/specs/108-collab-auth.spec.md.
+ * apps/collab/src/auth/collab-auth.spec.md.
  *
  * Пустой/отсутствующий COLLAB_SHARED_SECRET запрещает старт: валидация падает
  * при загрузке конфига, а не на первом WS-коннекте. Красные до реализации.

@@ -27,6 +27,7 @@ function updatedResponse(title: Page['title']) {
         title,
         content: [],
         position: 0,
+        currentUserRole: 'owner',
         createdAt: '2026-08-25T00:00:00.000Z',
         updatedAt: '2026-08-25T00:00:00.000Z',
       },

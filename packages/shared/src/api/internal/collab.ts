@@ -14,6 +14,8 @@ export const collabAuthorizeBodySchema = z.object({
 export const collabAuthorizeResponseSchema = z.object({
   allowed: z.literal(true),
   userId: z.string().min(1),
+  role: z.enum(['owner', 'editor', 'viewer']),
+  canWrite: z.boolean(),
 });
 
 /** Параметр пути документа (documentName = pageId). */

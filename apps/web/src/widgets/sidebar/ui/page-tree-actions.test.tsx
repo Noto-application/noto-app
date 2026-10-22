@@ -99,6 +99,7 @@ function page(id: string, title: string, parentId: string | null = null): Page {
     projectId: 'project-1',
     position: 0,
     content: [],
+    currentUserRole: 'owner',
     createdAt: '2026-09-22T00:00:00.000Z',
     updatedAt: '2026-09-22T00:00:00.000Z',
   };

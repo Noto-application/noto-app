@@ -377,6 +377,8 @@ describe('Calendar (e2e)', () => {
       expect(page.title).toBe('Scheduled');
       expect(page.projectId).toBe(projectId);
       expect(page.parentId).toBeNull();
+      // Роль в DTO — фактическое членство вызывающего (#149), не константа.
+      expect(page.currentUserRole).toBe('editor');
       expect(entry).toMatchObject({
         pageId: page.id,
         projectId,
@@ -394,7 +396,9 @@ describe('Calendar (e2e)', () => {
         date: D1,
         clientRequestId: randomUUID(),
       }).expect(201);
-      expect(parseCalendarPage(response.body).entry?.date).toBe(D1);
+      const { page, entry } = parseCalendarPage(response.body);
+      expect(page.currentUserRole).toBe('owner');
+      expect(entry?.date).toBe(D1);
     });
 
     it('viewer → 403', async () => {
@@ -578,6 +582,7 @@ describe('Calendar (e2e)', () => {
       const replay = await createCalendarPage(agent, projectId, body).expect(200);
       const replayed = parseCalendarPage(replay.body);
       expect(replayed.page.id).toBe(firstPage.id);
+      expect(replayed.page.currentUserRole).toBe('editor');
       expect(replayed.entry).toMatchObject({ pageId: firstPage.id, date: D1 });
 
       const listed = await listEntries(agent, projectId, RANGE_FROM, RANGE_TO).expect(200);
@@ -686,6 +691,31 @@ describe('Calendar (e2e)', () => {
 
       const replay = await createCalendarPage(secondEditor, projectId, body).expect(200);
       expect(parseCalendarPage(replay.body).page.id).toBe(pageId);
+    });
+
+    it('replay другим участником возвращает его роль, а не роль автора исходного create', async () => {
+      const { userId: ownerId, agent: owner } = await registerUser(
+        'c-create-replay-role-owner@example.com',
+      );
+      const { userId: editorId, agent: editor } = await registerUser(
+        'c-create-replay-role-editor@example.com',
+      );
+      const projectId = await seedProject([
+        { userId: ownerId, role: 'owner' },
+        { userId: editorId, role: 'editor' },
+      ]);
+      const clientRequestId = randomUUID();
+      const body = { title: 'Caller role', date: D1, clientRequestId };
+
+      const created = await createCalendarPage(owner, projectId, body).expect(201);
+      const createdPage = parseCalendarPage(created.body).page;
+      expect(createdPage.currentUserRole).toBe('owner');
+
+      const replay = await createCalendarPage(editor, projectId, body).expect(200);
+      const replayed = parseCalendarPage(replay.body);
+      expect(replayed.page.id).toBe(createdPage.id);
+      // currentUserRole — проекция вызывающего: editor не должен увидеть owner.
+      expect(replayed.page.currentUserRole).toBe('editor');
     });
 
     it('тот же ключ, изменился только title (date тот же) → 409 CONFLICT', async () => {

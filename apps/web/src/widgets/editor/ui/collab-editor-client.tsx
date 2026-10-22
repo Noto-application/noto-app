@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import * as Y from 'yjs';
 
 import { useCurrentUser } from '@/src/entities/user';
+import type { Page } from '@/src/entities/page';
 import { buildCollabUrl } from '../lib/collab-url';
 import { deriveCollabUser, type CollabUser } from '../lib/collab-user';
 import { toSyncStatus, type CollabSyncStatus } from '../model/collab-sync-status';
@@ -20,6 +21,7 @@ const FALLBACK_COLLAB_USER: CollabUser = { name: 'Аноним', color: '#6b7280
 
 type CollabEditorClientProps = {
   pageId: string;
+  currentUserRole?: Page['currentUserRole'];
 };
 
 type Connection = {
@@ -32,7 +34,7 @@ type Connection = {
  * `next/dynamic`, ssr:false), поэтому `window` безопасен. Контент идёт только
  * через Yjs (ADR-005) — REST-автосейв не подключаем.
  */
-export function CollabEditorClient({ pageId }: CollabEditorClientProps) {
+export function CollabEditorClient({ pageId, currentUserRole }: CollabEditorClientProps) {
   const { data: user } = useCurrentUser();
   const [connection, setConnection] = useState<Connection | null>(null);
   const [status, setStatus] = useState<CollabSyncStatus>('connecting');
@@ -134,7 +136,7 @@ export function CollabEditorClient({ pageId }: CollabEditorClientProps) {
       user={user ? deriveCollabUser(user) : FALLBACK_COLLAB_USER}
       status={status}
       hasUnsyncedChanges={hasUnsyncedChanges}
-      editable={hasSynced}
+      editable={hasSynced && (currentUserRole === 'owner' || currentUserRole === 'editor')}
     />
   );
 }
@@ -154,7 +156,14 @@ type BoundEditorProps = {
  * разрешаем лишь после первого синка (`editable`); офлайн-правки после успешного
  * подключения остаются доступны.
  */
-function BoundEditor({ doc, provider, user, status, editable, hasUnsyncedChanges }: BoundEditorProps) {
+function BoundEditor({
+  doc,
+  provider,
+  user,
+  status,
+  editable,
+  hasUnsyncedChanges,
+}: BoundEditorProps) {
   const editor = useCreateBlockNote(
     withCollaboration({
       collaboration: {

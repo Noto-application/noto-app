@@ -32,6 +32,10 @@ export const pageContentSchema = z
 export const editorModeSchema = z.enum(['rest', 'collab']);
 export type EditorMode = z.infer<typeof editorModeSchema>;
 
+/** Роль пользователя для страницы (#149): наследуется из проекта. */
+export const userRoleSchema = z.enum(['owner', 'editor', 'viewer']);
+export type UserRole = z.infer<typeof userRoleSchema>;
+
 /** Публичное представление страницы (без deletedAt и внутренних полей). */
 export const pageSchema = z.object({
   id: z.string(),
@@ -43,6 +47,8 @@ export const pageSchema = z.object({
   // Режим редактора (#109). Optional до реализации #109; после — сервер всегда
   // отдаёт поле (detail и list), фронт #110 выбирает режим по нему.
   editorMode: editorModeSchema.optional(),
+  // Роль пользователя (#149), наследуемая от проекта.
+  currentUserRole: userRoleSchema,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

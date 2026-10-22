@@ -5,6 +5,7 @@ import { createCollabAuthApi } from './collab-auth-api';
 import { createCollabPersistenceApi } from './collab-persistence-api';
 import { createCollabPersistenceHooks } from './collab-persistence-hooks';
 import { loadCollabConfig } from './config/collab-env';
+import { applyHocuspocusReadOnly } from './auth/hocuspocus-access';
 
 /**
  * Hocuspocus-сервер collaborative editing (#108). На хендшейке (`onAuthenticate`)
@@ -32,7 +33,7 @@ const persistenceHooks = createCollabPersistenceHooks({
 
 const server = new Hocuspocus({
   port: config.port,
-  async onAuthenticate({ documentName, requestHeaders }) {
+  async onAuthenticate({ documentName, requestHeaders, connection }) {
     const result = await authorizeConnection(
       {
         origin: requestHeaders.origin,
@@ -54,7 +55,8 @@ const server = new Hocuspocus({
       // безопасность держится на отказе в доступе к контенту, не на закрытии сокета.
       throw new Error('Unauthorized');
     }
-
+    
+    applyHocuspocusReadOnly(connection, result.readOnly);
     // Контекст соединения — для будущих хуков (persistence/roles).
     return { userId: result.userId };
   },

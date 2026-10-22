@@ -1,6 +1,7 @@
 import { Controller, Req, UseGuards } from '@nestjs/common';
 import { TsRestHandler, tsRestHandler } from '@ts-rest/nest';
 import { calendarContract } from '@noto/shared';
+import type { ProjectRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { ProjectAccessGuard } from '../guards/project-access.guard';
@@ -8,6 +9,8 @@ import { RequireProjectRole } from '../guards/require-project-role.decorator';
 import { toTsRestException } from '../lib/errors';
 import type { AuthenticatedRequest } from '../types/auth.types';
 import { CalendarService } from './calendar.service';
+
+type CalendarRequest = AuthenticatedRequest & { currentUserRole: ProjectRole };
 
 @Controller()
 export class CalendarController {
@@ -30,10 +33,15 @@ export class CalendarController {
   @UseGuards(JwtAuthGuard, ProjectAccessGuard)
   @RequireProjectRole('editor')
   @TsRestHandler(calendarContract.create)
-  create(@Req() request: AuthenticatedRequest) {
+  create(@Req() request: CalendarRequest) {
     return tsRestHandler(calendarContract.create, async ({ params, body }) => {
       try {
-        const result = await this.calendarService.create(params.projectId, request.user.sub, body);
+        const result = await this.calendarService.create(
+          params.projectId,
+          request.user.sub,
+          body,
+          request.currentUserRole,
+        );
         return result.created
           ? { status: 201 as const, body: result.body }
           : { status: 200 as const, body: result.body };

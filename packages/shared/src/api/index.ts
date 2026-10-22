@@ -43,7 +43,9 @@ export {
   pageTitleSchema,
   pagesResponseSchema,
   updatePageSchema,
+  userRoleSchema,
   type Page,
+  type UserRole,
 } from './schemas/page';
 export {
   CALENDAR_RANGE_MAX_DAYS,
