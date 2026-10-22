@@ -13,3 +13,7 @@ export function hasMinimumProjectRole(
 ): boolean {
   return PROJECT_ROLE_RANK[userRole] >= PROJECT_ROLE_RANK[requiredRole];
 }
+
+export function canWrite(role: ProjectRole): boolean {
+  return hasMinimumProjectRole(role, 'editor');
+}

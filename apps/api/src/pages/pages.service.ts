@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import type { CreatePageInput, Page, UpdatePageInput } from '@noto/shared';
+import type { CreatePageInput, Page, UpdatePageInput, UserRole } from '@noto/shared';
 
 import { hasMinimumProjectRole } from '../guards/project-role.utils';
 import { ApiErrors, ApiException } from '../lib/errors';
@@ -16,7 +16,12 @@ const trashCursorSchema = z.object({ deletedAt: z.iso.datetime(), id: z.uuid() }
 export class PagesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(projectId: string, userId: string, input: CreatePageInput): Promise<Page> {
+  async create(
+    projectId: string,
+    userId: string,
+    input: CreatePageInput,
+    currentUserRole: UserRole,
+  ): Promise<Page> {
     const page = await this.runInSerializableTx(async (tx) => {
       const parentId = await this.resolveParentId(tx, projectId, input.parentId);
       const position = input.position ?? (await this.nextPosition(tx, projectId, parentId));
@@ -35,7 +40,7 @@ export class PagesService {
       });
     });
 
-    return toPublicPage(page);
+    return toPublicPage(page, currentUserRole);
   }
 
   /**
@@ -66,7 +71,7 @@ export class PagesService {
     }
   }
 
-  async listByProject(projectId: string): Promise<Page[]> {
+  async listByProject(projectId: string, currentUserRole: UserRole): Promise<Page[]> {
     const pages = await this.prisma.page.findMany({
       where: { projectId, deletedAt: null },
       // Вторичный ключ createdAt — детерминизм при равных position (например у
@@ -74,7 +79,7 @@ export class PagesService {
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
     });
 
-    return pages.map(toPublicPage);
+    return pages.map((page) => toPublicPage(page, currentUserRole));
   }
 
   async listTrash(
@@ -193,12 +198,12 @@ export class PagesService {
         where: { id },
         data: { deletedAt: null, position },
       });
-      return toPublicPage(restored);
+      return toPublicPage(restored, member.role);
     });
   }
 
   /** Одна живая страница по id. Доступ уже проверил PageAccessGuard. */
-  async getById(id: string): Promise<Page> {
+  async getById(id: string, currentUserRole: UserRole): Promise<Page> {
     const page = await this.prisma.page.findFirst({
       where: { id, deletedAt: null },
     });
@@ -207,7 +212,7 @@ export class PagesService {
       throw ApiErrors.notFound('Page not found');
     }
 
-    return toPublicPage(page);
+    return toPublicPage(page, currentUserRole);
   }
 
   /**
@@ -217,14 +222,14 @@ export class PagesService {
    * пройти проверку и создать цикл (гонка между проверкой и записью).
    * Доступ уже проверил PageAccessGuard.
    */
-  async update(id: string, input: UpdatePageInput): Promise<Page> {
+  async update(id: string, input: UpdatePageInput, currentUserRole: UserRole): Promise<Page> {
     const isMove = input.parentId !== undefined || input.position !== undefined;
 
     if (!isMove) {
-      return this.applyContentUpdate(id, input);
+      return this.applyContentUpdate(id, input, currentUserRole);
     }
 
-    return this.runInSerializableTx((tx) => this.moveInTree(tx, id, input));
+    return this.runInSerializableTx((tx) => this.moveInTree(tx, id, input, currentUserRole));
   }
 
   /**
@@ -254,7 +259,11 @@ export class PagesService {
   }
 
   /** Обновление без перемещения (title/content, автосейв). */
-  private async applyContentUpdate(id: string, input: UpdatePageInput): Promise<Page> {
+  private async applyContentUpdate(
+    id: string,
+    input: UpdatePageInput,
+    currentUserRole: UserRole,
+  ): Promise<Page> {
     const data: Prisma.PageUncheckedUpdateInput = {};
 
     if (input.title !== undefined) {
@@ -282,12 +291,15 @@ export class PagesService {
           ? ApiErrors.conflict('Page content is managed by collaborative editing')
           : ApiErrors.notFound('Page not found');
       }
-      return toPublicPage(await this.prisma.page.findFirstOrThrow({ where: { id } }));
+      return toPublicPage(
+        await this.prisma.page.findFirstOrThrow({ where: { id } }),
+        currentUserRole,
+      );
     }
 
     const page = await this.prisma.page.update({ where: { id }, data });
 
-    return toPublicPage(page);
+    return toPublicPage(page, currentUserRole);
   }
 
   /** Перемещение по дереву в транзакции: валидация move + запись. */
@@ -295,6 +307,7 @@ export class PagesService {
     tx: Prisma.TransactionClient,
     id: string,
     input: UpdatePageInput,
+    currentUserRole: UserRole,
   ): Promise<Page> {
     const current = await tx.page.findFirst({
       where: { id, deletedAt: null },
@@ -343,7 +356,7 @@ export class PagesService {
 
     const page = await tx.page.update({ where: { id }, data });
 
-    return toPublicPage(page);
+    return toPublicPage(page, currentUserRole);
   }
 
   /** Сдвигает сиблингов группы с `position >= from` на +1 (освобождает слот). */

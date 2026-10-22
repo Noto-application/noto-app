@@ -1,18 +1,21 @@
-import type { EditorMode, Page } from '@noto/shared';
+import type { EditorMode, Page, UserRole } from '@noto/shared';
 import type { Prisma } from '@prisma/client';
 
 /** Публичный page DTO — без deletedAt, createdById и внутренних полей. */
-export function toPublicPage(page: {
-  id: string;
-  projectId: string;
-  parentId: string | null;
-  title: string;
-  content: Prisma.JsonValue;
-  position: number;
-  editorMode: EditorMode;
-  createdAt: Date;
-  updatedAt: Date;
-}): Page {
+export function toPublicPage(
+  page: {
+    id: string;
+    projectId: string;
+    parentId: string | null;
+    title: string;
+    content: Prisma.JsonValue;
+    position: number;
+    editorMode: EditorMode;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  currentUserRole: UserRole,
+): Page {
   return {
     id: page.id,
     projectId: page.projectId,
@@ -21,6 +24,7 @@ export function toPublicPage(page: {
     content: Array.isArray(page.content) ? page.content : [],
     position: page.position,
     editorMode: page.editorMode,
+    currentUserRole,
     createdAt: page.createdAt.toISOString(),
     updatedAt: page.updatedAt.toISOString(),
   };

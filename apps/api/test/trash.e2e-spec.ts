@@ -11,6 +11,7 @@ import {
   pageResponseSchema,
 } from '@noto/shared';
 
+import { DeletedPageAccessGuard } from '../src/guards/deleted-page-access.guard';
 import { createTestApp, resetAuthState } from './helpers/test-app';
 
 type Role = 'owner' | 'editor' | 'viewer';
@@ -391,8 +392,8 @@ describe('Page trash (e2e)', () => {
       const id = await project([{ userId, role: 'owner' }]);
       const target = await page({ projectId: id, deletedAt: new Date() });
       expect(
-        pageResponseSchema.parse((await restore(agent, target).expect(200)).body).page.id,
-      ).toBe(target);
+        pageResponseSchema.parse((await restore(agent, target).expect(200)).body).page,
+      ).toMatchObject({ id: target, currentUserRole: 'owner' });
       expect((await prisma.page.findUniqueOrThrow({ where: { id: target } })).deletedAt).toBeNull();
     });
 
@@ -404,7 +405,12 @@ describe('Page trash (e2e)', () => {
       const restored = pageResponseSchema.parse(
         (await restore(agent, target).expect(200)).body,
       ).page;
-      expect(restored).toMatchObject({ id: target, editorMode: 'rest', content });
+      expect(restored).toMatchObject({
+        id: target,
+        currentUserRole: 'editor',
+        editorMode: 'rest',
+        content,
+      });
       expect((await prisma.page.findUniqueOrThrow({ where: { id: target } })).content).toEqual(
         content,
       );
@@ -673,15 +679,46 @@ describe('Page trash (e2e)', () => {
       expect(rows.find((row) => row.id === target)?.parentId).toBe(ancestor);
     });
 
-    it('rechecks revoked membership after revocation commits', async () => {
+    it('rechecks membership revoked after the real guard passes and before the restore transaction', async () => {
       const { agent, userId } = await user('restore-revoked@example.com');
       const id = await project([{ userId, role: 'editor' }]);
-      const target = await page({ projectId: id, deletedAt: new Date() });
-      await prisma.projectMember.delete({ where: { projectId_userId: { projectId: id, userId } } });
-      error((await restore(agent, target).expect(403)).body, 'FORBIDDEN');
-      expect(
-        (await prisma.page.findUniqueOrThrow({ where: { id: target } })).deletedAt,
-      ).not.toBeNull();
+      const sentinel = `SENTINEL-ANCESTOR-${randomUUID()}`;
+      const ancestor = await page({ projectId: id, title: sentinel, deletedAt: new Date() });
+      const target = await page({ projectId: id, parentId: ancestor, deletedAt: new Date() });
+      const before = await prisma.page.findMany({
+        where: { projectId: id },
+        orderBy: { id: 'asc' },
+      });
+      const guard = app.get(DeletedPageAccessGuard);
+      const original = guard.canActivate.bind(guard);
+      let guardPassed = false;
+      const spy = jest.spyOn(guard, 'canActivate').mockImplementation(async (context) => {
+        guardPassed = await original(context);
+        expect(guardPassed).toBe(true);
+        // Отзыв коммитится до возврата guard: реальная restore-транзакция ещё не началась.
+        await prisma.projectMember.delete({
+          where: { projectId_userId: { projectId: id, userId } },
+        });
+        return guardPassed;
+      });
+      try {
+        const body: unknown = (await restore(agent, target).expect(403)).body;
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(guardPassed).toBe(true);
+        error(body, 'FORBIDDEN');
+        expect(Object.keys(body as object).sort()).toEqual(['code', 'message']);
+        noLeak(body, sentinel, ancestor, target, id);
+        expect(
+          await prisma.projectMember.findUnique({
+            where: { projectId_userId: { projectId: id, userId } },
+          }),
+        ).toBeNull();
+        expect(
+          await prisma.page.findMany({ where: { projectId: id }, orderBy: { id: 'asc' } }),
+        ).toEqual(before);
+      } finally {
+        spy.mockRestore();
+      }
     });
 
     it('preserves parentId (I2): moving a live parent under its child is 404 while deleted, 400 (cycle) once restored', async () => {

@@ -41,6 +41,28 @@ describe('shouldUseCollab', () => {
   it('не включает collab при выключенном флаге и editorMode rest', () => {
     expect(shouldUseCollab({ enabled: false, editorMode: 'rest', content: [] })).toBe(false);
   });
+
+  it('не подключает viewer к collab для REST-страницы даже при включённом спайке', () => {
+    expect(
+      shouldUseCollab({
+        enabled: true,
+        editorMode: 'rest',
+        currentUserRole: 'viewer',
+        content: [],
+      }),
+    ).toBe(false);
+  });
+
+  it('подключает viewer к durable collab-странице для read-only доступа', () => {
+    expect(
+      shouldUseCollab({
+        enabled: false,
+        editorMode: 'collab',
+        currentUserRole: 'viewer',
+        content: [],
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('isCollabEnabled', () => {
