@@ -13,6 +13,7 @@
 | Pages data layer                          | [apps/web/src/entities/page/page.spec.md](../../apps/web/src/entities/page/page.spec.md)                             | Ready       |
 | Pages CRUD                                | [apps/api/src/pages/pages.spec.md](../../apps/api/src/pages/pages.spec.md)                                           | Draft       |
 | Корзина страниц — список и restore (#156) | [apps/api/src/pages/trash.spec.md](../../apps/api/src/pages/trash.spec.md)                                           | Ready       |
+| Поиск страниц по заголовкам (#157)        | [apps/api/src/pages/search.spec.md](../../apps/api/src/pages/search.spec.md)                                         | Draft       |
 | Дерево страниц в сайдбаре (PageTree)      | [apps/web/src/widgets/sidebar/page-tree.spec.md](../../apps/web/src/widgets/sidebar/page-tree.spec.md)               | Draft       |
 | Строка дерева страниц (SidebarTreeItem)   | [apps/web/src/shared/ui/sidebar-tree-item.spec.md](../../apps/web/src/shared/ui/sidebar-tree-item.spec.md)           | Draft       |
 | Создание страницы                         | [apps/web/src/features/create-page/create-page.spec.md](../../apps/web/src/features/create-page/create-page.spec.md) | Draft       |
