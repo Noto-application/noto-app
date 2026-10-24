@@ -199,15 +199,44 @@ describe('Поиск страниц (e2e)', () => {
       const pageA = await page({ projectId: projectA, title: 'Shared title A' });
       const pageB = await page({ projectId: projectB, title: 'Shared title B' });
 
-      for (const agent of [owner, editor, viewer]) {
+      for (const agent of [owner, editor]) {
         const allProjects = await searchResults(agent, 'Shared title');
-        expect(allProjects.results.map((result) => result.pageId).sort()).toEqual(
-          [pageA, pageB].sort(),
-        );
+        expect(allProjects.results.map((result) => result.pageId)).toEqual([pageA]);
 
         const oneProject = await searchResults(agent, 'Shared title', { projectId: projectA });
         expect(oneProject.results.map((result) => result.pageId)).toEqual([pageA]);
+
+        const inaccessibleProject = await search(agent, 'Shared title', {
+          projectId: projectB,
+        });
+        expect(inaccessibleProject.status).toBe(403);
+        expectError(inaccessibleProject.body, 'FORBIDDEN');
       }
+
+      const viewerResults = await searchResults(viewer, 'Shared title');
+      expect(viewerResults.results.map((result) => result.pageId).sort()).toEqual(
+        [pageA, pageB].sort(),
+      );
+      const viewerProjectB = await searchResults(viewer, 'Shared title', {
+        projectId: projectB,
+      });
+      expect(viewerProjectB.results.map((result) => result.pageId)).toEqual([pageB]);
+    });
+
+    it('возвращает пустую выдачу для пустого результата и пользователя без членств', async () => {
+      const { userId: memberId, agent: member } = await user('search-empty-member@example.com');
+      const { agent: outsider } = await user('search-empty-outsider@example.com');
+      const projectId = await project([{ userId: memberId, role: 'viewer' }]);
+      await page({ projectId, title: 'Existing page' });
+
+      expect(await searchResults(member, 'absent')).toEqual({
+        results: [],
+        nextCursor: null,
+      });
+      expect(await searchResults(outsider, 'Existing')).toEqual({
+        results: [],
+        nextCursor: null,
+      });
     });
 
     it('возвращает страницы только из доступных пользователю неудалённых проектов', async () => {
@@ -264,6 +293,21 @@ describe('Поиск страниц (e2e)', () => {
         title: 'match under deleted ancestor',
         parentId: deletedAncestorId,
       });
+      const deletedDistantAncestorId = await page({
+        projectId,
+        title: 'deleted distant ancestor',
+        deleted: true,
+      });
+      const liveIntermediateId = await page({
+        projectId,
+        title: 'live intermediate',
+        parentId: deletedDistantAncestorId,
+      });
+      await page({
+        projectId,
+        title: 'match under distant deleted ancestor',
+        parentId: liveIntermediateId,
+      });
       await page({ projectId, title: 'match deleted page', deleted: true });
       const otherProjectId = await project([{ userId, role: 'owner' }]);
       const foreignAncestorId = await page({ projectId: otherProjectId, title: 'foreign parent' });
@@ -276,6 +320,43 @@ describe('Поиск страниц (e2e)', () => {
 
       const { results } = await searchResults(agent, 'match');
       expect(results.map((result) => result.pageId)).toEqual([livePageId]);
+    });
+
+    it('применяет ACL и lifecycle-фильтры до пагинации на каждой порции', async () => {
+      const { userId, agent } = await user('search-filtered-pagination@example.com');
+      const { userId: otherUserId } = await user('search-filtered-pagination-other@example.com');
+      const projectId = await project([{ userId, role: 'viewer' }]);
+      const privateProjectId = await project([{ userId: otherUserId, role: 'owner' }]);
+
+      await page({ projectId, title: 'a mix deleted before first page', deleted: true });
+      const firstVisibleId = await page({ projectId, title: 'b mix first' });
+      await page({ projectId, title: 'c mix deleted page', deleted: true });
+      await page({ projectId: privateProjectId, title: 'd mix private' });
+      const secondVisibleId = await page({ projectId, title: 'e mix second' });
+      const deletedAncestorId = await page({
+        projectId,
+        title: 'f mix deleted ancestor',
+        deleted: true,
+      });
+      await page({
+        projectId,
+        title: 'g mix under deleted ancestor',
+        parentId: deletedAncestorId,
+      });
+      const thirdVisibleId = await page({ projectId, title: 'h mix third' });
+
+      const collectedIds: string[] = [];
+      const pageSizes: number[] = [];
+      let cursor: string | undefined;
+      do {
+        const batch = await searchResults(agent, 'mix', { limit: 2, cursor });
+        pageSizes.push(batch.results.length);
+        collectedIds.push(...batch.results.map((result) => result.pageId));
+        cursor = batch.nextCursor ?? undefined;
+      } while (cursor !== undefined);
+
+      expect(pageSizes).toEqual([2, 1]);
+      expect(collectedIds).toEqual([firstVisibleId, secondVisibleId, thirdVisibleId]);
     });
 
     it('проверяет запрос, идентификатор проекта, лимит и курсор', async () => {
@@ -311,6 +392,28 @@ describe('Поиск страниц (e2e)', () => {
       expect(nextCursor).not.toBeNull();
     });
 
+    it('принимает максимальную длину запроса и максимальный лимит', async () => {
+      const { userId, agent } = await user('search-upper-bounds@example.com');
+      const projectId = await project([{ userId, role: 'viewer' }]);
+      const query = 'x'.repeat(200);
+      const ids: string[] = [];
+      for (let index = 0; index < 51; index += 1) {
+        ids.push(await page({ projectId, title: query }));
+      }
+
+      const first = await searchResults(agent, query, { limit: 50 });
+      expect(first.results).toHaveLength(50);
+      expect(first.results.map((result) => result.pageId)).toEqual(ids.slice().sort().slice(0, 50));
+      expect(first.nextCursor).not.toBeNull();
+
+      const second = await searchResults(agent, query, {
+        limit: 50,
+        cursor: first.nextCursor!,
+      });
+      expect(second.results.map((result) => result.pageId)).toEqual(ids.slice().sort().slice(50));
+      expect(second.nextCursor).toBeNull();
+    });
+
     it('постранично возвращает результаты в стабильном порядке без повторов', async () => {
       const { userId, agent } = await user('search-pagination@example.com');
       const projectId = await project([{ userId, role: 'viewer' }]);
@@ -320,13 +423,13 @@ describe('Поиск страниц (e2e)', () => {
         '00000000-0000-4000-8000-000000000002',
       ];
       for (const id of ids) await page({ projectId, title: 'Same title', id });
-      await page({ projectId, title: 'Another title' });
+      const anotherTitleId = await page({ projectId, title: 'Another title' });
 
       const first = await searchResults(agent, 'title', { limit: 2 });
       expect(first.results.map((result) => result.title)).toEqual(['Another title', 'Same title']);
       expect(first.results.map((result) => result.pageId)).toEqual([
+        anotherTitleId,
         '00000000-0000-4000-8000-000000000001',
-        '00000000-0000-4000-8000-000000000002',
       ]);
       expect(first.nextCursor).not.toBeNull();
 
@@ -335,12 +438,34 @@ describe('Поиск страниц (e2e)', () => {
         cursor: first.nextCursor!,
       });
       expect(second.results.map((result) => result.pageId)).toEqual([
+        '00000000-0000-4000-8000-000000000002',
         '00000000-0000-4000-8000-000000000003',
       ]);
       expect(second.nextCursor).toBeNull();
-      expect([...first.results, ...second.results].map((result) => result.pageId)).toHaveLength(
-        new Set([...first.results, ...second.results].map((r) => r.pageId)).size,
-      );
+      const returnedIds = [...first.results, ...second.results].map((result) => result.pageId);
+      expect(returnedIds).toHaveLength(4);
+      expect(new Set(returnedIds).size).toBe(4);
+      expect(returnedIds.slice().sort()).toEqual([anotherTitleId, ...ids].sort());
+    });
+
+    it('повторно проверяет членство при продолжении выдачи', async () => {
+      const { userId, agent } = await user('search-revoked-membership@example.com');
+      const projectId = await project([{ userId, role: 'viewer' }]);
+      await page({ projectId, title: 'Revoked membership A' });
+      await page({ projectId, title: 'Revoked membership B' });
+
+      const first = await searchResults(agent, 'Revoked membership', { limit: 1 });
+      expect(first.results).toHaveLength(1);
+      expect(first.nextCursor).not.toBeNull();
+
+      await prisma.projectMember.delete({
+        where: { projectId_userId: { projectId, userId } },
+      });
+      const second = await searchResults(agent, 'Revoked membership', {
+        limit: 1,
+        cursor: first.nextCursor!,
+      });
+      expect(second).toEqual({ results: [], nextCursor: null });
     });
 
     it('не позволяет использовать курсор с другим запросом или фильтром проекта', async () => {
