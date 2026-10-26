@@ -223,7 +223,7 @@ describe('Поиск страниц (e2e)', () => {
       expect(viewerProjectB.results.map((result) => result.pageId)).toEqual([pageB]);
     });
 
-    it('возвращает пустую выдачу для пустого результата и пользователя без членств', async () => {
+    it('возвращает пустую выдачу viewer-у для ненайденного результата и пустую выдачу совпадающего запроса в чужом проекте', async () => {
       const { userId: memberId, agent: member } = await user('search-empty-member@example.com');
       const { agent: outsider } = await user('search-empty-outsider@example.com');
       const projectId = await project([{ userId: memberId, role: 'viewer' }]);
