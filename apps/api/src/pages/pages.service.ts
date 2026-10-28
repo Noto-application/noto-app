@@ -7,10 +7,19 @@ import { hasMinimumProjectRole } from '../guards/project-role.utils';
 import { ApiErrors, ApiException } from '../lib/errors';
 import { toPublicPage } from '../lib/utils';
 import { PrismaService } from '../prisma/prisma.service';
+import { pageSearchResponse } from '@noto/shared/dist/api/schemas/page';
 
 /** Предохранитель от патологических деревьев (спека pages.spec.md). */
 const PAGE_TREE_MAX_DEPTH = 10;
 const trashCursorSchema = z.object({ deletedAt: z.iso.datetime(), id: z.uuid() }).strict();
+const pageCursorSchema = z
+  .object({
+    q: z.string(),
+    projectId: z.uuid().nullable(),
+    title: z.string(),
+    id: z.uuid(),
+  })
+  .strict();
 
 @Injectable()
 export class PagesService {
@@ -141,6 +150,138 @@ export class PagesService {
         hasMore && last
           ? Buffer.from(
               JSON.stringify({ deletedAt: last.deletedAt!.toISOString(), id: last.id }),
+            ).toString('base64url')
+          : null,
+    };
+  }
+
+  async search(
+    query: { q: string; projectId?: string; limit: number; cursor?: string },
+    userId: string,
+  ): Promise<pageSearchResponse> {
+    let cursor: z.infer<typeof pageCursorSchema> | undefined;
+    if (query.cursor !== undefined) {
+      try {
+        if (!/^[A-Za-z0-9_-]+$/.test(query.cursor)) throw new Error('Invalid cursor');
+        cursor = pageCursorSchema.parse(
+          JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')),
+        );
+      } catch {
+        throw ApiErrors.validation('Invalid search cursor');
+      }
+
+      if (cursor.q !== query.q || cursor.projectId !== (query.projectId ?? null)) {
+        throw ApiErrors.validation('Search cursor does not match query');
+      }
+    }
+
+    let projects: Array<{ name: string; id: string }>;
+    if (query.projectId !== undefined) {
+      const project = await this.prisma.project.findFirst({
+        where: { id: query.projectId, deletedAt: null },
+        select: { id: true, name: true },
+      });
+      if (!project) {
+        throw ApiErrors.notFound('Project not found');
+      }
+
+      const membership = await this.prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId: query.projectId, userId } },
+        select: { projectId: true },
+      });
+      if (!membership) throw ApiErrors.forbidden();
+
+      projects = [project];
+    } else {
+      const userMemberships = await this.prisma.projectMember.findMany({
+        where: { userId },
+        select: { projectId: true },
+      });
+      projects = await this.prisma.project.findMany({
+        where: {
+          id: { in: userMemberships.map((el) => el.projectId) },
+          deletedAt: null,
+        },
+        select: { name: true, id: true },
+      });
+    }
+
+    if (projects.length === 0) {
+      return { results: [], nextCursor: null };
+    }
+
+    const escapedQuery = query.q.replace(/[\\%_]/g, '\\$&');
+    const candidates = await this.prisma.page.findMany({
+      where: {
+        projectId: { in: projects.map((project) => project.id) },
+        title: { contains: escapedQuery, mode: 'insensitive' },
+        deletedAt: null,
+        ...(cursor
+          ? {
+              OR: [{ title: { gt: cursor.title } }, { title: cursor.title, id: { gt: cursor.id } }],
+            }
+          : {}),
+      },
+      select: { id: true, projectId: true, title: true, parentId: true },
+      orderBy: [{ title: 'asc' }, { id: 'asc' }],
+    });
+
+    const invalidPageIds = new Set<string>();
+    let ancestorLinks = candidates.flatMap((candidate) =>
+      candidate.parentId === null
+        ? []
+        : [{ pageId: candidate.id, projectId: candidate.projectId, parentId: candidate.parentId }],
+    );
+
+    for (let depth = 1; ancestorLinks.length > 0; depth += 1) {
+      const ancestorIds = [...new Set(ancestorLinks.map((link) => link.parentId))];
+      const ancestors = await this.prisma.page.findMany({
+        where: { id: { in: ancestorIds } },
+        select: { id: true, projectId: true, parentId: true, deletedAt: true },
+      });
+      const ancestorsById = new Map(ancestors.map((ancestor) => [ancestor.id, ancestor]));
+      const nextLinks: typeof ancestorLinks = [];
+
+      for (const link of ancestorLinks) {
+        const ancestor = ancestorsById.get(link.parentId);
+        if (
+          !ancestor ||
+          ancestor.deletedAt !== null ||
+          ancestor.projectId !== link.projectId ||
+          depth >= PAGE_TREE_MAX_DEPTH
+        ) {
+          invalidPageIds.add(link.pageId);
+          continue;
+        }
+
+        if (ancestor.parentId !== null) {
+          nextLinks.push({ ...link, parentId: ancestor.parentId });
+        }
+      }
+
+      ancestorLinks = nextLinks;
+    }
+
+    const pageRows = candidates.filter((candidate) => !invalidPageIds.has(candidate.id));
+    const hasMore = pageRows.length > query.limit;
+    const resultsPage = pageRows.slice(0, query.limit);
+    const last = resultsPage.at(-1);
+    return {
+      results: resultsPage.map(({ id, title, projectId }) => ({
+        pageId: id,
+        title,
+        projectId,
+        projectName: projects.find((el) => el.id === projectId)!.name,
+      })),
+      nextCursor:
+        hasMore && last
+          ? Buffer.from(
+              JSON.stringify({
+                q: query.q,
+                projectId: query.projectId ?? null,
+                title: last.title,
+                id: last.id,
+              }),
             ).toString('base64url')
           : null,
     };

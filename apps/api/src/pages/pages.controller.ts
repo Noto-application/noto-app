@@ -96,6 +96,20 @@ export class PagesController {
     });
   }
 
+  @UseGuards(JwtAuthGuard)
+  @RequireProjectRole('viewer')
+  @TsRestHandler(pagesContract.search)
+  search(@Req() request: PageRequest) {
+    return tsRestHandler(pagesContract.search, async ({ query }) => {
+      try {
+        const pages = await this.pagesService.search(query, request.user.sub);
+        return { status: 200 as const, body: pages };
+      } catch (error) {
+        throw toTsRestException(error, pagesContract.search);
+      }
+    });
+  }
+
   @UseGuards(JwtAuthGuard, PageAccessGuard)
   @RequireProjectRole('editor')
   @TsRestHandler(pagesContract.update)
