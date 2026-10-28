@@ -70,7 +70,7 @@ export function Sidebar() {
         <div className="flex flex-col gap-0.5 border-t border-border pt-1">
           <SidebarNewPageButton />
           <SidebarNavItem icon={<Trash2 />} label="Корзина" />
-          <SidebarNavItem icon={<Settings />} label="Настройки" />
+          <SidebarNavItem icon={<Settings />} label="Настройки" href="/app/settings" />
         </div>
 
         <SidebarUserBlock />
