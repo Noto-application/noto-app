@@ -27,15 +27,21 @@ const user: User = {
  * (issue #125). Хук сам держит активный observer этого ключа, поэтому
  * после успешной инвалидации React Query реально перезапрашивает
  * `apiClient.auth.me` — мокаем и её, иначе уходит в настоящий fetch.
+ *
+ * `authMeUser` — что вернёт «сервер» при этом перезапросе. По умолчанию
+ * старое значение (большинство тестов инвалидацию не проверяют); тест
+ * успешного сохранения передаёт обновлённого пользователя, чтобы
+ * убедиться, что новое имя реально долетает до кэша, а не только что
+ * `invalidateQueries` был вызван.
  */
-function createWrapper() {
+function createWrapper(authMeUser: User = user) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
   queryClient.setQueryData(userKeys.current(), user);
   vi.spyOn(apiClient.auth, 'me').mockResolvedValue({
     status: 200,
-    body: { user },
+    body: { user: authMeUser },
     headers: new Headers(),
   } satisfies AuthMeResponse);
   const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
@@ -61,7 +67,7 @@ describe('useUpdateUsername', () => {
       body: { user: updatedUser },
       headers: new Headers(),
     } satisfies UpdateUserResponse);
-    const { Wrapper, invalidateQueries } = createWrapper();
+    const { Wrapper, invalidateQueries, queryClient } = createWrapper(updatedUser);
 
     render(
       <Wrapper>
@@ -80,6 +86,9 @@ describe('useUpdateUsername', () => {
       body: { username: 'Дарья' },
     });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: userKeys.current() });
+    // Не только факт вызова инвалидации: кэш `useCurrentUser` (а с ним и
+    // SidebarUserBlock) реально получает новое имя с сервера.
+    expect(queryClient.getQueryData(userKeys.current())).toEqual(updatedUser);
     expect(await screen.findByText('Имя сохранено')).toBeInTheDocument();
   });
 
