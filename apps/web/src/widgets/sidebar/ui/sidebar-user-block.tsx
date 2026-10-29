@@ -16,12 +16,14 @@ export function SidebarUserBlock() {
     );
   }
 
+  const displayName = user?.username ?? user?.email;
+
   return (
     <div className="flex items-center gap-2.5 px-2 py-1.5">
       <Avatar>
-        <AvatarFallback>{user ? user.email.charAt(0).toUpperCase() : '?'}</AvatarFallback>
+        <AvatarFallback>{displayName ? displayName.charAt(0).toUpperCase() : '?'}</AvatarFallback>
       </Avatar>
-      <span className="truncate text-body-compact text-foreground">{user?.email ?? '—'}</span>
+      <span className="truncate text-body-compact text-foreground">{displayName ?? '—'}</span>
     </div>
   );
 }
