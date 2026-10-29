@@ -1,6 +1,7 @@
 'use client';
 
 import { useCurrentUser } from '@/src/entities/user';
+import { UpdateAvatarField } from '@/src/features/update-avatar';
 import { UpdateUsernameForm } from '@/src/features/update-username';
 import { Button } from '@/src/shared/ui/button';
 import { Spinner } from '@/src/shared/ui/spinner';
@@ -28,7 +29,8 @@ export default function SettingsPage() {
         </div>
       ) : null}
       {user ? (
-        <div className="mt-6">
+        <div className="mt-8 space-y-10">
+          <UpdateAvatarField user={user} />
           <UpdateUsernameForm user={user} />
         </div>
       ) : null}
