@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { apiErrorSchema } from '../errors';
 import {
   createPageSchema,
+  pageSearchQuerySchema,
+  pageSearchResponseSchema,
   pageResponseSchema,
   pagesResponseSchema,
   trashQuerySchema,
@@ -31,6 +33,19 @@ export const restoreConflictSchema = z.strictObject({
  * item — плоско; для item-роутов guard резолвит projectId из страницы.
  */
 export const pagesContract = c.router({
+  search: {
+    method: 'GET',
+    path: '/pages/search',
+    query: pageSearchQuerySchema,
+    responses: {
+      200: pageSearchResponseSchema,
+      400: apiErrorSchema,
+      401: apiErrorSchema,
+      403: apiErrorSchema,
+      404: apiErrorSchema,
+    },
+    summary: 'Search accessible pages by title (viewer+)',
+  },
   trash: {
     method: 'GET',
     path: '/projects/:projectId/trash/pages',

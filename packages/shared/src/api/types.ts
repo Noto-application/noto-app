@@ -51,6 +51,13 @@ export type PagesResponse = Extract<
   { status: 200 }
 >['body'];
 
+export type PageSearchQuery = ServerInferRequest<typeof pagesContract.search>['query'];
+
+export type PageSearchResponse = Extract<
+  ServerInferResponses<typeof pagesContract.search>,
+  { status: 200 }
+>['body'];
+
 export type CreateCalendarPageInput = ServerInferRequest<typeof calendarContract.create>['body'];
 
 export type UpdateCalendarEntryInput = ServerInferRequest<typeof calendarContract.update>['body'];

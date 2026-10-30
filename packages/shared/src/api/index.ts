@@ -39,6 +39,9 @@ export {
   type EditorMode,
   pageContentSchema,
   pageResponseSchema,
+  pageSearchQuerySchema,
+  pageSearchResponseSchema,
+  pageSearchResultSchema,
   pageSchema,
   pageTitleSchema,
   pagesResponseSchema,
@@ -48,6 +51,7 @@ export {
   updatePageSchema,
   userRoleSchema,
   type Page,
+  type PageSearchResult,
   type UserRole,
 } from './schemas/page';
 export {
@@ -75,6 +79,8 @@ export type {
   CreateProjectInput,
   LoginCredentials,
   PageResponse,
+  PageSearchQuery,
+  PageSearchResponse,
   PagesResponse,
   ProjectResponse,
   ProjectsResponse,
