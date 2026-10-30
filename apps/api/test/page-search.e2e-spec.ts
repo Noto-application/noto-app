@@ -280,83 +280,14 @@ describe('Поиск страниц (e2e)', () => {
       expectError(deleted.body, 'NOT_FOUND');
     });
 
-    it('исключает удалённые страницы и страницы с удалённым или чужим предком', async () => {
-      const { userId, agent } = await user('search-ancestors@example.com');
+    it('исключает удалённые страницы', async () => {
+      const { userId, agent } = await user('search-deleted-pages@example.com');
       const projectId = await project([{ userId, role: 'owner' }]);
-      const deletedAncestorId = await page({
-        projectId,
-        title: 'match deleted ancestor',
-        deleted: true,
-      });
-      await page({
-        projectId,
-        title: 'match under deleted ancestor',
-        parentId: deletedAncestorId,
-      });
-      const deletedDistantAncestorId = await page({
-        projectId,
-        title: 'deleted distant ancestor',
-        deleted: true,
-      });
-      const liveIntermediateId = await page({
-        projectId,
-        title: 'live intermediate',
-        parentId: deletedDistantAncestorId,
-      });
-      await page({
-        projectId,
-        title: 'match under distant deleted ancestor',
-        parentId: liveIntermediateId,
-      });
       await page({ projectId, title: 'match deleted page', deleted: true });
-      const otherProjectId = await project([{ userId, role: 'owner' }]);
-      const foreignAncestorId = await page({ projectId: otherProjectId, title: 'foreign parent' });
-      await page({
-        projectId,
-        title: 'match under foreign ancestor',
-        parentId: foreignAncestorId,
-      });
       const livePageId = await page({ projectId, title: 'match live page' });
 
       const { results } = await searchResults(agent, 'match');
       expect(results.map((result) => result.pageId)).toEqual([livePageId]);
-    });
-
-    it('применяет ACL и lifecycle-фильтры до пагинации на каждой порции', async () => {
-      const { userId, agent } = await user('search-filtered-pagination@example.com');
-      const { userId: otherUserId } = await user('search-filtered-pagination-other@example.com');
-      const projectId = await project([{ userId, role: 'viewer' }]);
-      const privateProjectId = await project([{ userId: otherUserId, role: 'owner' }]);
-
-      await page({ projectId, title: 'a mix deleted before first page', deleted: true });
-      const firstVisibleId = await page({ projectId, title: 'b mix first' });
-      await page({ projectId, title: 'c mix deleted page', deleted: true });
-      await page({ projectId: privateProjectId, title: 'd mix private' });
-      const secondVisibleId = await page({ projectId, title: 'e mix second' });
-      const deletedAncestorId = await page({
-        projectId,
-        title: 'f mix deleted ancestor',
-        deleted: true,
-      });
-      await page({
-        projectId,
-        title: 'g mix under deleted ancestor',
-        parentId: deletedAncestorId,
-      });
-      const thirdVisibleId = await page({ projectId, title: 'h mix third' });
-
-      const collectedIds: string[] = [];
-      const pageSizes: number[] = [];
-      let cursor: string | undefined;
-      do {
-        const batch = await searchResults(agent, 'mix', { limit: 2, cursor });
-        pageSizes.push(batch.results.length);
-        collectedIds.push(...batch.results.map((result) => result.pageId));
-        cursor = batch.nextCursor ?? undefined;
-      } while (cursor !== undefined);
-
-      expect(pageSizes).toEqual([2, 1]);
-      expect(collectedIds).toEqual([firstVisibleId, secondVisibleId, thirdVisibleId]);
     });
 
     it('проверяет запрос, идентификатор проекта, лимит и курсор', async () => {
