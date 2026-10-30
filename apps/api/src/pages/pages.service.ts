@@ -175,11 +175,11 @@ export class PagesService {
       }
     }
 
-    let projects: Array<{ name: string; id: string }>;
+    let projects: Array<{ id: string }>;
     if (query.projectId !== undefined) {
       const project = await this.prisma.project.findFirst({
         where: { id: query.projectId, deletedAt: null },
-        select: { id: true, name: true },
+        select: { id: true },
       });
       if (!project) {
         throw ApiErrors.notFound('Project not found');
@@ -202,7 +202,7 @@ export class PagesService {
           id: { in: userMemberships.map((el) => el.projectId) },
           deletedAt: null,
         },
-        select: { name: true, id: true },
+        select: { id: true },
       });
     }
 
@@ -211,67 +211,41 @@ export class PagesService {
     }
 
     const escapedQuery = query.q.replace(/[\\%_]/g, '\\$&');
-    const candidates = await this.prisma.page.findMany({
+    const pageRows = await this.prisma.page.findMany({
       where: {
         projectId: { in: projects.map((project) => project.id) },
         title: { contains: escapedQuery, mode: 'insensitive' },
         deletedAt: null,
+        project: {
+          deletedAt: null,
+          members: { some: { userId } }
+        },
         ...(cursor
           ? {
               OR: [{ title: { gt: cursor.title } }, { title: cursor.title, id: { gt: cursor.id } }],
             }
           : {}),
       },
-      select: { id: true, projectId: true, title: true, parentId: true },
+      select: {
+        id: true,
+        projectId: true,
+        title: true,
+        parentId: true,
+        project: { select: { name: true } },
+      },
       orderBy: [{ title: 'asc' }, { id: 'asc' }],
+      take: query.limit + 1,
     });
 
-    const invalidPageIds = new Set<string>();
-    let ancestorLinks = candidates.flatMap((candidate) =>
-      candidate.parentId === null
-        ? []
-        : [{ pageId: candidate.id, projectId: candidate.projectId, parentId: candidate.parentId }],
-    );
-
-    for (let depth = 1; ancestorLinks.length > 0; depth += 1) {
-      const ancestorIds = [...new Set(ancestorLinks.map((link) => link.parentId))];
-      const ancestors = await this.prisma.page.findMany({
-        where: { id: { in: ancestorIds } },
-        select: { id: true, projectId: true, parentId: true, deletedAt: true },
-      });
-      const ancestorsById = new Map(ancestors.map((ancestor) => [ancestor.id, ancestor]));
-      const nextLinks: typeof ancestorLinks = [];
-
-      for (const link of ancestorLinks) {
-        const ancestor = ancestorsById.get(link.parentId);
-        if (
-          !ancestor ||
-          ancestor.deletedAt !== null ||
-          ancestor.projectId !== link.projectId ||
-          depth >= PAGE_TREE_MAX_DEPTH
-        ) {
-          invalidPageIds.add(link.pageId);
-          continue;
-        }
-
-        if (ancestor.parentId !== null) {
-          nextLinks.push({ ...link, parentId: ancestor.parentId });
-        }
-      }
-
-      ancestorLinks = nextLinks;
-    }
-
-    const pageRows = candidates.filter((candidate) => !invalidPageIds.has(candidate.id));
     const hasMore = pageRows.length > query.limit;
     const resultsPage = pageRows.slice(0, query.limit);
     const last = resultsPage.at(-1);
     return {
-      results: resultsPage.map(({ id, title, projectId }) => ({
+      results: resultsPage.map(({ id, title, projectId, project }) => ({
         pageId: id,
         title,
         projectId,
-        projectName: projects.find((el) => el.id === projectId)!.name,
+        projectName: project.name,
       })),
       nextCursor:
         hasMore && last
