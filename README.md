@@ -87,9 +87,12 @@ cp apps/collab/.env.example apps/collab/.env
 | `apps/collab/.env`    | `PORT=5555`, `COLLAB_ALLOWED_ORIGINS=http://localhost:8080`, `API_INTERNAL_URL=http://localhost:4000`, непустой `COLLAB_SHARED_SECRET`, совпадающий с API                                                                         |
 
 Значения подключения к локальным Postgres/Redis — в API-примере. Изображения
-хранятся в Yandex Object Storage (тот же bucket, что и в production): ключи и
-имя bucket нужно подставить в `apps/api/.env`, не коммитить. CORS bucket должен
-разрешать `http://localhost:8080` и production-origin. Проверьте
+хранятся в отдельном dev bucket Yandex Object Storage; production использует
+свой bucket. Укажите имя dev bucket и его credentials в `apps/api/.env`, не
+коммитите реальные значения. Локальный API использует локальную PostgreSQL из
+Docker Compose и dev bucket; production bucket и credentials настраиваются
+отдельно в `runtime/api.env`. CORS dev bucket должен разрешать
+`http://localhost:8080`; production bucket — production-origin. Проверьте
 подключение к базе перед миграциями: `db:deploy` работает с вашей эффективной `DATABASE_URL`.
 Переменные родительского shell приоритетнее файлов; для Next также учитываются
 `.env.development.local`, `.env.local`, `.env.development`, `.env` в этом порядке.

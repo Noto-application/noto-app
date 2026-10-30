@@ -87,7 +87,7 @@ liveness. Само приложение при этом не стартует б
 | `CORS_ORIGIN`           | нет    | `http://localhost:3000` | Origin фронтенда; wildcard нельзя, запросы идут с credentials |
 | `DATABASE_URL`          | **да** | —                       | Строка подключения к Postgres                                 |
 | `REDIS_URL`             | **да** | —                       | Строка подключения к Redis                                    |
-| `STORAGE_BUCKET`        | **да** | —                       | Приватный bucket Yandex Object Storage                        |
+| `STORAGE_BUCKET`        | **да** | —                       | Приватный bucket текущей среды (dev и production разные)       |
 | `STORAGE_REGION`        | **да** | —                       | Регион S3 (`ru-central1`)                                     |
 | `STORAGE_ENDPOINT`      | **да** | —                       | S3 endpoint (`https://storage.yandexcloud.net`)                |
 | `AWS_ACCESS_KEY_ID`     | **да** | —                       | Ключ доступа для API                                           |
@@ -125,8 +125,11 @@ pnpm --filter @noto/api db:deploy
 
 **Object Storage** — S3-клиент AWS SDK v3 в глобальном `StorageModule`.
 `StorageService` предоставляет настроенный клиент и bucket; приватные объекты
-хранятся в Yandex Object Storage. Загрузка и чтение по presigned URL добавляются
-прикладными сценариями отдельно.
+хранятся в Yandex Object Storage. Локальная разработка использует отдельный
+bucket от production; значения задаются в `apps/api/.env` и
+`runtime/api.env` соответственно. CORS каждого bucket настраивается для origin
+своей среды. Загрузка и чтение по presigned URL добавляются прикладными
+сценариями отдельно.
 
 ## Docker Compose
 
