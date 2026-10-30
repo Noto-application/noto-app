@@ -12,11 +12,11 @@
 
 Все команды — из **корня репозитория**.
 
+Первичная настройка всех env-файлов и требования (включая Caddy) — в
+[корневом README](../../README.md#быстрый-старт). После настройки:
+
 ```bash
-pnpm install                        # зависимости всего monorepo
-docker compose up -d                # postgres:5433, redis:6380
-cp apps/api/.env.example apps/api/.env
-pnpm dev                            # turbo поднимет все apps в watch-режиме
+pnpm dev # проверка окружения → Postgres/Redis healthy → db:deploy → Caddy + apps
 ```
 
 Только API, без остальных приложений:
@@ -25,10 +25,11 @@ pnpm dev                            # turbo поднимет все apps в watc
 pnpm --filter @noto/api dev
 ```
 
-Перед первым запуском применить миграции (см. раздел «База данных»):
+При отдельном запуске API подготовьте Postgres/Redis и примените существующие
+миграции вручную (полный `pnpm dev` делает это сам):
 
 ```bash
-pnpm --filter @noto/api db:migrate
+pnpm --filter @noto/api db:deploy
 ```
 
 Проверка:
@@ -79,18 +80,18 @@ liveness. Само приложение при этом не стартует б
 на старте через Zod: при отсутствии или неверном формате приложение падает
 сразу, а не на первом запросе.
 
-| Переменная           | Обяз.  | Дефолт                  | Назначение                                                    |
-| -------------------- | ------ | ----------------------- | ------------------------------------------------------------- |
-| `NODE_ENV`           | нет    | `development`           | Режим работы                                                  |
-| `PORT`               | нет    | `4000`                  | Порт HTTP-сервера                                             |
-| `CORS_ORIGIN`        | нет    | `http://localhost:3000` | Origin фронтенда; wildcard нельзя, запросы идут с credentials |
-| `DATABASE_URL`       | **да** | —                       | Строка подключения к Postgres                                 |
-| `REDIS_URL`          | **да** | —                       | Строка подключения к Redis                                    |
-| `JWT_ACCESS_SECRET`  | **да** | —                       | Секрет для подписи access-токена                              |
-| `JWT_REFRESH_SECRET` | **да** | —                       | Секрет для подписи refresh-токена                             |
-| `JWT_ACCESS_TTL`     | нет    | `15m`                   | Время жизни access-токена                                     |
-| `JWT_REFRESH_TTL`    | нет    | `7d`                    | Время жизни refresh-токена                                    |
-| `JWT_REFRESH_GRACE_TTL`    | нет    | `10s`                    | Время grace-окна                                    |
+| Переменная              | Обяз.  | Дефолт                  | Назначение                                                    |
+| ----------------------- | ------ | ----------------------- | ------------------------------------------------------------- |
+| `NODE_ENV`              | нет    | `development`           | Режим работы                                                  |
+| `PORT`                  | нет    | `4000`                  | Порт HTTP-сервера                                             |
+| `CORS_ORIGIN`           | нет    | `http://localhost:3000` | Origin фронтенда; wildcard нельзя, запросы идут с credentials |
+| `DATABASE_URL`          | **да** | —                       | Строка подключения к Postgres                                 |
+| `REDIS_URL`             | **да** | —                       | Строка подключения к Redis                                    |
+| `JWT_ACCESS_SECRET`     | **да** | —                       | Секрет для подписи access-токена                              |
+| `JWT_REFRESH_SECRET`    | **да** | —                       | Секрет для подписи refresh-токена                             |
+| `JWT_ACCESS_TTL`        | нет    | `15m`                   | Время жизни access-токена                                     |
+| `JWT_REFRESH_TTL`       | нет    | `7d`                    | Время жизни refresh-токена                                    |
+| `JWT_REFRESH_GRACE_TTL` | нет    | `10s`                   | Время grace-окна                                              |
 
 ## База данных и кэш
 
@@ -172,7 +173,6 @@ apps/api/
 - [ADR-007](../../docs/adr/007-tech-stack.md) — стек
 - [ADR-009](../../docs/adr/009-development-process.md) — процессы и CI
 - [RFC-001](../../docs/rfc/001-api-contract.md) — контракт API
-
 
 ## Изолированные e2e (#121)
 

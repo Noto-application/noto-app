@@ -2,14 +2,17 @@
 # HttpOnly access-cookie сама долетала на WS /collab. Caddy умеет WebSocket
 # Upgrade из коробки (reverse_proxy прозрачно проксирует Upgrade).
 #
-# Запуск: caddy run --config ./Caddyfile
+# Запуск: pnpm dev (Caddy работает foreground, останавливается вместе с сессией).
 # Наружу открыты только /api/* и /collab. Путь /internal/* НЕ проксируется —
 # internal collab-authorize endpoint недоступен снаружи (его зовёт только
 # collab-сервис напрямую по API_INTERNAL_URL).
+{
+	admin off
+	persist_config off
+}
 
 :8080 {
-	# API (REST). host.docker.internal — если Caddy в контейнере; на хосте
-	# замените на localhost.
+	# API (REST), запущенный на хосте.
 	handle /api/* {
 		reverse_proxy localhost:4000
 	}
