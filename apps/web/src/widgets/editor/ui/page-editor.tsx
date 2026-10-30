@@ -18,6 +18,7 @@ type PageEditorProps = {
   pageId: string;
   content: Page['content'];
   editorMode?: Page['editorMode'];
+  currentUserRole?: Page['currentUserRole'];
 };
 
 function EditorErrorFallback() {
@@ -31,9 +32,17 @@ function EditorErrorFallback() {
   );
 }
 
+function ReadOnlyRestPageEditor({ content }: Pick<PageEditorProps, 'content'>) {
+  const editor = useCreateBlockNote({
+    initialContent: content.length > 0 ? (content as PartialBlock[]) : undefined,
+  });
+
+  return <BlockNoteView editor={editor} editable={false} />;
+}
+
 // Без `initialContent` BlockNote сам создаёт документ с одним пустым
 // блоком — поэтому для новой страницы (`content` пуст) его не передаём.
-function RestPageEditor({ pageId, content }: PageEditorProps) {
+function EditableRestPageEditor({ pageId, content }: Pick<PageEditorProps, 'pageId' | 'content'>) {
   const { onChange, status, retry } = usePageAutosave(pageId);
   const editor = useCreateBlockNote({
     initialContent: content.length > 0 ? (content as PartialBlock[]) : undefined,
@@ -47,15 +56,23 @@ function RestPageEditor({ pageId, content }: PageEditorProps) {
   );
 }
 
+function RestPageEditor({ pageId, content, currentUserRole }: PageEditorProps) {
+  if (currentUserRole !== 'owner' && currentUserRole !== 'editor') {
+    return <ReadOnlyRestPageEditor content={content} />;
+  }
+
+  return <EditableRestPageEditor pageId={pageId} content={content} />;
+}
+
 // Выбор режима — по collab-editing.spec.md. Ветка чисто разводит компоненты
 // (свои хуки у каждого), режим стабилен: content для открытой страницы не
 // меняется, а роут ремонтит редактор по `key={pageId}`.
-function PageEditorContent({ pageId, content, editorMode }: PageEditorProps) {
-  if (shouldUseCollab({ enabled: isCollabEnabled(), editorMode, content })) {
-    return <CollabEditor pageId={pageId} />;
+function PageEditorContent({ pageId, content, editorMode, currentUserRole }: PageEditorProps) {
+  if (shouldUseCollab({ enabled: isCollabEnabled(), editorMode, currentUserRole, content })) {
+    return <CollabEditor pageId={pageId} currentUserRole={currentUserRole} />;
   }
 
-  return <RestPageEditor pageId={pageId} content={content} />;
+  return <RestPageEditor pageId={pageId} content={content} currentUserRole={currentUserRole} />;
 }
 
 export function PageEditor(props: PageEditorProps) {

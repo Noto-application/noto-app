@@ -8,7 +8,10 @@ import type { AuthenticatedRequest } from '../types/auth.types';
 import { assertProjectRole } from './assert-project-role';
 import { REQUIRE_PROJECT_ROLE_KEY } from './require-project-role.decorator';
 
-type RequestWithParams = AuthenticatedRequest & { params?: Record<string, string> };
+type RequestWithParams = AuthenticatedRequest & {
+  currentUserRole?: ProjectRole;
+  params?: Record<string, string>;
+};
 
 /**
  * Проверяет доступ к проекту по ProjectMember (ADR-011).
@@ -41,7 +44,11 @@ export class ProjectAccessGuard implements CanActivate {
       throw ApiErrors.validation('Project id is missing');
     }
 
-    await this.assertMemberRole(projectId, request.user.sub, requiredRole);
+    request.currentUserRole = await this.assertMemberRole(
+      projectId,
+      request.user.sub,
+      requiredRole,
+    );
     return true;
   }
 
@@ -49,7 +56,7 @@ export class ProjectAccessGuard implements CanActivate {
     projectId: string,
     userId: string,
     requiredRole: ProjectRole,
-  ): Promise<void> {
+  ): Promise<ProjectRole> {
     // Существование (404) — по проекту; членство и роль (403) — общая проверка.
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
@@ -60,6 +67,6 @@ export class ProjectAccessGuard implements CanActivate {
       throw ApiErrors.notFound('Project not found');
     }
 
-    await assertProjectRole(this.prisma, projectId, userId, requiredRole);
+    return assertProjectRole(this.prisma, projectId, userId, requiredRole);
   }
 }

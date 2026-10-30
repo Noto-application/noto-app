@@ -1,7 +1,7 @@
 'use client';
 
 import type { Page } from '@noto/shared';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ComponentProps } from 'react';
 
 import { buildPageTree, type PageTreeNode } from '@/src/entities/page';
 import { Button } from '@/src/shared/ui/button';
@@ -28,6 +28,7 @@ type MovePageDialogProps = {
   pages: Page[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  finalFocus?: ComponentProps<typeof DialogContent>['finalFocus'];
 };
 
 type ParentTreeProps = {
@@ -88,6 +89,7 @@ export function MovePageDialog({
   pages,
   open,
   onOpenChange,
+  finalFocus,
 }: MovePageDialogProps) {
   const [selectedParentId, setSelectedParentId] = useState<string | null | undefined>(undefined);
   const movePage = useMovePage();
@@ -128,7 +130,7 @@ export function MovePageDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent finalFocus={finalFocus}>
         <DialogHeader>
           <DialogTitle>Переместить «{title}»</DialogTitle>
           <DialogDescription>Выберите нового родителя для страницы.</DialogDescription>

@@ -11,7 +11,7 @@ export const PAGE_TITLE_MAX_LENGTH = 200;
  */
 export const PAGE_CONTENT_MAX_LENGTH = 1_000_000; // ~1 MB
 
-const pageTitleSchema = z
+export const pageTitleSchema = z
   .string()
   .trim()
   .min(PAGE_TITLE_MIN_LENGTH)
@@ -32,6 +32,10 @@ export const pageContentSchema = z
 export const editorModeSchema = z.enum(['rest', 'collab']);
 export type EditorMode = z.infer<typeof editorModeSchema>;
 
+/** Роль пользователя для страницы (#149): наследуется из проекта. */
+export const userRoleSchema = z.enum(['owner', 'editor', 'viewer']);
+export type UserRole = z.infer<typeof userRoleSchema>;
+
 /** Публичное представление страницы (без deletedAt и внутренних полей). */
 export const pageSchema = z.object({
   id: z.string(),
@@ -43,6 +47,8 @@ export const pageSchema = z.object({
   // Режим редактора (#109). Optional до реализации #109; после — сервер всегда
   // отдаёт поле (detail и list), фронт #110 выбирает режим по нему.
   editorMode: editorModeSchema.optional(),
+  // Роль пользователя (#149), наследуемая от проекта.
+  currentUserRole: userRoleSchema,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -78,4 +84,24 @@ export const pageResponseSchema = z.object({
 /** Ответ со списком страниц (плоский, дерево строит фронт по parentId). */
 export const pagesResponseSchema = z.object({
   pages: z.array(pageSchema),
+});
+
+/** Корзина не раскрывает контент страницы. */
+export const trashPageSchema = z.object({
+  id: z.uuid(),
+  projectId: z.uuid(),
+  parentId: z.uuid().nullable(),
+  title: z.string(),
+  position: z.number().int(),
+  deletedAt: z.iso.datetime(),
+});
+
+export const trashResponseSchema = z.object({
+  pages: z.array(trashPageSchema),
+  nextCursor: z.string().nullable(),
+});
+
+export const trashQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z.string().optional(),
 });

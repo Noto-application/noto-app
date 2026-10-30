@@ -1,8 +1,9 @@
 'use client';
 
 import type { Page } from '@noto/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type MutateOptions } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
+import { useRef } from 'react';
 
 import { createPage, pageKeys, usePage } from '@/src/entities/page';
 import { createProject, projectKeys, useProjects } from '@/src/entities/project';
@@ -18,16 +19,27 @@ type CreatePageInput = { title?: string; parentId?: string | null };
  * Создаёт страницу в активном проекте: если открыта страница — в её
  * проекте, иначе в первом загруженном; если проектов ещё нет вовсе —
  * сначала создаёт «Мой проект». Активный проект выводится из URL, а не
- * хранится отдельным состоянием (ADR-005).
+ * хранится отдельным состоянием (ADR-005). Явный projectId не использует
+ * фолбэк на другой проект.
  */
-export function useCreatePage() {
+export function useCreatePage(projectId?: string) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { pageId } = useParams<{ pageId?: string }>();
   const pageQuery = usePage(pageId);
   const projectsQuery = useProjects();
+  const successCallbacks = useRef(
+    new Map<
+      CreatePageInput,
+      {
+        callback: NonNullable<MutateOptions<Page, Error, CreatePageInput | undefined>['onSuccess']>;
+        variables: CreatePageInput | undefined;
+      }
+    >(),
+  );
 
-  const activeProjectId = pageId ? pageQuery.data?.projectId : projectsQuery.data?.[0]?.id;
+  const activeProjectId =
+    projectId ?? (pageId ? pageQuery.data?.projectId : projectsQuery.data?.[0]?.id);
   const isActiveProjectPending = pageId ? pageQuery.isPending : projectsQuery.isPending;
   const isActiveProjectError = pageId ? pageQuery.isError : projectsQuery.isError;
 
@@ -35,7 +47,7 @@ export function useCreatePage() {
     mutationFn: async ({ title = DEFAULT_PAGE_TITLE, parentId } = {}) => {
       let targetProjectId = activeProjectId;
 
-      if (!targetProjectId) {
+      if (!targetProjectId && !projectId) {
         const projects = projectsQuery.data;
 
         if (!projects) {
@@ -51,14 +63,22 @@ export function useCreatePage() {
         }
       }
 
+      if (!targetProjectId) {
+        throw new Error('Project is not available');
+      }
+
       return createPage(targetProjectId, { title, parentId });
     },
-    onSuccess: async (page) => {
+    onSuccess: async (page, variables, onMutateResult, context) => {
+      const entry = variables && successCallbacks.current.get(variables);
+      if (variables) successCallbacks.current.delete(variables);
       await queryClient.invalidateQueries({ queryKey: pageKeys.list(page.projectId) });
+      entry?.callback(page, entry.variables, onMutateResult, context);
       router.push(`/app/${page.id}`);
       toast.success('Страница создана', `Вы перешли на страницу «${page.title}»`);
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      if (variables) successCallbacks.current.delete(variables);
       if (error instanceof ApiClientError && error.code === 'UNAUTHORIZED') {
         return;
       }
@@ -72,8 +92,25 @@ export function useCreatePage() {
     },
   });
 
+  const mutate: typeof mutation.mutate = (variables, options) => {
+    const invocationVariables = { ...variables };
+    if (options?.onSuccess) {
+      successCallbacks.current.set(invocationVariables, {
+        callback: options.onSuccess,
+        variables,
+      });
+    }
+    mutation.mutate(invocationVariables, {
+      onError: (error, _variables, onMutateResult, context) =>
+        options?.onError?.(error, variables, onMutateResult, context),
+      onSettled: (data, error, _variables, onMutateResult, context) =>
+        options?.onSettled?.(data, error, variables, onMutateResult, context),
+    });
+  };
+
   return {
     ...mutation,
+    mutate,
     isProjectsPending: projectsQuery.isPending,
     isProjectsError: projectsQuery.isError,
     isActiveProjectPending,

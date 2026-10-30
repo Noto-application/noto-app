@@ -10,7 +10,6 @@ import { ApiClientError } from '@/src/shared/api';
 import { Spinner } from '@/src/shared/ui/spinner';
 import { PageEditor, PageTitle } from '@/src/widgets/editor';
 
-
 const MISSING_CODES: ApiErrorCode[] = ['NOT_FOUND', 'FORBIDDEN', 'VALIDATION_ERROR'];
 
 function CenteredArea({ children }: { children: ReactNode }) {
@@ -24,7 +23,6 @@ function CenteredArea({ children }: { children: ReactNode }) {
 export default function PageRoute() {
   const { pageId } = useParams<{ pageId: string }>();
   const { data: page, error, isPending } = usePage(pageId);
-
 
   if (isPending) {
     return (
@@ -69,6 +67,7 @@ export default function PageRoute() {
           pageId={page.id}
           content={page.content}
           editorMode={page.editorMode}
+          currentUserRole={page.currentUserRole}
         />
       </div>
     </div>

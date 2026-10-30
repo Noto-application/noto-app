@@ -8,7 +8,10 @@ import type { AuthenticatedRequest } from '../types/auth.types';
 import { assertProjectRole } from './assert-project-role';
 import { REQUIRE_PROJECT_ROLE_KEY } from './require-project-role.decorator';
 
-type RequestWithParams = AuthenticatedRequest & { params?: Record<string, string> };
+type RequestWithParams = AuthenticatedRequest & {
+  currentUserRole?: ProjectRole;
+  params?: Record<string, string>;
+};
 
 /**
  * Доступ к странице по item-роуту (`/pages/:pageId`). Страница наследует права от
@@ -53,7 +56,12 @@ export class PageAccessGuard implements CanActivate {
     }
 
     // Права (403): членство в проекте страницы и достаточная роль — общая проверка.
-    await assertProjectRole(this.prisma, page.projectId, request.user.sub, requiredRole);
+    request.currentUserRole = await assertProjectRole(
+      this.prisma,
+      page.projectId,
+      request.user.sub,
+      requiredRole,
+    );
 
     return true;
   }

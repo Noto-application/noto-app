@@ -1,14 +1,10 @@
 export { apiContract, type ApiContract } from './contract';
 export { authContract } from './contract/auth';
-export { pagesContract } from './contract/pages';
+export { calendarContract } from './contract/calendar';
+export { pagesContract, restoreConflictSchema } from './contract/pages';
 export { projectsContract } from './contract/projects';
 export { usersContract } from './contract/users';
-export {
-  apiErrorCodeSchema,
-  apiErrorSchema,
-  type ApiError,
-  type ApiErrorCode,
-} from './errors';
+export { apiErrorCodeSchema, apiErrorSchema, type ApiError, type ApiErrorCode } from './errors';
 export {
   AUTH_PASSWORD_MIN_LENGTH,
   authCredentialsSchema,
@@ -44,13 +40,37 @@ export {
   pageContentSchema,
   pageResponseSchema,
   pageSchema,
+  pageTitleSchema,
   pagesResponseSchema,
+  trashPageSchema,
+  trashQuerySchema,
+  trashResponseSchema,
   updatePageSchema,
+  userRoleSchema,
   type Page,
+  type UserRole,
 } from './schemas/page';
+export {
+  CALENDAR_RANGE_MAX_DAYS,
+  calendarDateSchema,
+  calendarCreatedPageResponseSchema,
+  calendarEntriesQuerySchema,
+  calendarEntriesResponseSchema,
+  calendarEntryResponseSchema,
+  calendarEntrySchema,
+  calendarPageResponseSchema,
+  createCalendarPageSchema,
+  updateCalendarEntrySchema,
+  type CalendarEntry,
+} from './schemas/calendar';
 export type {
   AuthCredentials,
   AuthUserResponse,
+  CalendarCreatedPageResponse,
+  CalendarEntriesResponse,
+  CalendarEntryResponse,
+  CalendarPageResponse,
+  CreateCalendarPageInput,
   CreatePageInput,
   CreateProjectInput,
   LoginCredentials,
@@ -58,6 +78,7 @@ export type {
   PagesResponse,
   ProjectResponse,
   ProjectsResponse,
+  UpdateCalendarEntryInput,
   UpdatePageInput,
   UpdateProjectInput,
   UpdateUserInput,

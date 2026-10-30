@@ -7,4 +7,3 @@ export {
   MovePageRootDropTarget,
 } from './ui/move-page-dnd';
 export { MovePageDialog } from './ui/move-page-dialog';
-export { MovePageMenu } from './ui/move-page-menu';

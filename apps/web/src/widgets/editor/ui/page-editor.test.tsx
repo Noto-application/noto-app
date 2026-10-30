@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Page } from '@/src/entities/page';
 
-type BlockNoteViewStubProps = { onChange?: () => void };
+type BlockNoteViewStubProps = { editor?: unknown; onChange?: () => void; editable?: boolean };
 
 const {
   useCreateBlockNote,
@@ -21,11 +21,11 @@ const {
   return {
     DOCUMENT_STUB,
     useCreateBlockNote: vi.fn(() => ({ document: DOCUMENT_STUB })),
-    blockNoteViewProps: vi.fn<(props: BlockNoteViewStubProps) => void>(),
     usePageAutosave: vi.fn(),
     autosaveOnChange: vi.fn(),
     autosaveRetry: vi.fn(),
     autosaveState: { status: 'idle' },
+    blockNoteViewProps: vi.fn<(props: BlockNoteViewStubProps) => void>(),
   };
 });
 
@@ -47,9 +47,13 @@ vi.mock('../model/use-page-autosave', () => ({
 // CollabEditor — ленивый dynamic-компонент с Yjs/WS-цепочкой; здесь проверяем
 // только выбор режима, поэтому подменяем его маркером.
 vi.mock('./collab-editor', () => ({
-  CollabEditor: ({ pageId }: { pageId: string }) => (
-    <div data-testid="collab-editor" data-page-id={pageId} />
-  ),
+  CollabEditor: ({
+    pageId,
+    currentUserRole,
+  }: {
+    pageId: string;
+    currentUserRole?: Page['currentUserRole'];
+  }) => <div data-testid="collab-editor" data-page-id={pageId} data-role={currentUserRole} />,
 }));
 
 import { PageEditor } from './page-editor';
@@ -77,19 +81,19 @@ describe('PageEditor', () => {
   it('передаёт content как initialContent, когда на странице уже есть блоки', () => {
     const content = [{ type: 'paragraph', content: 'сохранённый текст' }] as Page['content'];
 
-    render(<PageEditor pageId={pageId} content={content} />);
+    render(<PageEditor pageId={pageId} content={content} currentUserRole="editor" />);
 
     expect(useCreateBlockNote).toHaveBeenCalledWith({ initialContent: content });
   });
 
   it('не передаёт initialContent для новой страницы без сохранённого контента', () => {
-    render(<PageEditor pageId={pageId} content={[] as Page['content']} />);
+    render(<PageEditor pageId={pageId} content={[] as Page['content']} currentUserRole="editor" />);
 
     expect(useCreateBlockNote).toHaveBeenCalledWith({ initialContent: undefined });
   });
 
   it('передаёт текущий документ редактора в usePageAutosave.onChange при изменении', () => {
-    render(<PageEditor pageId={pageId} content={[]} />);
+    render(<PageEditor pageId={pageId} content={[]} currentUserRole="editor" />);
 
     const { onChange } = blockNoteViewProps.mock.calls.at(-1)?.[0] ?? {};
     onChange?.();
@@ -106,7 +110,7 @@ describe('PageEditor', () => {
     };
     useCreateBlockNote.mockImplementationOnce(throwOnRender).mockImplementationOnce(throwOnRender);
 
-    render(<PageEditor pageId={pageId} content={[]} />);
+    render(<PageEditor pageId={pageId} content={[]} currentUserRole="editor" />);
 
     expect(screen.getByText('Не удалось открыть редактор.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'На главную' })).toHaveAttribute('href', '/app');
@@ -116,7 +120,7 @@ describe('PageEditor', () => {
   it('передаёт status и retry из usePageAutosave в AutosaveIndicator', async () => {
     autosaveState.status = 'error';
     const user = userEvent.setup();
-    render(<PageEditor pageId={pageId} content={[]} />);
+    render(<PageEditor pageId={pageId} content={[]} currentUserRole="editor" />);
 
     expect(screen.getByText('Не удалось сохранить')).toBeInTheDocument();
 
@@ -130,7 +134,7 @@ describe('PageEditor', () => {
     it('в collab-режиме рендерит CollabEditor и не подключает REST-автосейв', () => {
       vi.stubEnv('NEXT_PUBLIC_COLLAB_ENABLED', 'true');
 
-      render(<PageEditor pageId={pageId} content={[]} />);
+      render(<PageEditor pageId={pageId} content={[]} currentUserRole="editor" />);
 
       expect(screen.getByTestId('collab-editor')).toHaveAttribute('data-page-id', pageId);
       expect(usePageAutosave).not.toHaveBeenCalled();
@@ -140,7 +144,9 @@ describe('PageEditor', () => {
     // Durable-признак (#109): уже-collab страница открывается через Yjs даже
     // при выключенном флаге.
     it('durable collab-страница открывается в collab при выключенном флаге', () => {
-      render(<PageEditor pageId={pageId} content={[]} editorMode="collab" />);
+      render(
+        <PageEditor pageId={pageId} content={[]} editorMode="collab" currentUserRole="editor" />,
+      );
 
       expect(screen.getByTestId('collab-editor')).toHaveAttribute('data-page-id', pageId);
       expect(usePageAutosave).not.toHaveBeenCalled();
@@ -149,7 +155,14 @@ describe('PageEditor', () => {
     it('durable collab-страница с REST-контентом открывается в collab при выключенном флаге', () => {
       const content = [{ type: 'paragraph', content: 'старый REST-контент' }] as Page['content'];
 
-      render(<PageEditor pageId={pageId} content={content} editorMode="collab" />);
+      render(
+        <PageEditor
+          pageId={pageId}
+          content={content}
+          editorMode="collab"
+          currentUserRole="editor"
+        />,
+      );
 
       expect(screen.getByTestId('collab-editor')).toBeInTheDocument();
       expect(usePageAutosave).not.toHaveBeenCalled();
@@ -158,11 +171,43 @@ describe('PageEditor', () => {
     it('rest-страница с контентом остаётся на REST-редакторе при выключенном флаге', () => {
       const content = [{ type: 'paragraph', content: 'сохранённый текст' }] as Page['content'];
 
-      render(<PageEditor pageId={pageId} content={content} editorMode="rest" />);
+      render(
+        <PageEditor pageId={pageId} content={content} editorMode="rest" currentUserRole="editor" />,
+      );
 
       expect(screen.queryByTestId('collab-editor')).not.toBeInTheDocument();
       expect(usePageAutosave).toHaveBeenCalledTimes(1);
       expect(useCreateBlockNote).toHaveBeenCalledWith({ initialContent: content });
+    });
+
+    it('viewer остаётся в read-only REST-редакторе и не подключает collab для REST-страницы', () => {
+      vi.stubEnv('NEXT_PUBLIC_COLLAB_ENABLED', 'true');
+
+      render(
+        <PageEditor pageId={pageId} content={[]} editorMode="rest" currentUserRole="viewer" />,
+      );
+
+      expect(screen.queryByTestId('collab-editor')).not.toBeInTheDocument();
+      expect(usePageAutosave).not.toHaveBeenCalled();
+      const { editor, editable } = blockNoteViewProps.mock.calls.at(-1)?.[0] ?? {};
+      // Сначала фиксируем, что хук вызван один раз и вернул объект: иначе
+      // проверка идентичности ниже прошла бы вхолостую при undefined === undefined.
+      expect(useCreateBlockNote).toHaveBeenCalledTimes(1);
+      expect(useCreateBlockNote.mock.results.at(-1)?.value).toBeDefined();
+      expect(useCreateBlockNote.mock.results.at(-1)?.value).toEqual(expect.any(Object));
+      // Строгая проверка идентичности: в BlockNoteView уходит ровно тот
+      // экземпляр, который вернул useCreateBlockNote (не просто «какой-то объект»).
+      expect(editor).toBe(useCreateBlockNote.mock.results.at(-1)?.value);
+      expect(editable).toBe(false);
+    });
+
+    it('viewer подключается к durable collab-странице', () => {
+      render(
+        <PageEditor pageId={pageId} content={[]} editorMode="collab" currentUserRole="viewer" />,
+      );
+
+      expect(screen.getByTestId('collab-editor')).toHaveAttribute('data-role', 'viewer');
+      expect(usePageAutosave).not.toHaveBeenCalled();
     });
   });
 });

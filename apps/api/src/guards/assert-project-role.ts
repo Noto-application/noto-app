@@ -17,7 +17,7 @@ export async function assertProjectRole(
   projectId: string,
   userId: string,
   requiredRole: ProjectRole,
-): Promise<void> {
+): Promise<ProjectRole> {
   const membership = await prisma.projectMember.findUnique({
     where: { projectId_userId: { projectId, userId } },
     select: { role: true },
@@ -30,4 +30,6 @@ export async function assertProjectRole(
   if (!hasMinimumProjectRole(membership.role, requiredRole)) {
     throw ApiErrors.forbidden('Insufficient project role');
   }
+
+  return membership.role;
 }

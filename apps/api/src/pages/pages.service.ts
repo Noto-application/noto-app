@@ -1,45 +1,46 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { CreatePageInput, Page, UpdatePageInput } from '@noto/shared';
+import { z } from 'zod';
+import type { CreatePageInput, Page, UpdatePageInput, UserRole } from '@noto/shared';
 
-import { ApiErrors } from '../lib/errors';
+import { hasMinimumProjectRole } from '../guards/project-role.utils';
+import { ApiErrors, ApiException } from '../lib/errors';
 import { toPublicPage } from '../lib/utils';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Предохранитель от патологических деревьев (спека pages.spec.md). */
 const PAGE_TREE_MAX_DEPTH = 10;
+const trashCursorSchema = z.object({ deletedAt: z.iso.datetime(), id: z.uuid() }).strict();
 
 @Injectable()
 export class PagesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(projectId: string, userId: string, input: CreatePageInput): Promise<Page> {
-    const parentId = await this.resolveParentId(projectId, input.parentId);
-
-    const build = (position: number): Prisma.PageUncheckedCreateInput => ({
-      projectId,
-      parentId,
-      createdById: userId,
-      title: input.title,
-      content: (input.content ?? []) as Prisma.InputJsonValue,
-      position,
-    });
-
-    // Позиция не задана — append в конец группы (сдвиг не нужен).
-    if (input.position === undefined) {
-      const position = await this.nextPosition(this.prisma, projectId, parentId);
-      const page = await this.prisma.page.create({ data: build(position) });
-      return toPublicPage(page);
-    }
-
-    // Явная позиция — вставка со сдвигом сиблингов (>= position) в транзакции.
-    const position = input.position;
+  async create(
+    projectId: string,
+    userId: string,
+    input: CreatePageInput,
+    currentUserRole: UserRole,
+  ): Promise<Page> {
     const page = await this.runInSerializableTx(async (tx) => {
-      await this.shiftSiblingsForInsert(tx, projectId, parentId, position);
-      return tx.page.create({ data: build(position) });
+      const parentId = await this.resolveParentId(tx, projectId, input.parentId);
+      const position = input.position ?? (await this.nextPosition(tx, projectId, parentId));
+      if (input.position !== undefined) {
+        await this.shiftSiblingsForInsert(tx, projectId, parentId, position);
+      }
+      return tx.page.create({
+        data: {
+          projectId,
+          parentId,
+          createdById: userId,
+          title: input.title,
+          content: (input.content ?? []) as Prisma.InputJsonValue,
+          position,
+        },
+      });
     });
 
-    return toPublicPage(page);
+    return toPublicPage(page, currentUserRole);
   }
 
   /**
@@ -70,7 +71,7 @@ export class PagesService {
     }
   }
 
-  async listByProject(projectId: string): Promise<Page[]> {
+  async listByProject(projectId: string, currentUserRole: UserRole): Promise<Page[]> {
     const pages = await this.prisma.page.findMany({
       where: { projectId, deletedAt: null },
       // Вторичный ключ createdAt — детерминизм при равных position (например у
@@ -78,11 +79,131 @@ export class PagesService {
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
     });
 
-    return pages.map(toPublicPage);
+    return pages.map((page) => toPublicPage(page, currentUserRole));
+  }
+
+  async listTrash(
+    projectId: string,
+    query: { limit: number; cursor?: string },
+  ): Promise<{
+    pages: Array<{
+      id: string;
+      projectId: string;
+      parentId: string | null;
+      title: string;
+      position: number;
+      deletedAt: string;
+    }>;
+    nextCursor: string | null;
+  }> {
+    let cursor: z.infer<typeof trashCursorSchema> | undefined;
+    if (query.cursor !== undefined) {
+      try {
+        if (!/^[A-Za-z0-9_-]+$/.test(query.cursor)) throw new Error('Invalid cursor');
+        cursor = trashCursorSchema.parse(
+          JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')),
+        );
+      } catch {
+        throw ApiErrors.validation('Invalid trash cursor');
+      }
+    }
+
+    const rows = await this.prisma.page.findMany({
+      where: {
+        projectId,
+        deletedAt: { not: null },
+        ...(cursor
+          ? {
+              OR: [
+                { deletedAt: { lt: new Date(cursor.deletedAt) } },
+                { deletedAt: new Date(cursor.deletedAt), id: { gt: cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        projectId: true,
+        parentId: true,
+        title: true,
+        position: true,
+        deletedAt: true,
+      },
+      orderBy: [{ deletedAt: 'desc' }, { id: 'asc' }],
+      take: query.limit + 1,
+    });
+    const hasMore = rows.length > query.limit;
+    const pageRows = rows.slice(0, query.limit);
+    const last = pageRows.at(-1);
+    return {
+      pages: pageRows.map((row) => ({ ...row, deletedAt: row.deletedAt!.toISOString() })),
+      nextCursor:
+        hasMore && last
+          ? Buffer.from(
+              JSON.stringify({ deletedAt: last.deletedAt!.toISOString(), id: last.id }),
+            ).toString('base64url')
+          : null,
+    };
+  }
+
+  async restore(id: string, userId: string): Promise<Page> {
+    return this.runInSerializableTx(async (tx) => {
+      const page = await tx.page.findFirst({
+        where: { id, deletedAt: { not: null } },
+        select: { projectId: true, parentId: true, project: { select: { deletedAt: true } } },
+      });
+      if (!page || page.project.deletedAt !== null) throw ApiErrors.notFound('Page not found');
+
+      const member = await tx.projectMember.findUnique({
+        where: { projectId_userId: { projectId: page.projectId, userId } },
+        select: { role: true },
+      });
+      if (!member || !hasMinimumProjectRole(member.role, 'editor')) {
+        throw ApiErrors.forbidden();
+      }
+
+      let parentId = page.parentId;
+      let depth = 1;
+      let blockedBy: { id: string; title: string } | undefined;
+      const visited = new Set([id]);
+      while (parentId !== null) {
+        if (visited.has(parentId)) throw ApiErrors.conflict('Invalid page ancestry');
+        visited.add(parentId);
+        const ancestor: {
+          id: string;
+          projectId: string;
+          parentId: string | null;
+          deletedAt: Date | null;
+          title: string;
+        } | null = await tx.page.findUnique({
+          where: { id: parentId },
+          select: { id: true, projectId: true, parentId: true, deletedAt: true, title: true },
+        });
+        if (!ancestor || ancestor.projectId !== page.projectId) {
+          throw ApiErrors.conflict('Invalid page ancestry');
+        }
+        if (ancestor.deletedAt !== null) blockedBy = { id: ancestor.id, title: ancestor.title };
+        depth += 1;
+        parentId = ancestor.parentId;
+      }
+      if (blockedBy) {
+        throw new ApiException('CONFLICT', 'Deleted ancestor', {
+          details: { blockedBy },
+        });
+      }
+      if (depth > PAGE_TREE_MAX_DEPTH) throw ApiErrors.conflict('Page tree depth limit exceeded');
+
+      const position = await this.nextPosition(tx, page.projectId, page.parentId);
+      const restored = await tx.page.update({
+        where: { id },
+        data: { deletedAt: null, position },
+      });
+      return toPublicPage(restored, member.role);
+    });
   }
 
   /** Одна живая страница по id. Доступ уже проверил PageAccessGuard. */
-  async getById(id: string): Promise<Page> {
+  async getById(id: string, currentUserRole: UserRole): Promise<Page> {
     const page = await this.prisma.page.findFirst({
       where: { id, deletedAt: null },
     });
@@ -91,7 +212,7 @@ export class PagesService {
       throw ApiErrors.notFound('Page not found');
     }
 
-    return toPublicPage(page);
+    return toPublicPage(page, currentUserRole);
   }
 
   /**
@@ -101,14 +222,14 @@ export class PagesService {
    * пройти проверку и создать цикл (гонка между проверкой и записью).
    * Доступ уже проверил PageAccessGuard.
    */
-  async update(id: string, input: UpdatePageInput): Promise<Page> {
+  async update(id: string, input: UpdatePageInput, currentUserRole: UserRole): Promise<Page> {
     const isMove = input.parentId !== undefined || input.position !== undefined;
 
     if (!isMove) {
-      return this.applyContentUpdate(id, input);
+      return this.applyContentUpdate(id, input, currentUserRole);
     }
 
-    return this.runInSerializableTx((tx) => this.moveInTree(tx, id, input));
+    return this.runInSerializableTx((tx) => this.moveInTree(tx, id, input, currentUserRole));
   }
 
   /**
@@ -138,7 +259,11 @@ export class PagesService {
   }
 
   /** Обновление без перемещения (title/content, автосейв). */
-  private async applyContentUpdate(id: string, input: UpdatePageInput): Promise<Page> {
+  private async applyContentUpdate(
+    id: string,
+    input: UpdatePageInput,
+    currentUserRole: UserRole,
+  ): Promise<Page> {
     const data: Prisma.PageUncheckedUpdateInput = {};
 
     if (input.title !== undefined) {
@@ -166,12 +291,15 @@ export class PagesService {
           ? ApiErrors.conflict('Page content is managed by collaborative editing')
           : ApiErrors.notFound('Page not found');
       }
-      return toPublicPage(await this.prisma.page.findFirstOrThrow({ where: { id } }));
+      return toPublicPage(
+        await this.prisma.page.findFirstOrThrow({ where: { id } }),
+        currentUserRole,
+      );
     }
 
     const page = await this.prisma.page.update({ where: { id }, data });
 
-    return toPublicPage(page);
+    return toPublicPage(page, currentUserRole);
   }
 
   /** Перемещение по дереву в транзакции: валидация move + запись. */
@@ -179,6 +307,7 @@ export class PagesService {
     tx: Prisma.TransactionClient,
     id: string,
     input: UpdatePageInput,
+    currentUserRole: UserRole,
   ): Promise<Page> {
     const current = await tx.page.findFirst({
       where: { id, deletedAt: null },
@@ -227,7 +356,7 @@ export class PagesService {
 
     const page = await tx.page.update({ where: { id }, data });
 
-    return toPublicPage(page);
+    return toPublicPage(page, currentUserRole);
   }
 
   /** Сдвигает сиблингов группы с `position >= from` на +1 (освобождает слот). */
@@ -325,10 +454,7 @@ export class PagesService {
   }
 
   /** Id корня и всех живых потомков (BFS вниз по parentId). */
-  private async collectSubtreeIds(
-    tx: Prisma.TransactionClient,
-    rootId: string,
-  ): Promise<string[]> {
+  private async collectSubtreeIds(tx: Prisma.TransactionClient, rootId: string): Promise<string[]> {
     const ids = [rootId];
     let frontier = [rootId];
 
@@ -366,6 +492,7 @@ export class PagesService {
    * глубина нового узла (включая его самого) не больше PAGE_TREE_MAX_DEPTH.
    */
   private async resolveParentId(
+    tx: Prisma.TransactionClient,
     projectId: string,
     parentId: string | null | undefined,
   ): Promise<string | null> {
@@ -383,11 +510,10 @@ export class PagesService {
         throw ApiErrors.validation('Page tree depth limit exceeded');
       }
 
-      const node: { projectId: string; parentId: string | null } | null =
-        await this.prisma.page.findFirst({
-          where: { id: currentId, deletedAt: null },
-          select: { projectId: true, parentId: true },
-        });
+      const node: { projectId: string; parentId: string | null } | null = await tx.page.findFirst({
+        where: { id: currentId, deletedAt: null },
+        select: { projectId: true, parentId: true },
+      });
 
       if (!node) {
         throw ApiErrors.notFound('Parent page not found');

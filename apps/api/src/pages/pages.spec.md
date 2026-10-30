@@ -38,16 +38,17 @@ ts-rest контракт в `@noto/shared` ([ADR-012](../../../../docs/adr/012-a
 
 **Форма `Page`** (публичный DTO, без `deletedAt`):
 
-| Поле        | Тип              | Заметка                                                |
-| ----------- | ---------------- | ------------------------------------------------------ |
-| `id`        | `string` (uuid)  |                                                        |
-| `projectId` | `string` (uuid)  | Проект-владелец                                        |
-| `parentId`  | `string \| null` | Родитель в дереве; `null` — корень проекта             |
-| `title`     | `string`         | 1..200                                                 |
-| `content`   | `Json`           | BlockNote-док (массив блоков), непрозрачный (см. ниже) |
-| `position`  | `number` (int)   | Порядок среди сиблингов                                |
-| `createdAt` | `string` (ISO)   |                                                        |
-| `updatedAt` | `string` (ISO)   |                                                        |
+| Поле              | Тип                         | Заметка                                                |
+| ----------------- | --------------------------- | ------------------------------------------------------ |
+| `id`              | `string` (uuid)             |                                                        |
+| `projectId`       | `string` (uuid)             | Проект-владелец                                        |
+| `currentUserRole` | `owner \| editor \| viewer` | Роль текущего пользователя в проекте                   |
+| `parentId`        | `string \| null`            | Родитель в дереве; `null` — корень проекта             |
+| `title`           | `string`                    | 1..200                                                 |
+| `content`         | `Json`                      | BlockNote-док (массив блоков), непрозрачный (см. ниже) |
+| `position`        | `number` (int)              | Порядок среди сиблингов                                |
+| `createdAt`       | `string` (ISO)              |                                                        |
+| `updatedAt`       | `string` (ISO)              |                                                        |
 
 **Роуты — форма (решение):** коллекция вложена в проект
 (`/projects/:projectId/pages`), item — плоско (`/pages/:pageId`). Для item-роутов

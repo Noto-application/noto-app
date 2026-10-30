@@ -208,6 +208,7 @@ describe('Pages (e2e)', () => {
       expect(page.projectId).toBe(projectId);
       expect(page.parentId).toBeNull();
       expect(page.content).toEqual(sampleContent);
+      expect(page.currentUserRole).toBe('editor');
     });
 
     it('пустой content по умолчанию, если не передан', async () => {
@@ -353,6 +354,8 @@ describe('Pages (e2e)', () => {
       const response = await agent.get(`/api/projects/${projectId}/pages`).expect(200);
       const { pages } = parsePages(response.body);
       expect(pages.map((p) => p.title)).toEqual(['A', 'B']);
+      // Роль — из членства вызывающего и одинакова для всех страниц списка.
+      expect(pages.map((p) => p.currentUserRole)).toEqual(['viewer', 'viewer']);
     });
 
     it('не возвращает удалённые страницы', async () => {
@@ -458,7 +461,9 @@ describe('Pages (e2e)', () => {
         .patch(`/api/pages/${pageId}`)
         .send({ title: 'Renamed' })
         .expect(200);
-      expect(parsePage(response.body).page.title).toBe('Renamed');
+      const { page } = parsePage(response.body);
+      expect(page.title).toBe('Renamed');
+      expect(page.currentUserRole).toBe('editor');
     });
 
     it('editor обновляет content → 200', async () => {
