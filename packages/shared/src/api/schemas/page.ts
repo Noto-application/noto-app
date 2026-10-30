@@ -105,3 +105,36 @@ export const trashQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().optional(),
 });
+
+/** Ограничения постраничного поиска заголовков страниц. */
+export const PAGE_SEARCH_DEFAULT_LIMIT = 20;
+export const PAGE_SEARCH_MAX_LIMIT = 50;
+
+/** Query поиска: пустой запрос после trim не принимается. */
+export const pageSearchQuerySchema = z.object({
+  q: z.string().trim().min(PAGE_TITLE_MIN_LENGTH).max(PAGE_TITLE_MAX_LENGTH),
+  projectId: z.uuid().optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(PAGE_SEARCH_MAX_LIMIT)
+    .default(PAGE_SEARCH_DEFAULT_LIMIT),
+  cursor: z.string().min(1).optional(),
+});
+
+/** Компактный результат поиска, не содержащий Page content и внутренних полей. */
+export const pageSearchResultSchema = z.strictObject({
+  pageId: z.uuid(),
+  title: z.string(),
+  projectId: z.uuid(),
+  projectName: z.string(),
+});
+
+export const pageSearchResponseSchema = z.strictObject({
+  results: z.array(pageSearchResultSchema),
+  nextCursor: z.string().nullable(),
+});
+
+export type PageSearchResult = z.infer<typeof pageSearchResultSchema>;
+export type pageSearchResponse = z.infer<typeof pageSearchResponseSchema>;

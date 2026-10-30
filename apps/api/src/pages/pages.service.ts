@@ -7,10 +7,19 @@ import { hasMinimumProjectRole } from '../guards/project-role.utils';
 import { ApiErrors, ApiException } from '../lib/errors';
 import { toPublicPage } from '../lib/utils';
 import { PrismaService } from '../prisma/prisma.service';
+import { pageSearchResponse } from '@noto/shared/dist/api/schemas/page';
 
 /** Предохранитель от патологических деревьев (спека pages.spec.md). */
 const PAGE_TREE_MAX_DEPTH = 10;
 const trashCursorSchema = z.object({ deletedAt: z.iso.datetime(), id: z.uuid() }).strict();
+const pageCursorSchema = z
+  .object({
+    q: z.string(),
+    projectId: z.uuid().nullable(),
+    title: z.string(),
+    id: z.uuid(),
+  })
+  .strict();
 
 @Injectable()
 export class PagesService {
@@ -141,6 +150,112 @@ export class PagesService {
         hasMore && last
           ? Buffer.from(
               JSON.stringify({ deletedAt: last.deletedAt!.toISOString(), id: last.id }),
+            ).toString('base64url')
+          : null,
+    };
+  }
+
+  async search(
+    query: { q: string; projectId?: string; limit: number; cursor?: string },
+    userId: string,
+  ): Promise<pageSearchResponse> {
+    let cursor: z.infer<typeof pageCursorSchema> | undefined;
+    if (query.cursor !== undefined) {
+      try {
+        if (!/^[A-Za-z0-9_-]+$/.test(query.cursor)) throw new Error('Invalid cursor');
+        cursor = pageCursorSchema.parse(
+          JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')),
+        );
+      } catch {
+        throw ApiErrors.validation('Invalid search cursor');
+      }
+
+      if (cursor.q !== query.q || cursor.projectId !== (query.projectId ?? null)) {
+        throw ApiErrors.validation('Search cursor does not match query');
+      }
+    }
+
+    let projects: Array<{ id: string }>;
+    if (query.projectId !== undefined) {
+      const project = await this.prisma.project.findFirst({
+        where: { id: query.projectId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!project) {
+        throw ApiErrors.notFound('Project not found');
+      }
+
+      const membership = await this.prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId: query.projectId, userId } },
+        select: { projectId: true },
+      });
+      if (!membership) throw ApiErrors.forbidden();
+
+      projects = [project];
+    } else {
+      const userMemberships = await this.prisma.projectMember.findMany({
+        where: { userId },
+        select: { projectId: true },
+      });
+      projects = await this.prisma.project.findMany({
+        where: {
+          id: { in: userMemberships.map((el) => el.projectId) },
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+    }
+
+    if (projects.length === 0) {
+      return { results: [], nextCursor: null };
+    }
+
+    const escapedQuery = query.q.replace(/[\\%_]/g, '\\$&');
+    const pageRows = await this.prisma.page.findMany({
+      where: {
+        projectId: { in: projects.map((project) => project.id) },
+        title: { contains: escapedQuery, mode: 'insensitive' },
+        deletedAt: null,
+        project: {
+          deletedAt: null,
+          members: { some: { userId } }
+        },
+        ...(cursor
+          ? {
+              OR: [{ title: { gt: cursor.title } }, { title: cursor.title, id: { gt: cursor.id } }],
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        projectId: true,
+        title: true,
+        parentId: true,
+        project: { select: { name: true } },
+      },
+      orderBy: [{ title: 'asc' }, { id: 'asc' }],
+      take: query.limit + 1,
+    });
+
+    const hasMore = pageRows.length > query.limit;
+    const resultsPage = pageRows.slice(0, query.limit);
+    const last = resultsPage.at(-1);
+    return {
+      results: resultsPage.map(({ id, title, projectId, project }) => ({
+        pageId: id,
+        title,
+        projectId,
+        projectName: project.name,
+      })),
+      nextCursor:
+        hasMore && last
+          ? Buffer.from(
+              JSON.stringify({
+                q: query.q,
+                projectId: query.projectId ?? null,
+                title: last.title,
+                id: last.id,
+              }),
             ).toString('base64url')
           : null,
     };
