@@ -87,6 +87,11 @@ liveness. Само приложение при этом не стартует б
 | `CORS_ORIGIN`           | нет    | `http://localhost:3000` | Origin фронтенда; wildcard нельзя, запросы идут с credentials |
 | `DATABASE_URL`          | **да** | —                       | Строка подключения к Postgres                                 |
 | `REDIS_URL`             | **да** | —                       | Строка подключения к Redis                                    |
+| `STORAGE_BUCKET`        | **да** | —                       | Приватный bucket Yandex Object Storage                        |
+| `STORAGE_REGION`        | **да** | —                       | Регион S3 (`ru-central1`)                                     |
+| `STORAGE_ENDPOINT`      | **да** | —                       | S3 endpoint (`https://storage.yandexcloud.net`)                |
+| `AWS_ACCESS_KEY_ID`     | **да** | —                       | Ключ доступа для API                                           |
+| `AWS_SECRET_ACCESS_KEY` | **да** | —                       | Секретный ключ для API                                         |
 | `JWT_ACCESS_SECRET`     | **да** | —                       | Секрет для подписи access-токена                              |
 | `JWT_REFRESH_SECRET`    | **да** | —                       | Секрет для подписи refresh-токена                             |
 | `JWT_ACCESS_TTL`        | нет    | `15m`                   | Время жизни access-токена                                     |
@@ -117,6 +122,11 @@ pnpm --filter @noto/api db:deploy
 `REDIS_CLIENT`). Используется под allow-list refresh-токенов (auth) и позже под
 очереди/realtime. Подключение проверяется на старте — без Redis приложение
 падает.
+
+**Object Storage** — S3-клиент AWS SDK v3 в глобальном `StorageModule`.
+`StorageService` предоставляет настроенный клиент и bucket; приватные объекты
+хранятся в Yandex Object Storage. Загрузка и чтение по presigned URL добавляются
+прикладными сценариями отдельно.
 
 ## Docker Compose
 
