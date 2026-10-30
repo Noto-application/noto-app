@@ -5,6 +5,10 @@
 {$NOTO_PUBLIC_HOST} {
 	encode zstd gzip
 
+	# В production браузер обращается напрямую к Yandex Object Storage по
+	# presigned URL. S3-трафик и credentials хранилища через Caddy не проходят.
+	# Ниже проксируется только API; он подписывает запросы серверными credentials.
+
 	# Internal service-to-service API is deliberately never exposed by Caddy.
 	handle /internal/* {
 		respond 404

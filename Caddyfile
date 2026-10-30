@@ -3,9 +3,10 @@
 # Upgrade из коробки (reverse_proxy прозрачно проксирует Upgrade).
 #
 # Запуск: pnpm dev (Caddy работает foreground, останавливается вместе с сессией).
-# Наружу открыты только /api/* и /collab. Путь /internal/* НЕ проксируется —
-# internal collab-authorize endpoint недоступен снаружи (его зовёт только
-# collab-сервис напрямую по API_INTERNAL_URL).
+# На основном origin доступны API и collab; /internal/* НЕ проксируется —
+# internal collab-authorize endpoint недоступен снаружи.
+# Браузер обращается к Yandex Object Storage по presigned URL напрямую:
+# Caddy не проксирует S3-трафик и не получает credentials хранилища.
 {
 	admin off
 	persist_config off
