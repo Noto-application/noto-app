@@ -1,0 +1,34 @@
+.noto-month-grid {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  --fc-classic-background: var(--background);
+  --fc-classic-foreground: var(--foreground);
+  --fc-classic-faint-foreground: var(--muted-foreground);
+  --fc-classic-muted-foreground: var(--muted-foreground);
+  --fc-classic-border: var(--border);
+  --fc-classic-strong-border: var(--border-strong);
+  --fc-classic-faint: var(--surface);
+  --fc-classic-muted: var(--muted);
+  --fc-classic-strong: var(--surface-selected);
+  --fc-classic-primary: var(--primary);
+  --fc-classic-primary-foreground: var(--primary-foreground);
+  --fc-classic-event: var(--surface-selected);
+  --fc-classic-event-contrast: var(--foreground);
+  --fc-classic-today: var(--surface-selected);
+  --fc-classic-highlight: var(--surface-hover);
+  --fc-classic-now: var(--primary);
+}
+
+.noto-month-card {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 4px;
+  font-size: 12px;
+}
+
+.noto-month-grid :focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
