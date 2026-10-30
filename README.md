@@ -64,6 +64,7 @@ noto-app/
   на Linux — [официальная установка Caddy](https://caddyserver.com/docs/install).
 - Свободные порты приложений `3000`, `4000`, `5555` и прокси `8080`;
   Compose использует `5433` для Postgres и `6380` для Redis.
+- Доступ в интернет к Yandex Object Storage для загрузки изображений (ADR-017).
 
 ### Первый запуск
 
@@ -79,14 +80,20 @@ cp apps/collab/.env.example apps/collab/.env
 
 Проверьте настройки единого origin (launcher не исправляет `.env` автоматически):
 
-| Файл                  | Настройки для `pnpm dev`                                                                                                                                                    |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/api/.env`       | `PORT=4000`, `HOST=127.0.0.1`, `CORS_ORIGIN=http://localhost:8080`; непустые `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `COLLAB_SHARED_SECRET` |
-| `apps/web/.env.local` | `NEXT_PUBLIC_API_URL=http://localhost:8080` (literal URL, без `$VAR`)                                                                                                       |
-| `apps/collab/.env`    | `PORT=5555`, `COLLAB_ALLOWED_ORIGINS=http://localhost:8080`, `API_INTERNAL_URL=http://localhost:4000`, непустой `COLLAB_SHARED_SECRET`, совпадающий с API                   |
+| Файл                  | Настройки для `pnpm dev`                                                                                                                                                                                                          |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/.env`       | `PORT=4000`, `HOST=127.0.0.1`, `CORS_ORIGIN=http://localhost:8080`; непустые `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `COLLAB_SHARED_SECRET`; Yandex Object Storage — `STORAGE_BUCKET` и AWS-ключи |
+| `apps/web/.env.local` | `NEXT_PUBLIC_API_URL=http://localhost:8080` (literal URL, без `$VAR`)                                                                                                                                                             |
+| `apps/collab/.env`    | `PORT=5555`, `COLLAB_ALLOWED_ORIGINS=http://localhost:8080`, `API_INTERNAL_URL=http://localhost:4000`, непустой `COLLAB_SHARED_SECRET`, совпадающий с API                                                                         |
 
-Значения подключения к локальным Postgres/Redis — в API-примере. Проверьте их перед
-миграциями: `db:deploy` работает с вашей эффективной `DATABASE_URL`.
+Значения подключения к локальным Postgres/Redis — в API-примере. Изображения
+хранятся в отдельном dev bucket Yandex Object Storage; production использует
+свой bucket. Укажите имя dev bucket и его credentials в `apps/api/.env`, не
+коммитите реальные значения. Локальный API использует локальную PostgreSQL из
+Docker Compose и dev bucket; production bucket и credentials настраиваются
+отдельно в `runtime/api.env`. CORS dev bucket должен разрешать
+`http://localhost:8080`; production bucket — production-origin. Проверьте
+подключение к базе перед миграциями: `db:deploy` работает с вашей эффективной `DATABASE_URL`.
 Переменные родительского shell приоритетнее файлов; для Next также учитываются
 `.env.development.local`, `.env.local`, `.env.development`, `.env` в этом порядке.
 `NODE_ENV` должен быть `development`; не экспортируйте общий `PORT` — API, web и
