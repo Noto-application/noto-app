@@ -352,6 +352,112 @@ describe('Calendar (e2e)', () => {
     });
   });
 
+  describe('GET /api/projects/:projectId/calendar-entries/:pageId (#136)', () => {
+    const point = (agent: TestAgent, projectId: string, pageId: string) =>
+      agent.get(`/api/projects/${projectId}/calendar-entries/${pageId}`);
+
+    it.each<Role>(['viewer', 'editor', 'owner'])(
+      '%s reads an out-of-month entry and verified null without changing resources',
+      async (role) => {
+        const { agent, userId } = await registerUser(`c-point-${role}@example.com`);
+        const projectId = await seedProject([{ userId, role }]);
+        const pageId = await seedPage({ projectId, title: 'Outside the grid' });
+        const undatedId = await seedPage({ projectId, title: 'No date' });
+        await prisma.calendarEntry.create({ data: { pageId, date: '2027-12-25' } });
+        const before = {
+          pages: await prisma.page.findMany({ where: { projectId }, orderBy: { id: 'asc' } }),
+          entries: await prisma.calendarEntry.findMany({ where: { page: { projectId } } }),
+          members: await prisma.projectMember.findMany({ where: { projectId } }),
+        };
+
+        const dated = await point(agent, projectId, pageId).expect(200);
+        const publicBody = parseEntryResponse(dated.body);
+        expect(publicBody.entry).toMatchObject({
+          pageId,
+          projectId,
+          title: 'Outside the grid',
+          date: '2027-12-25',
+        });
+        expect(dated.body).toEqual(publicBody);
+        expect(Object.keys(publicBody.entry ?? {}).sort()).toEqual(
+          ['pageId', 'projectId', 'title', 'date', 'updatedAt'].sort(),
+        );
+        const undated = await point(agent, projectId, undatedId).expect(200);
+        expect(undated.body).toEqual({ entry: null });
+        expect({
+          pages: await prisma.page.findMany({ where: { projectId }, orderBy: { id: 'asc' } }),
+          entries: await prisma.calendarEntry.findMany({ where: { page: { projectId } } }),
+          members: await prisma.projectMember.findMany({ where: { projectId } }),
+        }).toEqual(before);
+      },
+    );
+
+    it.each([
+      ['anonymous', 'malformed', 'malformed', 401, 'UNAUTHORIZED'],
+      ['anonymous', 'active', 'active', 401, 'UNAUTHORIZED'],
+      ['member', 'malformed', 'malformed', 404, 'NOT_FOUND'],
+      ['outsider', 'missing', 'malformed', 404, 'NOT_FOUND'],
+      ['outsider', 'deleted', 'malformed', 404, 'NOT_FOUND'],
+      ['outsider', 'active', 'active', 403, 'FORBIDDEN'],
+      ['outsider', 'active', 'malformed', 403, 'FORBIDDEN'],
+      ['member', 'active', 'malformed', 400, 'VALIDATION_ERROR'],
+    ] as const)(
+      'orders guards before validation: %s / project %s / page %s → %s',
+      async (callerKind, projectKind, pageKind, status, code) => {
+        const { agent, userId } = await registerUser('c-point-access@example.com');
+        const { agent: outsider } = await registerUser('c-point-outsider@example.com');
+        const projectId = await seedProject([{ userId, role: 'viewer' }]);
+        const deletedProject = await seedProject([{ userId, role: 'viewer' }], { deleted: true });
+        const pageId = await seedPage({ projectId, title: 'Private title' });
+        const caller =
+          callerKind === 'anonymous'
+            ? request.agent(server)
+            : callerKind === 'member'
+              ? agent
+              : outsider;
+        const project = {
+          active: projectId,
+          deleted: deletedProject,
+          missing: MISSING_ID,
+          malformed: 'not-a-uuid',
+        }[projectKind];
+        const page = pageKind === 'active' ? pageId : 'not-a-uuid';
+        const response = await point(caller, project, page).expect(status);
+        expect(parseError(response.body).code).toBe(code);
+        expect(response.body).not.toHaveProperty('entry');
+        expect(JSON.stringify(response.body)).not.toMatch(
+          /Private title|currentUserRole|content|members/,
+        );
+      },
+    );
+
+    it('returns 404, not null, for missing, deleted and wrong-project pages', async () => {
+      const { agent, userId } = await registerUser('c-point-pages@example.com');
+      const projectId = await seedProject([{ userId, role: 'viewer' }]);
+      const otherProject = await seedProject([{ userId, role: 'viewer' }]);
+      const deletedId = await seedPage({ projectId, deleted: true });
+      const foreignId = await seedPage({ projectId: otherProject });
+      for (const pageId of [MISSING_ID, deletedId, foreignId]) {
+        const response = await point(agent, projectId, pageId).expect(404);
+        expect(parseError(response.body).code).toBe('NOT_FOUND');
+        expect(response.body).not.toHaveProperty('entry');
+      }
+    });
+
+    it('hides the descendant after the existing cascade delete, retaining its entry', async () => {
+      const { agent, userId } = await registerUser('c-point-cascade@example.com');
+      const projectId = await seedProject([{ userId, role: 'editor' }]);
+      const parentId = await seedPage({ projectId });
+      const pageId = await seedPage({ projectId, parentId });
+      await putDate(agent, projectId, pageId, { date: D1, expectedDate: null }).expect(200);
+      await point(agent, projectId, pageId).expect(200);
+      await agent.delete(`/api/pages/${parentId}`).expect(204);
+      const response = await point(agent, projectId, pageId).expect(404);
+      expect(parseError(response.body).code).toBe('NOT_FOUND');
+      expect(await prisma.calendarEntry.findUnique({ where: { pageId } })).not.toBeNull();
+    });
+  });
+
   describe('POST /api/projects/:projectId/calendar-pages', () => {
     it('без авторизации → 401', async () => {
       const { userId } = await registerUser('c-create-noauth@example.com');

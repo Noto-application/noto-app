@@ -18,6 +18,20 @@ export class CalendarController {
 
   @UseGuards(JwtAuthGuard, ProjectAccessGuard)
   @RequireProjectRole('viewer')
+  @TsRestHandler(calendarContract.get)
+  get() {
+    return tsRestHandler(calendarContract.get, async ({ params }) => {
+      try {
+        const entry = await this.calendarService.get(params.projectId, params.pageId);
+        return { status: 200 as const, body: { entry } };
+      } catch (error) {
+        throw toTsRestException(error, calendarContract.get);
+      }
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, ProjectAccessGuard)
+  @RequireProjectRole('viewer')
   @TsRestHandler(calendarContract.list)
   list() {
     return tsRestHandler(calendarContract.list, async ({ params, query }) => {

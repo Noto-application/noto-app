@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiClientError, apiClient } from '@/src/shared/api';
 
-import { calendarEntryKeys, getCalendarEntries } from './calendar-entries';
+import { calendarEntryKeys, getCalendarEntries, getCalendarEntry } from './calendar-entries';
 
 type ListResponse = Awaited<ReturnType<typeof apiClient.calendar.list>>;
 const projectId = '00000000-0000-4000-8000-000000000002';
@@ -37,15 +37,53 @@ describe('calendarEntryKeys', () => {
     const march = calendarEntryKeys.range(projectId, from, to);
     const april = calendarEntryKeys.range(projectId, '2026-03-30', '2026-05-04');
     const other = calendarEntryKeys.range('00000000-0000-4000-8000-000000000003', from, to);
+    const point = calendarEntryKeys.page(projectId, entry.pageId);
+    const otherPoint = calendarEntryKeys.page('00000000-0000-4000-8000-000000000003', entry.pageId);
     try {
-      for (const key of [march, april, other]) client.setQueryData(key, []);
+      for (const key of [march, april, other, point, otherPoint]) client.setQueryData(key, []);
+      expect(point).toEqual(['calendar-entry', projectId, 'page', entry.pageId]);
       await client.invalidateQueries({ queryKey: calendarEntryKeys.project(projectId) });
       expect(client.getQueryState(march)?.isInvalidated).toBe(true);
       expect(client.getQueryState(april)?.isInvalidated).toBe(true);
       expect(client.getQueryState(other)?.isInvalidated).toBe(false);
+      expect(client.getQueryState(point)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(otherPoint)?.isInvalidated).toBe(false);
     } finally {
       client.clear();
     }
+  });
+});
+
+describe('getCalendarEntry (#136)', () => {
+  it.each([entry, null])(
+    'returns the verified entry or null, without scanning ranges: %s',
+    async (value) => {
+      const get = vi.spyOn(apiClient.calendar, 'get').mockResolvedValue({
+        status: 200,
+        body: { entry: value },
+        headers: new Headers(),
+      });
+      const list = vi.spyOn(apiClient.calendar, 'list');
+      const update = vi.spyOn(apiClient.calendar, 'update');
+      await expect(getCalendarEntry(projectId, entry.pageId)).resolves.toEqual(value);
+      expect(get).toHaveBeenCalledWith({ params: { projectId, pageId: entry.pageId } });
+      expect(list).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [400, 'VALIDATION_ERROR'],
+    [401, 'UNAUTHORIZED'],
+    [403, 'FORBIDDEN'],
+    [404, 'NOT_FOUND'],
+  ] as const)('does not convert %s to null', async (status, code) => {
+    vi.spyOn(apiClient.calendar, 'get').mockResolvedValue({
+      status,
+      body: { code, message: 'Cannot read date' },
+      headers: new Headers(),
+    });
+    await expect(getCalendarEntry(projectId, entry.pageId)).rejects.toMatchObject({ code });
   });
 });
 

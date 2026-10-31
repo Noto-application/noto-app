@@ -3,7 +3,17 @@
 import { calendarContract, calendarEntriesQuerySchema } from '@noto/shared';
 import { skipToken, useQuery } from '@tanstack/react-query';
 
-import { calendarEntryKeys, getCalendarEntries } from './calendar-entries';
+import { calendarEntryKeys, getCalendarEntries, getCalendarEntry } from './calendar-entries';
+
+export function useCalendarEntry(projectId: string | undefined, pageId: string | undefined) {
+  const params = calendarContract.get.pathParams.safeParse({ projectId, pageId });
+  return useQuery({
+    queryKey: calendarEntryKeys.page(projectId ?? '', pageId ?? ''),
+    queryFn: params.success
+      ? () => getCalendarEntry(params.data.projectId, params.data.pageId)
+      : skipToken,
+  });
+}
 
 export function useCalendarEntries(
   projectId: string | undefined,
