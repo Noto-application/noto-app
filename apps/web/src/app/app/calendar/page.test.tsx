@@ -42,6 +42,9 @@ vi.mock('@/src/shared/ui/calendar/month-grid', () => ({
     }, [month]);
     return (
       <section aria-label={`Сетка ${month}`}>
+        {props.onDateClick ? (
+          <button onClick={() => props.onDateClick?.('2026-03-29')}>День 2026-03-29</button>
+        ) : null}
         {props.items.map((item) => (
           <button key={item.id} onClick={() => props.onItemClick?.(item.id)}>
             {item.label}
@@ -163,7 +166,7 @@ afterEach(() => {
   else process.env.TZ = originalTZ;
 });
 
-describe('/app/calendar — #135 read-only', () => {
+describe('/app/calendar — #135 reads and #136 mutation integration', () => {
   it('opens the explicit URL, shows Page titles including adjacent days, and navigates cards', async () => {
     open();
     for (const entry of entries)
@@ -565,7 +568,11 @@ describe('/app/calendar — #135 read-only', () => {
     ]);
   });
 
-  it('keeps card navigation but exposes no mutation callbacks, controls, forms or role indication', async () => {
+  // #136 разрешает запись owner/editor; прежний запрет для всех сужен до viewer.
+  it('keeps viewer card navigation but exposes no mutation callbacks, controls, forms or role indication', async () => {
+    vi.mocked(apiClient.projects.list).mockResolvedValue(
+      projectSuccess(projects.map((project) => ({ ...project, currentUserRole: 'viewer' }))),
+    );
     open();
     expect(await screen.findByRole('button', { name: entries[1].title })).toBeEnabled();
     for (const [props] of navigation.grid.mock.calls as [GridProps][])
@@ -580,5 +587,31 @@ describe('/app/calendar — #135 read-only', () => {
     expect(navigation.push).toHaveBeenCalledWith(`/app/${entries[1].pageId}`);
     expect(apiClient.calendar.create).not.toHaveBeenCalled();
     expect(apiClient.calendar.update).not.toHaveBeenCalled();
+  });
+
+  it('opens the shared create feature for an editor day click with the URL project and exact date', async () => {
+    vi.mocked(apiClient.projects.list).mockResolvedValue(
+      projectSuccess(projects.map((project) => ({ ...project, currentUserRole: 'editor' }))),
+    );
+    vi.spyOn(apiClient.projects, 'get').mockResolvedValue({
+      status: 200,
+      body: { project: { ...projects[1], currentUserRole: 'editor' } },
+      headers: new Headers(),
+    });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'День 2026-03-29' }));
+    expect(await screen.findByLabelText('Дата')).toHaveValue('2026-03-29');
+    fireEvent.change(screen.getByLabelText('Заголовок'), {
+      target: { value: '  From calendar  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Создать' }));
+    await waitFor(() => expect(apiClient.calendar.create).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(apiClient.calendar.create).mock.calls[0][0]).toMatchObject({
+      params: { projectId },
+      body: {
+        title: 'From calendar',
+        date: '2026-03-29',
+      },
+    });
   });
 });
