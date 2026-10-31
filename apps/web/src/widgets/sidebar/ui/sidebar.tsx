@@ -13,20 +13,10 @@ import { SidebarNewPageButton } from './sidebar-new-page-button';
 import { SidebarUserBlock } from './sidebar-user-block';
 import { SidebarWorkspaceSwitcher } from './sidebar-workspace-switcher';
 
-/**
- * `projectId` дерева берётся из метаданных открытой страницы, не из URL
- * (ADR-002). Пока их нет — места дерева занимает распорка.
- */
-function SidebarPageTree({ pageId }: { pageId: string }) {
-  const { data: page } = usePage(pageId);
-
-  if (!page) return <div className="flex-1" />;
-
-  return <PageTree projectId={page.projectId} />;
-}
-
 export function Sidebar() {
   const { pageId } = useParams<{ pageId?: string }>();
+  // Проект дерева и календарной ссылки — из метаданных открытой Page (ADR-002).
+  const { data: page } = usePage(pageId);
   const isDrawerOpen = useSidebarStore((state) => state.isDrawerOpen);
   const setDrawerOpen = useSidebarStore((state) => state.setDrawerOpen);
 
@@ -62,10 +52,18 @@ export function Sidebar() {
           </Link>
           <SidebarNavItem icon={<Search />} label="Поиск" shortcut="⌘K" />
           <SidebarNavItem icon={<Inbox />} label="Входящие" />
-          <SidebarNavItem icon={<Calendar />} label="Календарь" />
+          <SidebarNavItem
+            icon={<Calendar />}
+            label="Календарь"
+            href={
+              page
+                ? `/app/calendar?projectId=${encodeURIComponent(page.projectId)}`
+                : '/app/calendar'
+            }
+          />
         </nav>
 
-        {pageId ? <SidebarPageTree pageId={pageId} /> : <div className="flex-1" />}
+        {page ? <PageTree projectId={page.projectId} /> : <div className="flex-1" />}
 
         <div className="flex flex-col gap-0.5 border-t border-border pt-1">
           <SidebarNewPageButton />
