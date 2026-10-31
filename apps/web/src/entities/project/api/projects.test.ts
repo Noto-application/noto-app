@@ -12,6 +12,7 @@ type CreateProjectResponse = Awaited<ReturnType<typeof apiClient.projects.create
 const project: Project = {
   id: '00000000-0000-4000-8000-000000000001',
   name: 'Мой проект',
+  currentUserRole: 'owner',
   createdAt: '2026-08-28T00:00:00.000Z',
   updatedAt: '2026-08-28T00:00:00.000Z',
 };
