@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'node:events';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Doc } from 'yjs';
 import type { Page } from '@/src/entities/page';
 import type * as BlockNoteReact from '@blocknote/react';
 
@@ -10,7 +11,15 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   bindings: vi.fn(),
   providers: [] as unknown[],
+  params: new URLSearchParams(),
+  pathname: '/dev/calendar-spike',
+  push: vi.fn(),
   document: [{ type: 'paragraph' }, { type: 'calendar', props: {} }] as Page['content'],
+}));
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => mocks.params,
+  usePathname: () => mocks.pathname,
+  useRouter: () => ({ push: mocks.push }),
 }));
 vi.mock('@/src/shared/api/client', () => ({
   apiBaseUrl: 'http://localhost:3000/api',
@@ -43,7 +52,7 @@ vi.mock('@hocuspocus/provider', () => ({
 }));
 
 import { QueryProvider } from '@/src/shared/api';
-import { RealFixture, RealCollabSession } from './calendar-real-roundtrip';
+import { CalendarRealRoundtrip, RealFixture, RealCollabSession } from './calendar-real-roundtrip';
 
 const fixture: Page = {
   id: '00000000-0000-4000-8000-000000000133',
@@ -65,6 +74,8 @@ afterEach(() => {
   vi.clearAllMocks();
   mocks.providers.length = 0;
   mocks.document = [{ type: 'paragraph' }, { type: 'calendar', props: {} }];
+  mocks.push.mockReset();
+  mocks.params = new URLSearchParams();
 });
 
 describe('real transport harness wiring (mock HTTP/provider, not server persistence)', () => {
@@ -335,4 +346,168 @@ describe('real transport harness wiring (mock HTTP/provider, not server persiste
     });
     expect(screen.queryByTestId('binding')).not.toBeInTheDocument();
   });
+});
+
+describe('real fixture selection with an active collab session (mock HTTP/provider)', () => {
+  const collabFixture: Page = {
+    ...fixture,
+    id: '00000000-0000-4000-8000-000000000134',
+    title: 'CALENDAR-SPIKE-133 COLLAB',
+    editorMode: 'collab',
+  };
+  const replacement: Page = {
+    ...collabFixture,
+    id: '00000000-0000-4000-8000-000000000135',
+  };
+
+  async function openSession() {
+    mocks.params = new URLSearchParams({
+      restPageId: fixture.id,
+      collabPageId: collabFixture.id,
+    });
+    mocks.get.mockImplementation(({ params }: { params: { pageId: string } }) => {
+      const page = [fixture, collabFixture, replacement].find(({ id }) => id === params.pageId);
+      if (!page) throw new Error(`Unexpected fixture GET: ${params.pageId}`);
+      return structuredClone({ status: 200, body: { page } });
+    });
+    const view = render(<CalendarRealRoundtrip />);
+    // push меняет URL-параметры и дерево настоящего контейнера, включая keyed cleanup.
+    mocks.push.mockImplementation((url: string) => {
+      mocks.params = new URL(url, window.location.origin).searchParams;
+      view.rerender(<CalendarRealRoundtrip />);
+    });
+    const heading = await screen.findByRole('heading', { name: 'Real COLLAB fixture' });
+    const collab = within(heading.closest('section')!);
+    await screen.findByRole('heading', { name: 'Real REST fixture' });
+    expect(mocks.providers).toHaveLength(0);
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    fireEvent.click(collab.getByRole('checkbox'));
+    fireEvent.click(collab.getByRole('button', { name: /Connect \/ reopen/ }));
+    await waitFor(() => expect(mocks.providers).toHaveLength(1));
+    const provider = mocks.providers[0] as Provider;
+    const doc = provider.options.document as Doc;
+    const destroyDoc = vi.spyOn(doc, 'destroy');
+    act(() => {
+      provider.emit('status', { status: 'connected' });
+      provider.emit('synced', { state: true });
+    });
+    expect(collab.getByTestId('binding')).toHaveAttribute('data-editable', 'true');
+    const select = screen.getByRole('button', { name: /Select fixture IDs/ });
+    const form = select.closest('form')!;
+    return { provider, destroyDoc, collab, select, form };
+  }
+
+  it('allows selection at initial pending zero and after ACK, really destroying the old session on navigation', async () => {
+    const { provider, destroyDoc, collab, select, form } = await openSession();
+    expect(select).toBeEnabled();
+    expect(screen.getByLabelText(/REST disposable Page ID/)).toBeEnabled();
+    const input = screen.getByLabelText(/COLLAB disposable Page ID/);
+    expect(input).toBeEnabled();
+    fireEvent.change(input, { target: { value: '' } });
+    act(() => {
+      provider.emit('unsyncedChanges', 1);
+    });
+    expect(collab.getByText(/unacknowledged changes: 1/)).toBeInTheDocument();
+    expect(collab.getByRole('button', { name: /Disconnect/ })).toBeDisabled();
+    act(() => {
+      provider.emit('unsyncedChanges', 0);
+    });
+    expect(collab.getByText(/unacknowledged changes: 0/)).toBeInTheDocument();
+    expect(select).toBeEnabled();
+    expect(input).toBeEnabled();
+    expect(screen.getByLabelText(/REST disposable Page ID/)).toBeEnabled();
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(provider.destroy).not.toHaveBeenCalled();
+    expect(destroyDoc).not.toHaveBeenCalled();
+    fireEvent.submit(form);
+    expect(mocks.push).toHaveBeenCalledExactlyOnceWith(
+      `${mocks.pathname}?restPageId=${fixture.id}&collabPageId=`,
+      { scroll: false },
+    );
+    expect(mocks.params.get('collabPageId')).toBe('');
+    expect(provider.destroy).toHaveBeenCalledOnce();
+    expect(destroyDoc).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('heading', { name: 'Real COLLAB fixture' })).not.toBeInTheDocument();
+    expect(mocks.providers).toHaveLength(1);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { change: 'clear COLLAB ID', field: 'collabPageId', value: '' },
+    { change: 'replace COLLAB ID', field: 'collabPageId', value: replacement.id },
+    { change: 'set REST ID equal to COLLAB ID', field: 'restPageId', value: collabFixture.id },
+  ])(
+    'blocks $change while pending, then allows the same selection after ACK',
+    async ({ field, value }) => {
+      const { provider, destroyDoc, collab, select, form } = await openSession();
+      const binding = collab.getByTestId('binding');
+      const restHeading = screen.getByRole('heading', { name: 'Real REST fixture' });
+      const restBinding = within(restHeading.closest('section')!).getByTestId('binding');
+      // Черновик изменён до pending: disabled-контролы не заменяют guard обработчика submit.
+      fireEvent.change(
+        screen.getByLabelText(
+          field === 'restPageId' ? /REST disposable Page ID/ : /COLLAB disposable Page ID/,
+        ),
+        { target: { value } },
+      );
+      act(() => {
+        provider.emit('unsyncedChanges', 1);
+      });
+      expect(collab.getByText(/unacknowledged changes: 1/)).toBeInTheDocument();
+      expect(collab.getByRole('button', { name: /Disconnect/ })).toBeDisabled();
+      const readsBeforeSubmit = mocks.get.mock.calls.length;
+      expect.soft(select).toBeDisabled();
+      expect.soft(screen.getByLabelText(/REST disposable Page ID/)).toBeDisabled();
+      expect.soft(screen.getByLabelText(/COLLAB disposable Page ID/)).toBeDisabled();
+      // Прямой submit обходит disabled-кнопку; повтор проверяет отсутствие отложенной навигации.
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+      expect.soft(mocks.push).not.toHaveBeenCalled();
+      expect.soft(provider.destroy).not.toHaveBeenCalled();
+      expect.soft(destroyDoc).not.toHaveBeenCalled();
+      expect.soft(mocks.get).toHaveBeenCalledTimes(readsBeforeSubmit);
+      expect.soft(mocks.params.get('restPageId')).toBe(fixture.id);
+      expect.soft(mocks.params.get('collabPageId')).toBe(collabFixture.id);
+      expect.soft(restBinding).toBeInTheDocument();
+      expect.soft(binding).toBeInTheDocument();
+      expect.soft(mocks.providers).toHaveLength(1);
+      expect.soft(mocks.update).not.toHaveBeenCalled();
+      expect(screen.getByText(/unacknowledged changes: 1/)).toBeInTheDocument();
+
+      act(() => {
+        provider.emit('unsyncedChanges', 0);
+      });
+      expect(collab.getByText(/unacknowledged changes: 0/)).toBeInTheDocument();
+      expect(collab.getByRole('button', { name: /Disconnect/ })).toBeEnabled();
+      expect(select).toBeEnabled();
+      expect(screen.getByLabelText(/REST disposable Page ID/)).toBeEnabled();
+      expect(screen.getByLabelText(/COLLAB disposable Page ID/)).toBeEnabled();
+      expect(mocks.push).not.toHaveBeenCalled();
+      fireEvent.submit(form);
+      const next = new URLSearchParams({ restPageId: fixture.id, collabPageId: collabFixture.id });
+      next.set(field, value);
+      expect(mocks.push).toHaveBeenCalledExactlyOnceWith(`${mocks.pathname}?${next}`, {
+        scroll: false,
+      });
+      expect(mocks.params.get(field)).toBe(value);
+      expect(provider.destroy).toHaveBeenCalledOnce();
+      expect(destroyDoc).toHaveBeenCalledOnce();
+      if (value === replacement.id) {
+        await screen.findByText(new RegExp(`ID: ${replacement.id};`));
+        expect(mocks.get).toHaveBeenCalledWith({ params: { pageId: replacement.id } });
+        expect(screen.getByRole('button', { name: /Connect \/ reopen/ })).toBeDisabled();
+      } else if (field === 'restPageId') {
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          'Separate REST and COLLAB fixtures are required.',
+        );
+      } else {
+        expect(
+          screen.queryByRole('heading', { name: 'Real COLLAB fixture' }),
+        ).not.toBeInTheDocument();
+      }
+      expect(mocks.providers).toHaveLength(1);
+      expect(mocks.update).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -120,10 +120,12 @@ Backend, аккаунт и БД не нужны. Все карточки пом�
 5. В Local Yjs вставить два блока, дождаться обновления счётчика. Изменять месяцы:
    счётчик не должен расти. Remount binding сохраняет документ в том же Y.Doc,
    но локальные месяцы сбрасываются. Это не перезапуск сервера/БД.
-6. В Page B снять `Destination readonly`, скопировать туда целый блок A,
-   затем вернуть readonly. Скопировать блок наружу в HTML/text
-   редактор. Проверить отсутствие проекта/заголовков, native selection внутри
-   карточек, вставку в контекст без Provider. Последний всегда inert.
+6. Источник A — любой из двух calendar-блоков в `JSON editable · two independent blocks · synthetic containing Page A`, не блок с именем A.
+   Цель B — `JSON destination Page B · same schema · readonly by default`: снять `Destination readonly (uncheck to test paste)`.
+   Выделить целый calendar-блок как блок BlockNote, не текст внутри карточки; нативно скопировать Cmd+C/Ctrl+C и вставить Cmd+V/Ctrl+V в редактор B.
+   Ожидать третий calendar-блок с карточками B, не A; затем вернуть readonly. Кнопка JSON serialize/remount не проверяет clipboard.
+   Скопировать блок наружу в HTML/text-редактор: ожидать `[Calendar unavailable]` без проекта/заголовков; отдельно проверить native selection внутри карточек.
+   В `Absent context · inert, no fetch` проверить inert placeholder: этот редактор readonly, нативную вставку без Provider здесь проверить нельзя.
 7. Повторить в браузерных timezone `America/Los_Angeles` и `Europe/Berlin` на
    мартовских DST-датах. Открыть DevTools: hydration/runtime errors и Network.
    Не должно быть запросов календарного API от стенда.

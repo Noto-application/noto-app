@@ -6,7 +6,7 @@ import { useCreateBlockNote } from '@blocknote/react';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import { replaceEqualDeep, useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Y from 'yjs';
 
 import { pageKeys, updatePage, usePage, type Page } from '@/src/entities/page';
@@ -152,7 +152,15 @@ function SyncedBinding({
 }
 
 // Компонент монтируется только явным Connect. Каждый новый монтаж — новый provider + Y.Doc.
-export function RealCollabSession({ page, onClose }: { page: Page; onClose: () => void }) {
+export function RealCollabSession({
+  page,
+  onClose,
+  onPendingChange,
+}: {
+  page: Page;
+  onClose: () => void;
+  onPendingChange?: (count: number) => void;
+}) {
   const [connection, setConnection] = useState<{ doc: Y.Doc; provider: HocuspocusProvider }>();
   const [status, setStatus] = useState<CollabSyncStatus>('connecting');
   const [syncedOnce, setSyncedOnce] = useState(false);
@@ -183,7 +191,10 @@ export function RealCollabSession({ page, onClose }: { page: Page; onClose: () =
       authFailed = true;
       refresh();
     };
-    const onPending = (count: number) => setPending(count);
+    const onPending = (count: number) => {
+      onPendingChange?.(count);
+      setPending(count);
+    };
     const onUpdate = () => setUpdates((n) => n + 1);
     provider.on('status', onStatus);
     provider.on('synced', onSynced);
@@ -201,8 +212,9 @@ export function RealCollabSession({ page, onClose }: { page: Page; onClose: () =
       doc.off('update', onUpdate);
       provider.destroy();
       doc.destroy();
+      onPendingChange?.(0);
     };
-  }, [page.id]);
+  }, [page.id, onPendingChange]);
   useEffect(() => {
     if (!pending) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -232,7 +244,15 @@ export function RealCollabSession({ page, onClose }: { page: Page; onClose: () =
   );
 }
 
-export function RealFixture({ id, kind }: { id: string; kind: Kind }) {
+export function RealFixture({
+  id,
+  kind,
+  onPendingChange,
+}: {
+  id: string;
+  kind: Kind;
+  onPendingChange?: (count: number) => void;
+}) {
   const query = usePage(id);
   const cache = useQueryClient();
   const [confirmed, setConfirmed] = useState(false);
@@ -376,6 +396,7 @@ export function RealFixture({ id, kind }: { id: string; kind: Kind }) {
         {armed && kind === 'COLLAB' && (
           <RealCollabSession
             page={page}
+            onPendingChange={onPendingChange}
             onClose={() => {
               setArmed(false);
               setConfirmed(false);
@@ -393,6 +414,13 @@ function RealFixtures() {
   const router = useRouter();
   const restId = params.get('restPageId') ?? '';
   const collabId = params.get('collabPageId') ?? '';
+  const [pending, setPending] = useState(0);
+  const pendingRef = useRef(0);
+  const onPendingChange = useCallback((count: number) => {
+    // Guard видит событие сразу, даже если submit пришёл до следующего React render.
+    pendingRef.current = count;
+    setPending(count);
+  }, []);
   const valid = (id: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   if (new URL(apiBaseUrl, window.location.origin).origin !== window.location.origin) {
@@ -410,6 +438,7 @@ function RealFixtures() {
         key={`${restId}-${collabId}`}
         onSubmit={(event) => {
           event.preventDefault();
+          if (pendingRef.current > 0) return;
           const data = new FormData(event.currentTarget);
           const next = new URLSearchParams(params);
           for (const key of ['restPageId', 'collabPageId']) {
@@ -420,13 +449,16 @@ function RealFixtures() {
         }}
       >
         <label>
-          REST disposable Page ID <input name="restPageId" defaultValue={restId} />
+          REST disposable Page ID{' '}
+          <input name="restPageId" defaultValue={restId} disabled={pending > 0} />
         </label>{' '}
         <label>
           COLLAB disposable Page ID (different!){' '}
-          <input name="collabPageId" defaultValue={collabId} />
+          <input name="collabPageId" defaultValue={collabId} disabled={pending > 0} />
         </label>{' '}
-        <button type="submit">Select fixture IDs in URL (GET only)</button>
+        <button type="submit" disabled={pending > 0}>
+          Select fixture IDs in URL (GET only)
+        </button>
       </form>
       {restId && restId === collabId ? (
         <p role="alert">Separate REST and COLLAB fixtures are required.</p>
@@ -434,7 +466,12 @@ function RealFixtures() {
         <>
           {valid(restId) && <RealFixture key={`rest-${restId}`} id={restId} kind="REST" />}
           {valid(collabId) && (
-            <RealFixture key={`collab-${collabId}`} id={collabId} kind="COLLAB" />
+            <RealFixture
+              key={`collab-${collabId}`}
+              id={collabId}
+              kind="COLLAB"
+              onPendingChange={onPendingChange}
+            />
           )}
         </>
       )}
