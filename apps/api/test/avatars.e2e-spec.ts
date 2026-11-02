@@ -1,25 +1,76 @@
 import { Readable } from 'node:stream';
 import type { Server } from 'node:http';
+import { deflateSync } from 'node:zlib';
 import request from 'supertest';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
 
 import { S3_CLIENT } from '../src/storage/storage.constants';
+import { UserAvatarService } from '../src/users/user-avatar.service';
 import { createTestApp, resetAuthState } from './helpers/test-app';
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
 const MAX_AVATAR_SIZE = 256 * 1024;
-const PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l3sAAAAASUVORK5CYII=',
-  'base64',
-);
+const PNG = createPng(1024, 768);
 
 interface StoredObject {
   body: Buffer;
   contentType: string;
-  size: number;
+  reportedSize?: number;
 }
 
 type JsonObject = Record<string, unknown>;
+
+function pngChunk(type: string, data: Buffer): Buffer {
+  const typeBytes = Buffer.from(type, 'ascii');
+  const crcInput = Buffer.concat([typeBytes, data]);
+  let crc = 0xffffffff;
+  for (const byte of crcInput) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ ((crc & 1) === 1 ? 0xedb88320 : 0);
+    }
+  }
+
+  const chunk = Buffer.alloc(8 + data.length + 4);
+  chunk.writeUInt32BE(data.length, 0);
+  typeBytes.copy(chunk, 4);
+  data.copy(chunk, 8);
+  chunk.writeUInt32BE((crc ^ 0xffffffff) >>> 0, 8 + data.length);
+  return chunk;
+}
+
+function createPng(width: number, height: number): Buffer {
+  const scanlines = Buffer.alloc(height * (1 + width * 4));
+  for (let y = 0; y < height; y += 1) {
+    const rowStart = y * (1 + width * 4);
+    for (let x = 0; x < width; x += 1) {
+      const pixelOffset = rowStart + 1 + x * 4;
+      scanlines[pixelOffset] = x % 256;
+      scanlines[pixelOffset + 1] = y % 256;
+      scanlines[pixelOffset + 2] = (x + y) % 256;
+      scanlines[pixelOffset + 3] = 255;
+    }
+  }
+
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(scanlines)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 function parseObject(value: unknown): JsonObject {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -45,36 +96,142 @@ function parseNumber(value: unknown): number {
   return value;
 }
 
+function stableAvatarProperties(value: unknown): { contentType: string; size: number } {
+  const avatar = parseObject(value);
+  return {
+    contentType: parseString(avatar.contentType),
+    size: parseNumber(avatar.size),
+  };
+}
+
+function readWebpDimensions(bytes: Buffer): { width: number; height: number } {
+  if (
+    bytes.toString('ascii', 0, 4) !== 'RIFF' ||
+    bytes.toString('ascii', 8, 12) !== 'WEBP' ||
+    bytes.readUInt32LE(4) !== bytes.length - 8
+  ) {
+    throw new Error('Stored avatar is not a valid WebP RIFF container');
+  }
+
+  let offset = 12;
+  while (offset + 8 <= bytes.length) {
+    const chunkType = bytes.toString('ascii', offset, offset + 4);
+    const chunkSize = bytes.readUInt32LE(offset + 4);
+    const dataOffset = offset + 8;
+    if (dataOffset + chunkSize > bytes.length) {
+      throw new Error('WebP chunk exceeds the stored image size');
+    }
+
+    if (chunkType === 'VP8X' && chunkSize >= 10) {
+      return {
+        width: 1 + bytes.readUIntLE(dataOffset + 4, 3),
+        height: 1 + bytes.readUIntLE(dataOffset + 7, 3),
+      };
+    }
+    if (chunkType === 'VP8L' && chunkSize >= 5 && bytes[dataOffset] === 0x2f) {
+      const b1 = bytes[dataOffset + 1];
+      const b2 = bytes[dataOffset + 2];
+      const b3 = bytes[dataOffset + 3];
+      const b4 = bytes[dataOffset + 4];
+      return {
+        width: 1 + b1 + ((b2 & 0x3f) << 8),
+        height: 1 + (b2 >> 6) + (b3 << 2) + ((b4 & 0x0f) << 10),
+      };
+    }
+    if (
+      chunkType === 'VP8 ' &&
+      chunkSize >= 10 &&
+      bytes[dataOffset + 3] === 0x9d &&
+      bytes[dataOffset + 4] === 0x01 &&
+      bytes[dataOffset + 5] === 0x2a
+    ) {
+      return {
+        width: bytes.readUInt16LE(dataOffset + 6) & 0x3fff,
+        height: bytes.readUInt16LE(dataOffset + 8) & 0x3fff,
+      };
+    }
+
+    offset = dataOffset + chunkSize + (chunkSize % 2);
+  }
+
+  throw new Error('WebP image dimensions were not found');
+}
+
 describe('User avatars (e2e)', () => {
   let server: Server;
   let app: Awaited<ReturnType<typeof createTestApp>>['app'];
   let prisma: Awaited<ReturnType<typeof createTestApp>>['prisma'];
   let redis: Awaited<ReturnType<typeof createTestApp>>['redis'];
-  let storedObject: StoredObject;
+  let avatarService: UserAvatarService;
+  const storedObjects = new Map<string, StoredObject>();
+  const deleteFailures = new Map<string, number>();
+  const deleteAttempts = new Map<string, number>();
   let s3Send: jest.SpyInstance;
-  const s3Response = {
-    get Body(): Readable {
-      return Readable.from([storedObject.body]);
-    },
-    get ContentLength(): number {
-      return storedObject.size;
-    },
-    get ContentType(): string {
-      return storedObject.contentType;
-    },
-  };
 
   beforeAll(async () => {
     ({ app, prisma, redis } = await createTestApp());
     server = app.getHttpServer();
 
     const s3Client = app.get<S3Client>(S3_CLIENT);
-    s3Send = jest.spyOn(s3Client, 'send').mockResolvedValue(s3Response as never);
+    // The S3 SDK's send method is promise-based; emulate command responses by key.
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+    s3Send = jest.spyOn(s3Client, 'send').mockImplementation((command) => {
+      if (command instanceof HeadObjectCommand || command instanceof GetObjectCommand) {
+        const object = storedObjects.get(command.input.Key ?? '');
+        if (!object) {
+          throw Object.assign(new Error('Object not found'), { name: 'NoSuchKey' });
+        }
+
+        if (command instanceof HeadObjectCommand) {
+          return Promise.resolve({
+            ContentLength: object.reportedSize ?? object.body.length,
+            ContentType: object.contentType,
+          } as never);
+        }
+        return Promise.resolve({
+          Body: Readable.from([object.body]),
+          ContentLength: object.body.length,
+          ContentType: object.contentType,
+        } as never);
+      }
+
+      if (command instanceof PutObjectCommand) {
+        const { Key, Body, ContentType } = command.input;
+        if (!Key || !Buffer.isBuffer(Body)) {
+          throw new Error('Expected PutObjectCommand with a Buffer body and key');
+        }
+        storedObjects.set(Key, {
+          body: Buffer.from(Body),
+          contentType: ContentType ?? 'application/octet-stream',
+        });
+        return Promise.resolve({} as never);
+      }
+
+      if (command instanceof DeleteObjectCommand) {
+        const key = command.input.Key;
+        if (!key) {
+          throw new Error('Expected DeleteObjectCommand with a key');
+        }
+        deleteAttempts.set(key, (deleteAttempts.get(key) ?? 0) + 1);
+        const failuresLeft = deleteFailures.get(key) ?? 0;
+        if (failuresLeft > 0) {
+          deleteFailures.set(key, failuresLeft - 1);
+          throw new Error('Simulated S3 delete failure');
+        }
+        storedObjects.delete(key);
+        return Promise.resolve({} as never);
+      }
+
+      throw new Error(`Unexpected S3 command: ${command.constructor.name}`);
+    });
+    avatarService = app.get(UserAvatarService);
   });
 
   beforeEach(async () => {
     await resetAuthState(prisma, redis);
-    storedObject = { body: PNG, contentType: 'image/png', size: PNG.length };
+    storedObjects.clear();
+    deleteFailures.clear();
+    deleteAttempts.clear();
     s3Send.mockClear();
   });
 
@@ -100,6 +257,18 @@ describe('User avatars (e2e)', () => {
     return agent.post('/api/users/me/avatar/uploads').send({ contentType, size });
   }
 
+  async function seedUploadedObject(
+    uploadId: string,
+    object: StoredObject = { body: PNG, contentType: 'image/png' },
+  ): Promise<string> {
+    const upload = await prisma.userAvatar.findUnique({ where: { id: uploadId } });
+    if (!upload) {
+      throw new Error(`Avatar upload ${uploadId} was not created`);
+    }
+    storedObjects.set(upload.storageKey, object);
+    return upload.storageKey;
+  }
+
   async function uploadAndConfirm(
     agent: ReturnType<typeof request.agent>,
     email: string,
@@ -117,6 +286,7 @@ describe('User avatars (e2e)', () => {
     expect(new URL(uploadUrl).protocol).toBe('https:');
     expect(uploadUrl).not.toContain(email);
 
+    await seedUploadedObject(uploadId);
     const confirmation = await agent
       .post(`/api/users/me/avatar/uploads/${uploadId}/confirm`)
       .expect(200);
@@ -186,8 +356,34 @@ describe('User avatars (e2e)', () => {
       expect(avatarUrl).not.toContain(uploadId);
       const profile = await agent.get('/api/users/me').expect(200);
       const profileUser = parseObject(parseObject(profile.body).user);
-      expect(profileUser.avatar).toEqual(avatar);
+      expect(stableAvatarProperties(profileUser.avatar)).toEqual(
+        stableAvatarProperties(avatar),
+      );
       expect(profileUser).not.toHaveProperty('passwordHash');
+
+      const databaseUser = await prisma.user.findUnique({
+        where: { email },
+        include: { avatar: true },
+      });
+      expect(databaseUser?.avatar).not.toBeNull();
+      const activeAvatar = databaseUser?.avatar;
+      if (!activeAvatar) {
+        throw new Error('Expected an active avatar record');
+      }
+
+      const normalizedObject = storedObjects.get(activeAvatar.storageKey);
+      expect(activeAvatar.status).toBe('active');
+      if (!normalizedObject) {
+        throw new Error('Normalized avatar object was not written to S3');
+      }
+      expect(normalizedObject.contentType).toBe('image/webp');
+      expect(normalizedObject.body).not.toEqual(PNG);
+      expect(normalizedObject.body.length).toBeLessThanOrEqual(MAX_AVATAR_SIZE);
+      expect(activeAvatar.size).toBe(normalizedObject.body.length);
+      const dimensions = readWebpDimensions(normalizedObject.body);
+      expect(dimensions.width).toBeGreaterThan(0);
+      expect(dimensions.height).toBeGreaterThan(0);
+      expect(dimensions).toEqual({ width: 512, height: 384 });
     });
 
     it('does not disclose or confirm another user’s upload', async () => {
@@ -207,11 +403,11 @@ describe('User avatars (e2e)', () => {
       const agent = await registerUser('avatar-oversized-object@example.com');
       const uploadResponse = await requestUpload(agent).expect(201);
       const uploadId = parseString(parseObject(parseObject(uploadResponse.body).upload).uploadId);
-      storedObject = {
+      await seedUploadedObject(uploadId, {
         body: PNG,
         contentType: 'image/png',
-        size: MAX_UPLOAD_SIZE + 1,
-      };
+        reportedSize: MAX_UPLOAD_SIZE + 1,
+      });
 
       await agent
         .post(`/api/users/me/avatar/uploads/${uploadId}/confirm`)
@@ -224,11 +420,10 @@ describe('User avatars (e2e)', () => {
       const agent = await registerUser('avatar-invalid-bytes@example.com');
       const uploadResponse = await requestUpload(agent, 'image/jpeg').expect(201);
       const uploadId = parseString(parseObject(parseObject(uploadResponse.body).upload).uploadId);
-      storedObject = {
+      await seedUploadedObject(uploadId, {
         body: Buffer.from('not an image'),
         contentType: 'image/jpeg',
-        size: Buffer.byteLength('not an image'),
-      };
+      });
 
       await agent
         .post(`/api/users/me/avatar/uploads/${uploadId}/confirm`)
@@ -240,16 +435,111 @@ describe('User avatars (e2e)', () => {
     it('replaces an avatar and removes it without deleting the user profile', async () => {
       const agent = await registerUser('avatar-replace@example.com');
       const first = await uploadAndConfirm(agent, 'avatar-replace@example.com');
-      const firstAvatar = first.user.avatar;
+      const firstRecord = await prisma.userAvatar.findUnique({
+        where: { id: first.uploadId },
+      });
+      if (!firstRecord) {
+        throw new Error('Expected the first avatar record');
+      }
 
       const second = await uploadAndConfirm(agent, 'avatar-replace@example.com');
-      expect(second.user.avatar).not.toEqual(firstAvatar);
+      const secondAvatar = stableAvatarProperties(second.user.avatar);
+      expect(secondAvatar.contentType).toBe('image/webp');
+      expect(secondAvatar.size).toBeGreaterThan(0);
+      expect(secondAvatar.size).toBeLessThanOrEqual(MAX_AVATAR_SIZE);
+
+      const retiredFirst = await prisma.userAvatar.findUnique({
+        where: { id: first.uploadId },
+      });
+      expect(retiredFirst?.status).toBe('deletePending');
+      expect(retiredFirst?.deleteAfter).toBeInstanceOf(Date);
+      expect(retiredFirst?.deleteAfter?.getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000);
+      expect(retiredFirst?.deleteAfter?.getTime()).toBeLessThan(Date.now() + 25 * 60 * 60 * 1000);
+      expect(storedObjects.has(firstRecord.storageKey)).toBe(true);
 
       await agent.delete('/api/users/me/avatar').expect(200);
       const profile = await agent.get('/api/users/me').expect(200);
       const profileUser = parseObject(parseObject(profile.body).user);
       expect(profileUser.avatar).toBeNull();
       expect(profileUser.email).toBe('avatar-replace@example.com');
+
+      const removedAvatar = await prisma.userAvatar.findUnique({
+        where: { id: second.uploadId },
+      });
+      expect(removedAvatar?.status).toBe('deletePending');
+      expect(removedAvatar?.deleteAfter?.getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000);
+      expect(removedAvatar?.deleteAfter?.getTime()).toBeLessThan(Date.now() + 25 * 60 * 60 * 1000);
+      expect(storedObjects.has(removedAvatar?.storageKey ?? '')).toBe(true);
+
+      const expiredAt = new Date(Date.now() - 1_000);
+      await prisma.userAvatar.updateMany({
+        where: { id: { in: [first.uploadId, second.uploadId] } },
+        data: { deleteAfter: expiredAt },
+      });
+      await avatarService.runCleanup();
+
+      expect(storedObjects.has(firstRecord.storageKey)).toBe(false);
+      expect(storedObjects.has(removedAvatar?.storageKey ?? '')).toBe(false);
+      expect(
+        await prisma.userAvatar.findMany({
+          where: { id: { in: [first.uploadId, second.uploadId] } },
+        }),
+      ).toHaveLength(0);
+      const remainingProfile = await agent.get('/api/users/me').expect(200);
+      expect(parseObject(parseObject(remainingProfile.body).user).email).toBe(
+        'avatar-replace@example.com',
+      );
+    });
+
+    it('cleans an expired pending upload from S3 and PostgreSQL', async () => {
+      const agent = await registerUser('avatar-pending-cleanup@example.com');
+      const uploadResponse = await requestUpload(agent).expect(201);
+      const uploadId = parseString(parseObject(parseObject(uploadResponse.body).upload).uploadId);
+      const storageKey = await seedUploadedObject(uploadId);
+
+      await prisma.userAvatar.update({
+        where: { id: uploadId },
+        data: { expiresAt: new Date(Date.now() - 1_000) },
+      });
+      await avatarService.runCleanup();
+
+      expect(storedObjects.has(storageKey)).toBe(false);
+      expect(await prisma.userAvatar.findUnique({ where: { id: uploadId } })).toBeNull();
+    });
+
+    it('retries deferred deletion after an S3 failure', async () => {
+      const agent = await registerUser('avatar-delete-retry@example.com');
+      const first = await uploadAndConfirm(agent, 'avatar-delete-retry@example.com');
+      const firstRecord = await prisma.userAvatar.findUnique({
+        where: { id: first.uploadId },
+      });
+      if (!firstRecord) {
+        throw new Error('Expected the first avatar record');
+      }
+
+      await uploadAndConfirm(agent, 'avatar-delete-retry@example.com');
+      await prisma.userAvatar.update({
+        where: { id: first.uploadId },
+        data: {
+          status: 'deletePending',
+          deleteAfter: new Date(Date.now() - 1_000),
+        },
+      });
+      deleteFailures.set(firstRecord.storageKey, 1);
+
+      await avatarService.runCleanup();
+
+      expect(storedObjects.has(firstRecord.storageKey)).toBe(true);
+      expect(
+        await prisma.userAvatar.findUnique({ where: { id: first.uploadId } }),
+      ).toMatchObject({ status: 'deletePending' });
+      expect(deleteAttempts.get(firstRecord.storageKey)).toBe(1);
+
+      await avatarService.runCleanup();
+
+      expect(storedObjects.has(firstRecord.storageKey)).toBe(false);
+      expect(await prisma.userAvatar.findUnique({ where: { id: first.uploadId } })).toBeNull();
+      expect(deleteAttempts.get(firstRecord.storageKey)).toBe(2);
     });
 
     it('returns an idempotent success when confirming the same upload twice', async () => {
@@ -260,7 +550,10 @@ describe('User avatars (e2e)', () => {
         .post(`/api/users/me/avatar/uploads/${uploadId}/confirm`)
         .expect(200);
 
-      expect(parseObject(parseObject(repeated.body).user).avatar).toEqual(user.avatar);
+      const repeatedUser = parseObject(parseObject(repeated.body).user);
+      expect(stableAvatarProperties(repeatedUser.avatar)).toEqual(
+        stableAvatarProperties(user.avatar),
+      );
     });
   });
 });
