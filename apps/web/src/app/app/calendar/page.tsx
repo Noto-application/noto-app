@@ -188,29 +188,31 @@ function CalendarScreen() {
           {project?.name ?? `Проект ${projectId}`}
         </p>
         <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Предыдущий месяц"
-            disabled={!previous}
-            onClick={() => previous && router.push(calendarUrl(projectId, previous))}
-          >
-            <ChevronLeft />
-          </Button>
-          <h2 className="min-w-0 text-heading-3 text-foreground">
-            {new Intl.DateTimeFormat('ru', { month: 'long', year: 'numeric' }).format(
-              new Date(`${month}-01T12:00:00`),
-            )}
-          </h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Следующий месяц"
-            disabled={!next}
-            onClick={() => next && router.push(calendarUrl(projectId, next))}
-          >
-            <ChevronRight />
-          </Button>
+          <div className="grid w-full max-w-xs grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Предыдущий месяц"
+              disabled={!previous}
+              onClick={() => previous && router.push(calendarUrl(projectId, previous))}
+            >
+              <ChevronLeft />
+            </Button>
+            <h2 className="min-w-0 truncate text-center text-heading-3 text-foreground">
+              {new Intl.DateTimeFormat('ru', { month: 'long', year: 'numeric' }).format(
+                new Date(`${month}-01T12:00:00`),
+              )}
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Следующий месяц"
+              disabled={!next}
+              onClick={() => next && router.push(calendarUrl(projectId, next))}
+            >
+              <ChevronRight />
+            </Button>
+          </div>
           <Button
             variant="secondary"
             size="sm"
