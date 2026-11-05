@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream';
 import type { Server } from 'node:http';
 import { deflateSync } from 'node:zlib';
+import sharp from 'sharp';
 import request from 'supertest';
 import {
   DeleteObjectCommand,
@@ -11,6 +12,7 @@ import {
 import type { S3Client } from '@aws-sdk/client-s3';
 
 import { S3_CLIENT } from '../src/storage/storage.constants';
+import { StorageService } from '../src/storage/storage.service';
 import { UserAvatarService } from '../src/users/user-avatar.service';
 import { createTestApp, resetAuthState } from './helpers/test-app';
 
@@ -102,59 +104,6 @@ function stableAvatarProperties(value: unknown): { contentType: string; size: nu
     contentType: parseString(avatar.contentType),
     size: parseNumber(avatar.size),
   };
-}
-
-function readWebpDimensions(bytes: Buffer): { width: number; height: number } {
-  if (
-    bytes.toString('ascii', 0, 4) !== 'RIFF' ||
-    bytes.toString('ascii', 8, 12) !== 'WEBP' ||
-    bytes.readUInt32LE(4) !== bytes.length - 8
-  ) {
-    throw new Error('Stored avatar is not a valid WebP RIFF container');
-  }
-
-  let offset = 12;
-  while (offset + 8 <= bytes.length) {
-    const chunkType = bytes.toString('ascii', offset, offset + 4);
-    const chunkSize = bytes.readUInt32LE(offset + 4);
-    const dataOffset = offset + 8;
-    if (dataOffset + chunkSize > bytes.length) {
-      throw new Error('WebP chunk exceeds the stored image size');
-    }
-
-    if (chunkType === 'VP8X' && chunkSize >= 10) {
-      return {
-        width: 1 + bytes.readUIntLE(dataOffset + 4, 3),
-        height: 1 + bytes.readUIntLE(dataOffset + 7, 3),
-      };
-    }
-    if (chunkType === 'VP8L' && chunkSize >= 5 && bytes[dataOffset] === 0x2f) {
-      const b1 = bytes[dataOffset + 1];
-      const b2 = bytes[dataOffset + 2];
-      const b3 = bytes[dataOffset + 3];
-      const b4 = bytes[dataOffset + 4];
-      return {
-        width: 1 + b1 + ((b2 & 0x3f) << 8),
-        height: 1 + (b2 >> 6) + (b3 << 2) + ((b4 & 0x0f) << 10),
-      };
-    }
-    if (
-      chunkType === 'VP8 ' &&
-      chunkSize >= 10 &&
-      bytes[dataOffset + 3] === 0x9d &&
-      bytes[dataOffset + 4] === 0x01 &&
-      bytes[dataOffset + 5] === 0x2a
-    ) {
-      return {
-        width: bytes.readUInt16LE(dataOffset + 6) & 0x3fff,
-        height: bytes.readUInt16LE(dataOffset + 8) & 0x3fff,
-      };
-    }
-
-    offset = dataOffset + chunkSize + (chunkSize % 2);
-  }
-
-  throw new Error('WebP image dimensions were not found');
 }
 
 describe('User avatars (e2e)', () => {
@@ -345,8 +294,34 @@ describe('User avatars (e2e)', () => {
     it('confirms an owned upload and returns the normalized WebP avatar', async () => {
       const email = 'avatar-confirm@example.com';
       const agent = await registerUser(email);
+      const sourceImage = await sharp(createPng(640, 320))
+        .withMetadata({ orientation: 6 })
+        .jpeg()
+        .toBuffer();
+      const sourceMetadata = await sharp(sourceImage).metadata();
+      expect(sourceMetadata.orientation).toBe(6);
+      expect(sourceMetadata.exif).toBeDefined();
 
-      const { uploadId, user } = await uploadAndConfirm(agent, email);
+      const uploadResponse = await requestUpload(agent, 'image/jpeg', sourceImage.length).expect(
+        201,
+      );
+      const uploadId = parseString(parseObject(parseObject(uploadResponse.body).upload).uploadId);
+      const uploadRecord = await prisma.userAvatar.findUnique({
+        where: { id: uploadId },
+      });
+      if (!uploadRecord) {
+        throw new Error('Expected the source upload record');
+      }
+      storedObjects.set(uploadRecord.storageKey, {
+        body: sourceImage,
+        contentType: 'image/jpeg',
+      });
+      expect(storedObjects.get(uploadRecord.storageKey)?.body).toEqual(sourceImage);
+
+      const confirmation = await agent
+        .post(`/api/users/me/avatar/uploads/${uploadId}/confirm`)
+        .expect(200);
+      const user = parseObject(parseObject(confirmation.body).user);
       const avatar = parseObject(user.avatar);
 
       const avatarUrl = parseString(avatar.url);
@@ -370,6 +345,9 @@ describe('User avatars (e2e)', () => {
       if (!activeAvatar) {
         throw new Error('Expected an active avatar record');
       }
+      const sourceStorageKey = uploadRecord.storageKey;
+      expect(activeAvatar.storageKey).not.toBe(sourceStorageKey);
+      expect(activeAvatar.sourceStorageKey).toBe(sourceStorageKey);
 
       const normalizedObject = storedObjects.get(activeAvatar.storageKey);
       expect(activeAvatar.status).toBe('active');
@@ -377,13 +355,26 @@ describe('User avatars (e2e)', () => {
         throw new Error('Normalized avatar object was not written to S3');
       }
       expect(normalizedObject.contentType).toBe('image/webp');
-      expect(normalizedObject.body).not.toEqual(PNG);
+      expect(normalizedObject.body).not.toEqual(sourceImage);
       expect(normalizedObject.body.length).toBeLessThanOrEqual(MAX_AVATAR_SIZE);
       expect(activeAvatar.size).toBe(normalizedObject.body.length);
-      const dimensions = readWebpDimensions(normalizedObject.body);
-      expect(dimensions.width).toBeGreaterThan(0);
-      expect(dimensions.height).toBeGreaterThan(0);
-      expect(dimensions).toEqual({ width: 512, height: 384 });
+      const normalizedMetadata = await sharp(normalizedObject.body).metadata();
+      expect(normalizedMetadata.format).toBe('webp');
+      expect(normalizedMetadata.width).toBe(256);
+      expect(normalizedMetadata.height).toBe(512);
+      expect(normalizedMetadata.orientation).toBeUndefined();
+      expect(normalizedMetadata.exif).toBeUndefined();
+      expect(normalizedMetadata.icc).toBeUndefined();
+      expect(normalizedMetadata.iptc).toBeUndefined();
+      expect(normalizedMetadata.xmp).toBeUndefined();
+
+      const decoded = await sharp(normalizedObject.body)
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      expect(decoded.info.width).toBe(256);
+      expect(decoded.info.height).toBe(512);
+      expect(decoded.data).toHaveLength(256 * 512 * decoded.info.channels);
+      expect(decoded.data.some((value) => value !== 0)).toBe(true);
     });
 
     it('does not disclose or confirm another user’s upload', async () => {
@@ -435,14 +426,30 @@ describe('User avatars (e2e)', () => {
     it('replaces an avatar and removes it without deleting the user profile', async () => {
       const agent = await registerUser('avatar-replace@example.com');
       const first = await uploadAndConfirm(agent, 'avatar-replace@example.com');
-      const firstRecord = await prisma.userAvatar.findUnique({
-        where: { id: first.uploadId },
+      const firstOwner = await prisma.user.findUnique({
+        where: { email: 'avatar-replace@example.com' },
+        include: { avatar: true },
       });
-      if (!firstRecord) {
-        throw new Error('Expected the first avatar record');
+      const firstAvatar = firstOwner?.avatar;
+      if (!firstAvatar?.sourceStorageKey) {
+        throw new Error('Expected the first normalized avatar and source upload');
       }
+      const firstNormalizedKey = firstAvatar.storageKey;
+      const firstSourceKey = firstAvatar.sourceStorageKey;
+      expect(firstNormalizedKey).not.toBe(firstSourceKey);
 
       const second = await uploadAndConfirm(agent, 'avatar-replace@example.com');
+      const secondOwner = await prisma.user.findUnique({
+        where: { email: 'avatar-replace@example.com' },
+        include: { avatar: true },
+      });
+      const secondAvatarRecord = secondOwner?.avatar;
+      if (!secondAvatarRecord?.sourceStorageKey) {
+        throw new Error('Expected the second normalized avatar and source upload');
+      }
+      const secondNormalizedKey = secondAvatarRecord.storageKey;
+      const secondSourceKey = secondAvatarRecord.sourceStorageKey;
+      expect(secondNormalizedKey).not.toBe(secondSourceKey);
       const secondAvatar = stableAvatarProperties(second.user.avatar);
       expect(secondAvatar.contentType).toBe('image/webp');
       expect(secondAvatar.size).toBeGreaterThan(0);
@@ -455,7 +462,10 @@ describe('User avatars (e2e)', () => {
       expect(retiredFirst?.deleteAfter).toBeInstanceOf(Date);
       expect(retiredFirst?.deleteAfter?.getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000);
       expect(retiredFirst?.deleteAfter?.getTime()).toBeLessThan(Date.now() + 25 * 60 * 60 * 1000);
-      expect(storedObjects.has(firstRecord.storageKey)).toBe(true);
+      expect(retiredFirst?.storageKey).toBe(firstNormalizedKey);
+      expect(retiredFirst?.sourceStorageKey).toBe(firstSourceKey);
+      expect(storedObjects.has(firstNormalizedKey)).toBe(true);
+      expect(storedObjects.has(firstSourceKey)).toBe(true);
 
       await agent.delete('/api/users/me/avatar').expect(200);
       const profile = await agent.get('/api/users/me').expect(200);
@@ -469,7 +479,21 @@ describe('User avatars (e2e)', () => {
       expect(removedAvatar?.status).toBe('deletePending');
       expect(removedAvatar?.deleteAfter?.getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000);
       expect(removedAvatar?.deleteAfter?.getTime()).toBeLessThan(Date.now() + 25 * 60 * 60 * 1000);
-      expect(storedObjects.has(removedAvatar?.storageKey ?? '')).toBe(true);
+      expect(removedAvatar?.storageKey).toBe(secondNormalizedKey);
+      expect(removedAvatar?.sourceStorageKey).toBe(secondSourceKey);
+      expect(storedObjects.has(secondNormalizedKey)).toBe(true);
+      expect(storedObjects.has(secondSourceKey)).toBe(true);
+
+      await avatarService.runCleanup();
+      expect(storedObjects.has(firstNormalizedKey)).toBe(true);
+      expect(storedObjects.has(firstSourceKey)).toBe(true);
+      expect(storedObjects.has(secondNormalizedKey)).toBe(true);
+      expect(storedObjects.has(secondSourceKey)).toBe(true);
+      expect(
+        await prisma.userAvatar.findMany({
+          where: { id: { in: [first.uploadId, second.uploadId] } },
+        }),
+      ).toHaveLength(2);
 
       const expiredAt = new Date(Date.now() - 1_000);
       await prisma.userAvatar.updateMany({
@@ -478,8 +502,10 @@ describe('User avatars (e2e)', () => {
       });
       await avatarService.runCleanup();
 
-      expect(storedObjects.has(firstRecord.storageKey)).toBe(false);
-      expect(storedObjects.has(removedAvatar?.storageKey ?? '')).toBe(false);
+      expect(storedObjects.has(firstNormalizedKey)).toBe(false);
+      expect(storedObjects.has(firstSourceKey)).toBe(false);
+      expect(storedObjects.has(secondNormalizedKey)).toBe(false);
+      expect(storedObjects.has(secondSourceKey)).toBe(false);
       expect(
         await prisma.userAvatar.findMany({
           where: { id: { in: [first.uploadId, second.uploadId] } },
@@ -510,12 +536,17 @@ describe('User avatars (e2e)', () => {
     it('retries deferred deletion after an S3 failure', async () => {
       const agent = await registerUser('avatar-delete-retry@example.com');
       const first = await uploadAndConfirm(agent, 'avatar-delete-retry@example.com');
-      const firstRecord = await prisma.userAvatar.findUnique({
-        where: { id: first.uploadId },
+      const firstOwner = await prisma.user.findUnique({
+        where: { email: 'avatar-delete-retry@example.com' },
+        include: { avatar: true },
       });
-      if (!firstRecord) {
-        throw new Error('Expected the first avatar record');
+      const firstAvatar = firstOwner?.avatar;
+      if (!firstAvatar?.sourceStorageKey) {
+        throw new Error('Expected the first normalized avatar and source upload');
       }
+      const normalizedKey = firstAvatar.storageKey;
+      const sourceKey = firstAvatar.sourceStorageKey;
+      expect(normalizedKey).not.toBe(sourceKey);
 
       await uploadAndConfirm(agent, 'avatar-delete-retry@example.com');
       await prisma.userAvatar.update({
@@ -525,21 +556,26 @@ describe('User avatars (e2e)', () => {
           deleteAfter: new Date(Date.now() - 1_000),
         },
       });
-      deleteFailures.set(firstRecord.storageKey, 1);
+      deleteFailures.set(normalizedKey, 1);
 
       await avatarService.runCleanup();
 
-      expect(storedObjects.has(firstRecord.storageKey)).toBe(true);
-      expect(
-        await prisma.userAvatar.findUnique({ where: { id: first.uploadId } }),
-      ).toMatchObject({ status: 'deletePending' });
-      expect(deleteAttempts.get(firstRecord.storageKey)).toBe(1);
+      expect(storedObjects.has(normalizedKey)).toBe(true);
+      expect(storedObjects.has(sourceKey)).toBe(true);
+      expect(await prisma.userAvatar.findUnique({ where: { id: first.uploadId } })).toMatchObject({
+        status: 'deletePending',
+      });
+      expect(deleteAttempts.get(normalizedKey)).toBe(1);
+      expect(deleteAttempts.get(sourceKey)).toBeUndefined();
 
-      await avatarService.runCleanup();
+      const restartedWorker = new UserAvatarService(prisma, app.get(StorageService));
+      await restartedWorker.runCleanup();
 
-      expect(storedObjects.has(firstRecord.storageKey)).toBe(false);
+      expect(storedObjects.has(normalizedKey)).toBe(false);
+      expect(storedObjects.has(sourceKey)).toBe(false);
       expect(await prisma.userAvatar.findUnique({ where: { id: first.uploadId } })).toBeNull();
-      expect(deleteAttempts.get(firstRecord.storageKey)).toBe(2);
+      expect(deleteAttempts.get(normalizedKey)).toBe(2);
+      expect(deleteAttempts.get(sourceKey)).toBe(1);
     });
 
     it('returns an idempotent success when confirming the same upload twice', async () => {
