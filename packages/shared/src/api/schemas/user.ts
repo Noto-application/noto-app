@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { avatarSchema } from './avatar';
+
 /** Ограничения отображаемого имени (issue #124). */
 export const USERNAME_MIN_LENGTH = 1;
 export const USERNAME_MAX_LENGTH = 80;
@@ -17,6 +19,7 @@ export const userSchema = z.object({
   email: z.email(),
   username: z.string().nullable(),
   createdAt: z.iso.datetime(),
+  avatar: avatarSchema.nullable(),
 });
 
 export type User = z.infer<typeof userSchema>;

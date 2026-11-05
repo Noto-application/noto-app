@@ -35,6 +35,10 @@ describe('AuthService', () => {
     verifyAsync: jest.fn(),
   };
 
+  const storage = {
+    createReadUrl: jest.fn(),
+  };
+
   const config = {
     get: jest.fn((key: keyof Env) => {
       const values: Partial<Record<keyof Env, string>> = {
@@ -87,6 +91,7 @@ describe('AuthService', () => {
       config as never,
       refreshTokenStore as never,
       passwordHasher,
+      storage as never,
     );
   });
 
@@ -115,13 +120,10 @@ describe('AuthService', () => {
         email: 'user@example.com',
         username: null,
         createdAt: '2026-01-01T00:00:00.000Z',
+        avatar: null,
       });
       expect(result.tokens.accessToken).toBe('access-token');
-      expect(storeMock).toHaveBeenCalledWith(
-        'user-1',
-        expect.any(String),
-        604_800,
-      );
+      expect(storeMock).toHaveBeenCalledWith('user-1', expect.any(String), 604_800);
     });
 
     it('бросает EMAIL_TAKEN если email занят', async () => {
@@ -200,10 +202,7 @@ describe('AuthService', () => {
         service.login({ email: 'missing@example.com', password: 'password123' }),
       ).rejects.toThrow(ApiException);
 
-      expect(verifyMock).toHaveBeenCalledWith(
-        'password123',
-        'dummy-hash',
-      );
+      expect(verifyMock).toHaveBeenCalledWith('password123', 'dummy-hash');
     });
   });
 

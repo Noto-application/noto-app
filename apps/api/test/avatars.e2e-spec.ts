@@ -14,6 +14,7 @@ import type { S3Client } from '@aws-sdk/client-s3';
 import { S3_CLIENT } from '../src/storage/storage.constants';
 import { StorageService } from '../src/storage/storage.service';
 import { UserAvatarService } from '../src/users/user-avatar.service';
+import { UsersService } from '../src/users/users.service';
 import { createTestApp, resetAuthState } from './helpers/test-app';
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
@@ -599,7 +600,11 @@ describe('User avatars (e2e)', () => {
       expect(deleteAttempts.get(normalizedKey)).toBe(1);
       expect(deleteAttempts.get(sourceKey)).toBe(1);
 
-      const restartedWorker = new UserAvatarService(prisma, app.get(StorageService));
+      const restartedWorker = new UserAvatarService(
+        prisma,
+        app.get(StorageService),
+        app.get(UsersService),
+      );
       await restartedWorker.runCleanup();
 
       expect(storedObjects.has(normalizedKey)).toBe(false);

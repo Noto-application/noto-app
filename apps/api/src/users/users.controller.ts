@@ -5,11 +5,15 @@ import { usersContract } from '@noto/shared';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { ApiErrors, ApiException, toTsRestException } from '../lib/errors';
 import type { AuthenticatedRequest } from '../types/auth.types';
+import { UserAvatarService } from './user-avatar.service';
 import { UsersService } from './users.service';
 
 @Controller()
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly userAvatarService: UserAvatarService,
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @TsRestHandler(usersContract.me)
@@ -41,6 +45,45 @@ export class UsersController {
         return { status: 200 as const, body: { user } };
       } catch (error) {
         throw toTsRestException(error, usersContract.update);
+      }
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @TsRestHandler(usersContract.createAvatarUpload)
+  createAvatarUpload(@Req() request: AuthenticatedRequest) {
+    return tsRestHandler(usersContract.createAvatarUpload, async ({ body }) => {
+      try {
+        const result = await this.userAvatarService.createUpload(request.user.sub, body);
+        return { status: 201 as const, body: result };
+      } catch (error) {
+        throw toTsRestException(error, usersContract.createAvatarUpload);
+      }
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @TsRestHandler(usersContract.confirmAvatarUpload)
+  confirmAvatarUpload(@Req() request: AuthenticatedRequest) {
+    return tsRestHandler(usersContract.confirmAvatarUpload, async ({ params }) => {
+      try {
+        const user = await this.userAvatarService.confirmUpload(request.user.sub, params.uploadId);
+        return { status: 200 as const, body: { user } };
+      } catch (error) {
+        throw toTsRestException(error, usersContract.confirmAvatarUpload);
+      }
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @TsRestHandler(usersContract.deleteAvatar)
+  deleteAvatar(@Req() request: AuthenticatedRequest) {
+    return tsRestHandler(usersContract.deleteAvatar, async () => {
+      try {
+        const user = await this.userAvatarService.remove(request.user.sub);
+        return { status: 200 as const, body: { user } };
+      } catch (error) {
+        throw toTsRestException(error, usersContract.deleteAvatar);
       }
     });
   }

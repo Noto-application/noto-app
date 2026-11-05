@@ -10,8 +10,9 @@ import type { AuthCredentials, LoginCredentials, User } from '@noto/shared';
 import type { Env } from '../config/env.schema';
 import { ApiErrors } from '../lib/errors';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import type { AuthResult, AuthTokens, JwtRefreshPayload } from '../types/auth.types';
-import { toPublicUser, ttlToSeconds } from '../lib/utils';
+import { toPublicUser, toPublicUserWithAvatar, ttlToSeconds } from '../lib/utils';
 import { PasswordHasherService } from './password-hasher.service';
 import { RedisRefreshTokenStore } from './refresh-token.store';
 
@@ -28,6 +29,7 @@ export class AuthService {
     private readonly config: ConfigService<Env, true>,
     private readonly refreshTokenStore: RedisRefreshTokenStore,
     private readonly passwordHasher: PasswordHasherService,
+    private readonly storage: StorageService,
   ) {}
 
   async register(credentials: AuthCredentials): Promise<AuthResult> {
@@ -82,6 +84,7 @@ export class AuthService {
   async login(credentials: LoginCredentials): Promise<AuthResult> {
     const user = await this.prisma.user.findUnique({
       where: { email: credentials.email },
+      include: { avatar: true },
     });
 
     const hashToVerify = user?.passwordHash ?? (await this.getDummyPasswordHash());
@@ -92,7 +95,10 @@ export class AuthService {
     }
 
     const tokens = await this.issueTokenPair(user.id, credentials.rememberMe ?? false);
-    return { user: toPublicUser(user), tokens };
+    return {
+      user: await toPublicUserWithAvatar(user, (key) => this.storage.createReadUrl(key)),
+      tokens,
+    };
   }
 
   async refresh(refreshToken: string | undefined): Promise<{ tokens: AuthTokens }> {
@@ -141,13 +147,18 @@ export class AuthService {
   }
 
   async getMe(userId: string): Promise<{ user: User }> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { avatar: true },
+    });
 
     if (!user) {
       throw ApiErrors.unauthorized('User not found');
     }
 
-    return { user: toPublicUser(user) };
+    return {
+      user: await toPublicUserWithAvatar(user, (key) => this.storage.createReadUrl(key)),
+    };
   }
 
   private async issueTokenPair(userId: string, persistent: boolean): Promise<AuthTokens> {
