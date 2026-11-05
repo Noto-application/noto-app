@@ -1,13 +1,16 @@
 import { Controller, Req, UseGuards } from '@nestjs/common';
 import { TsRestHandler, tsRestHandler } from '@ts-rest/nest';
 import { projectsContract } from '@noto/shared';
+import type { UserRole } from '@noto/shared';
 
 import { ProjectAccessGuard } from '../guards/project-access.guard';
 import { RequireProjectRole } from '../guards/require-project-role.decorator';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
-import { toTsRestException } from '../lib/errors';
+import { ApiErrors, toTsRestException } from '../lib/errors';
 import type { AuthenticatedRequest } from '../types/auth.types';
 import { ProjectsService } from './projects.service';
+
+type ProjectRequest = AuthenticatedRequest & { currentUserRole?: UserRole };
 
 @Controller()
 export class ProjectsController {
@@ -42,10 +45,16 @@ export class ProjectsController {
   @UseGuards(JwtAuthGuard, ProjectAccessGuard)
   @RequireProjectRole('viewer')
   @TsRestHandler(projectsContract.get)
-  get() {
+  get(@Req() request: ProjectRequest) {
     return tsRestHandler(projectsContract.get, async ({ params }) => {
       try {
-        const project = await this.projectsService.getById(params.projectId);
+        if (!request.currentUserRole) {
+          throw ApiErrors.internal('ProjectAccessGuard did not provide currentUserRole');
+        }
+        const project = await this.projectsService.getById(
+          params.projectId,
+          request.currentUserRole,
+        );
         return { status: 200 as const, body: { project } };
       } catch (error) {
         throw toTsRestException(error, projectsContract.get);
@@ -56,10 +65,17 @@ export class ProjectsController {
   @UseGuards(JwtAuthGuard, ProjectAccessGuard)
   @RequireProjectRole('editor')
   @TsRestHandler(projectsContract.update)
-  update() {
+  update(@Req() request: ProjectRequest) {
     return tsRestHandler(projectsContract.update, async ({ params, body }) => {
       try {
-        const project = await this.projectsService.update(params.projectId, body);
+        if (!request.currentUserRole) {
+          throw ApiErrors.internal('ProjectAccessGuard did not provide currentUserRole');
+        }
+        const project = await this.projectsService.update(
+          params.projectId,
+          body,
+          request.currentUserRole,
+        );
         return { status: 200 as const, body: { project } };
       } catch (error) {
         throw toTsRestException(error, projectsContract.update);

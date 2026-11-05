@@ -58,12 +58,14 @@ const projects: Project[] = [
   {
     id: firstId,
     name: 'Первый в ответе сервера',
+    currentUserRole: 'owner',
     createdAt: '2026-03-01T00:00:00.000Z',
     updatedAt: '2026-03-01T00:00:00.000Z',
   },
   {
     id: projectId,
     name: 'Альфа',
+    currentUserRole: 'owner',
     createdAt: '2026-03-01T00:00:00.000Z',
     updatedAt: '2026-03-01T00:00:00.000Z',
   },
