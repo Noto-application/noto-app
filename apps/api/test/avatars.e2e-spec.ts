@@ -191,10 +191,7 @@ describe('User avatars (e2e)', () => {
 
   async function registerUser(email: string): Promise<ReturnType<typeof request.agent>> {
     const agent = request.agent(server);
-    await agent
-      .post('/api/auth/register')
-      .send({ email, password: 'password123' })
-      .expect(201);
+    await agent.post('/api/auth/register').send({ email, password: 'password123' }).expect(201);
     return agent;
   }
 
@@ -331,9 +328,7 @@ describe('User avatars (e2e)', () => {
       expect(avatarUrl).not.toContain(uploadId);
       const profile = await agent.get('/api/users/me').expect(200);
       const profileUser = parseObject(parseObject(profile.body).user);
-      expect(stableAvatarProperties(profileUser.avatar)).toEqual(
-        stableAvatarProperties(avatar),
-      );
+      expect(stableAvatarProperties(profileUser.avatar)).toEqual(stableAvatarProperties(avatar));
       expect(profileUser).not.toHaveProperty('passwordHash');
 
       const databaseUser = await prisma.user.findUnique({
@@ -346,8 +341,10 @@ describe('User avatars (e2e)', () => {
         throw new Error('Expected an active avatar record');
       }
       const sourceStorageKey = uploadRecord.storageKey;
+      expect(activeAvatar.id).not.toBe(uploadRecord.id);
       expect(activeAvatar.storageKey).not.toBe(sourceStorageKey);
-      expect(activeAvatar.sourceStorageKey).toBe(sourceStorageKey);
+      expect(uploadRecord.resultAvatarId).toBe(activeAvatar.id);
+      expect(uploadRecord.status).toBe('deletePending');
 
       const normalizedObject = storedObjects.get(activeAvatar.storageKey);
       expect(activeAvatar.status).toBe('active');
@@ -383,9 +380,7 @@ describe('User avatars (e2e)', () => {
       const uploadResponse = await requestUpload(owner).expect(201);
       const uploadId = parseString(parseObject(parseObject(uploadResponse.body).upload).uploadId);
 
-      await otherUser
-        .post(`/api/users/me/avatar/uploads/${uploadId}/confirm`)
-        .expect(404);
+      await otherUser.post(`/api/users/me/avatar/uploads/${uploadId}/confirm`).expect(404);
       const profile = await owner.get('/api/users/me').expect(200);
       expect(parseObject(parseObject(profile.body).user).avatar).toBeNull();
     });
@@ -400,9 +395,7 @@ describe('User avatars (e2e)', () => {
         reportedSize: MAX_UPLOAD_SIZE + 1,
       });
 
-      await agent
-        .post(`/api/users/me/avatar/uploads/${uploadId}/confirm`)
-        .expect(400);
+      await agent.post(`/api/users/me/avatar/uploads/${uploadId}/confirm`).expect(400);
       const profile = await agent.get('/api/users/me').expect(200);
       expect(parseObject(parseObject(profile.body).user).avatar).toBeNull();
     });
@@ -416,9 +409,7 @@ describe('User avatars (e2e)', () => {
         contentType: 'image/jpeg',
       });
 
-      await agent
-        .post(`/api/users/me/avatar/uploads/${uploadId}/confirm`)
-        .expect(400);
+      await agent.post(`/api/users/me/avatar/uploads/${uploadId}/confirm`).expect(400);
       const profile = await agent.get('/api/users/me').expect(200);
       expect(parseObject(parseObject(profile.body).user).avatar).toBeNull();
     });
@@ -426,29 +417,45 @@ describe('User avatars (e2e)', () => {
     it('replaces an avatar and removes it without deleting the user profile', async () => {
       const agent = await registerUser('avatar-replace@example.com');
       const first = await uploadAndConfirm(agent, 'avatar-replace@example.com');
+      const firstSource = await prisma.userAvatar.findUnique({
+        where: { id: first.uploadId },
+      });
+      if (!firstSource) {
+        throw new Error('Expected the first source upload record');
+      }
       const firstOwner = await prisma.user.findUnique({
         where: { email: 'avatar-replace@example.com' },
         include: { avatar: true },
       });
       const firstAvatar = firstOwner?.avatar;
-      if (!firstAvatar?.sourceStorageKey) {
-        throw new Error('Expected the first normalized avatar and source upload');
+      if (!firstAvatar) {
+        throw new Error('Expected the first normalized avatar');
       }
       const firstNormalizedKey = firstAvatar.storageKey;
-      const firstSourceKey = firstAvatar.sourceStorageKey;
+      const firstNormalizedId = firstAvatar.id;
+      const firstSourceKey = firstSource.storageKey;
+      expect(firstNormalizedId).not.toBe(first.uploadId);
       expect(firstNormalizedKey).not.toBe(firstSourceKey);
 
       const second = await uploadAndConfirm(agent, 'avatar-replace@example.com');
+      const secondSource = await prisma.userAvatar.findUnique({
+        where: { id: second.uploadId },
+      });
+      if (!secondSource) {
+        throw new Error('Expected the second source upload record');
+      }
       const secondOwner = await prisma.user.findUnique({
         where: { email: 'avatar-replace@example.com' },
         include: { avatar: true },
       });
       const secondAvatarRecord = secondOwner?.avatar;
-      if (!secondAvatarRecord?.sourceStorageKey) {
-        throw new Error('Expected the second normalized avatar and source upload');
+      if (!secondAvatarRecord) {
+        throw new Error('Expected the second normalized avatar');
       }
       const secondNormalizedKey = secondAvatarRecord.storageKey;
-      const secondSourceKey = secondAvatarRecord.sourceStorageKey;
+      const secondNormalizedId = secondAvatarRecord.id;
+      const secondSourceKey = secondSource.storageKey;
+      expect(secondNormalizedId).not.toBe(second.uploadId);
       expect(secondNormalizedKey).not.toBe(secondSourceKey);
       const secondAvatar = stableAvatarProperties(second.user.avatar);
       expect(secondAvatar.contentType).toBe('image/webp');
@@ -456,16 +463,21 @@ describe('User avatars (e2e)', () => {
       expect(secondAvatar.size).toBeLessThanOrEqual(MAX_AVATAR_SIZE);
 
       const retiredFirst = await prisma.userAvatar.findUnique({
-        where: { id: first.uploadId },
+        where: { id: firstNormalizedId },
       });
       expect(retiredFirst?.status).toBe('deletePending');
       expect(retiredFirst?.deleteAfter).toBeInstanceOf(Date);
-      expect(retiredFirst?.deleteAfter?.getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000);
+      expect(retiredFirst?.deleteAfter?.getTime()).toBeGreaterThan(
+        Date.now() + 23 * 60 * 60 * 1000,
+      );
       expect(retiredFirst?.deleteAfter?.getTime()).toBeLessThan(Date.now() + 25 * 60 * 60 * 1000);
       expect(retiredFirst?.storageKey).toBe(firstNormalizedKey);
-      expect(retiredFirst?.sourceStorageKey).toBe(firstSourceKey);
       expect(storedObjects.has(firstNormalizedKey)).toBe(true);
       expect(storedObjects.has(firstSourceKey)).toBe(true);
+      expect(firstSource.status).toBe('deletePending');
+      expect(firstSource.storageKey).toBe(firstSourceKey);
+      expect(firstSource.resultAvatarId).toBe(firstNormalizedId);
+      expect(firstSource.deleteAfter?.getTime()).toBeLessThanOrEqual(Date.now());
 
       await agent.delete('/api/users/me/avatar').expect(200);
       const profile = await agent.get('/api/users/me').expect(200);
@@ -474,30 +486,40 @@ describe('User avatars (e2e)', () => {
       expect(profileUser.email).toBe('avatar-replace@example.com');
 
       const removedAvatar = await prisma.userAvatar.findUnique({
-        where: { id: second.uploadId },
+        where: { id: secondNormalizedId },
       });
       expect(removedAvatar?.status).toBe('deletePending');
-      expect(removedAvatar?.deleteAfter?.getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000);
+      expect(removedAvatar?.deleteAfter?.getTime()).toBeGreaterThan(
+        Date.now() + 23 * 60 * 60 * 1000,
+      );
       expect(removedAvatar?.deleteAfter?.getTime()).toBeLessThan(Date.now() + 25 * 60 * 60 * 1000);
       expect(removedAvatar?.storageKey).toBe(secondNormalizedKey);
-      expect(removedAvatar?.sourceStorageKey).toBe(secondSourceKey);
       expect(storedObjects.has(secondNormalizedKey)).toBe(true);
       expect(storedObjects.has(secondSourceKey)).toBe(true);
+      expect(secondSource.status).toBe('deletePending');
+      expect(secondSource.storageKey).toBe(secondSourceKey);
+      expect(secondSource.resultAvatarId).toBe(secondNormalizedId);
+      expect(secondSource.deleteAfter?.getTime()).toBeLessThanOrEqual(Date.now());
 
       await avatarService.runCleanup();
       expect(storedObjects.has(firstNormalizedKey)).toBe(true);
-      expect(storedObjects.has(firstSourceKey)).toBe(true);
+      expect(storedObjects.has(firstSourceKey)).toBe(false);
       expect(storedObjects.has(secondNormalizedKey)).toBe(true);
-      expect(storedObjects.has(secondSourceKey)).toBe(true);
+      expect(storedObjects.has(secondSourceKey)).toBe(false);
+      expect(
+        await prisma.userAvatar.findMany({
+          where: { id: { in: [firstNormalizedId, secondNormalizedId] } },
+        }),
+      ).toHaveLength(2);
       expect(
         await prisma.userAvatar.findMany({
           where: { id: { in: [first.uploadId, second.uploadId] } },
         }),
-      ).toHaveLength(2);
+      ).toHaveLength(0);
 
       const expiredAt = new Date(Date.now() - 1_000);
       await prisma.userAvatar.updateMany({
-        where: { id: { in: [first.uploadId, second.uploadId] } },
+        where: { id: { in: [firstNormalizedId, secondNormalizedId] } },
         data: { deleteAfter: expiredAt },
       });
       await avatarService.runCleanup();
@@ -508,7 +530,7 @@ describe('User avatars (e2e)', () => {
       expect(storedObjects.has(secondSourceKey)).toBe(false);
       expect(
         await prisma.userAvatar.findMany({
-          where: { id: { in: [first.uploadId, second.uploadId] } },
+          where: { id: { in: [firstNormalizedId, secondNormalizedId] } },
         }),
       ).toHaveLength(0);
       const remainingProfile = await agent.get('/api/users/me').expect(200);
@@ -536,21 +558,29 @@ describe('User avatars (e2e)', () => {
     it('retries deferred deletion after an S3 failure', async () => {
       const agent = await registerUser('avatar-delete-retry@example.com');
       const first = await uploadAndConfirm(agent, 'avatar-delete-retry@example.com');
+      const firstSource = await prisma.userAvatar.findUnique({
+        where: { id: first.uploadId },
+      });
+      if (!firstSource) {
+        throw new Error('Expected the first source upload record');
+      }
       const firstOwner = await prisma.user.findUnique({
         where: { email: 'avatar-delete-retry@example.com' },
         include: { avatar: true },
       });
       const firstAvatar = firstOwner?.avatar;
-      if (!firstAvatar?.sourceStorageKey) {
-        throw new Error('Expected the first normalized avatar and source upload');
+      if (!firstAvatar) {
+        throw new Error('Expected the first normalized avatar');
       }
+      const normalizedId = firstAvatar.id;
       const normalizedKey = firstAvatar.storageKey;
-      const sourceKey = firstAvatar.sourceStorageKey;
+      const sourceKey = firstSource.storageKey;
+      expect(normalizedId).not.toBe(first.uploadId);
       expect(normalizedKey).not.toBe(sourceKey);
 
       await uploadAndConfirm(agent, 'avatar-delete-retry@example.com');
       await prisma.userAvatar.update({
-        where: { id: first.uploadId },
+        where: { id: normalizedId },
         data: {
           status: 'deletePending',
           deleteAfter: new Date(Date.now() - 1_000),
@@ -561,19 +591,20 @@ describe('User avatars (e2e)', () => {
       await avatarService.runCleanup();
 
       expect(storedObjects.has(normalizedKey)).toBe(true);
-      expect(storedObjects.has(sourceKey)).toBe(true);
-      expect(await prisma.userAvatar.findUnique({ where: { id: first.uploadId } })).toMatchObject({
+      expect(storedObjects.has(sourceKey)).toBe(false);
+      expect(await prisma.userAvatar.findUnique({ where: { id: normalizedId } })).toMatchObject({
         status: 'deletePending',
       });
+      expect(await prisma.userAvatar.findUnique({ where: { id: first.uploadId } })).toBeNull();
       expect(deleteAttempts.get(normalizedKey)).toBe(1);
-      expect(deleteAttempts.get(sourceKey)).toBeUndefined();
+      expect(deleteAttempts.get(sourceKey)).toBe(1);
 
       const restartedWorker = new UserAvatarService(prisma, app.get(StorageService));
       await restartedWorker.runCleanup();
 
       expect(storedObjects.has(normalizedKey)).toBe(false);
       expect(storedObjects.has(sourceKey)).toBe(false);
-      expect(await prisma.userAvatar.findUnique({ where: { id: first.uploadId } })).toBeNull();
+      expect(await prisma.userAvatar.findUnique({ where: { id: normalizedId } })).toBeNull();
       expect(deleteAttempts.get(normalizedKey)).toBe(2);
       expect(deleteAttempts.get(sourceKey)).toBe(1);
     });
