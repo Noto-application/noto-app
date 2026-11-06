@@ -21,7 +21,6 @@
 | Календарь страниц — API (#132)            | [apps/api/src/calendar/calendar.spec.md](../../apps/api/src/calendar/calendar.spec.md)                               | In progress |
 | Календарь страниц — frontend (#132)       | [apps/web/src/entities/calendar-entry/calendar.spec.md](../../apps/web/src/entities/calendar-entry/calendar.spec.md) | In progress |
 | Настройки профиля — имя (#125)            | [apps/web/src/features/update-username/update-username.spec.md](../../apps/web/src/features/update-username/update-username.spec.md) | Draft       |
-
 ## Кросс-модульные (в `docs/specs/`)
 
 | Фича                                      | Спека                                                                 | Статус |

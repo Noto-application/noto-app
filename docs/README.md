@@ -26,6 +26,7 @@
 | [ADR-014](./adr/014-responsive-strategy.md)     | Адаптивность / responsive-стратегия        |
 | [ADR-015](./adr/015-rich-text-editor.md)        | Rich-text редактор — BlockNote             |
 | [ADR-016](./adr/016-e2e-testing.md)             | E2E-тестирование — Playwright              |
+| [ADR-017](./adr/017-image-storage.md)              | S3-совместимое хранилище изображений        |
 
 ## RFC — на проработку
 

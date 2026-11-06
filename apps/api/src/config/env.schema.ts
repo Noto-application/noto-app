@@ -15,6 +15,13 @@ export const envSchema = z.object({
   DATABASE_URL: z.url(),
   REDIS_URL: z.url(),
 
+  // S3-compatible Yandex Object Storage (ADR-017).
+  STORAGE_BUCKET: z.string().min(1),
+  STORAGE_REGION: z.string().min(1),
+  STORAGE_ENDPOINT: z.url(),
+  AWS_ACCESS_KEY_ID: z.string().min(1),
+  AWS_SECRET_ACCESS_KEY: z.string().min(1),
+
   // JWT: секреты и время жизни. Refresh хранится в Redis allow-list (см. auth.spec.md).
   JWT_ACCESS_SECRET: z.string().min(1),
   JWT_REFRESH_SECRET: z.string().min(1),

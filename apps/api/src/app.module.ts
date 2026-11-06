@@ -9,6 +9,7 @@ import { PagesModule } from './pages/pages.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
 import { RedisModule } from './redis/redis.module';
+import { StorageModule } from './storage/storage.module';
 import { UsersModule } from './users/users.module';
 import { validateEnv } from './config/env.schema';
 import { ApiExceptionFilter } from './lib/errors';
@@ -22,6 +23,7 @@ import { ApiExceptionFilter } from './lib/errors';
     }),
     PrismaModule,
     RedisModule,
+    StorageModule,
     AuthModule,
     UsersModule,
     ProjectsModule,
