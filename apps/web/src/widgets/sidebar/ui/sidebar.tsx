@@ -55,7 +55,15 @@ function SidebarContent() {
           </Link>
           <SidebarNavItem icon={<Search />} label="Поиск" shortcut="⌘K" />
           <SidebarNavItem icon={<Inbox />} label="Входящие" />
-          <SidebarNavItem icon={<Calendar />} label="Календарь" />
+          <SidebarNavItem
+            icon={<Calendar />}
+            label="Календарь"
+            href={
+              page
+                ? `/app/calendar?projectId=${encodeURIComponent(page.projectId)}`
+                : '/app/calendar'
+            }
+          />
         </nav>
 
         {projectId ? <PageTree projectId={projectId} /> : <div className="flex-1" />}

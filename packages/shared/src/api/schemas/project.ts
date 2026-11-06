@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { userRoleSchema } from './page';
+
 /** Ограничения имени проекта (валидация create/update). */
 export const PROJECT_NAME_MIN_LENGTH = 1;
 export const PROJECT_NAME_MAX_LENGTH = 100;
@@ -14,6 +16,7 @@ const projectNameSchema = z
 export const projectSchema = z.object({
   id: z.string(),
   name: z.string(),
+  currentUserRole: userRoleSchema,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
