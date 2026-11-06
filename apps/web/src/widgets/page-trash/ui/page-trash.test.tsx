@@ -86,6 +86,7 @@ beforeEach(() => {
       projects: [projectId, otherProjectId].map((id) => ({
         id,
         name: id === projectId ? 'Notes' : 'Other',
+        currentUserRole: 'owner' as const,
         createdAt: item.deletedAt,
         updatedAt: item.deletedAt,
       })),

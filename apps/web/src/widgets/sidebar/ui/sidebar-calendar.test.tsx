@@ -9,7 +9,10 @@ import { apiClient } from '@/src/shared/api';
 import { Sidebar } from './sidebar';
 
 const route = vi.hoisted(() => ({ pageId: undefined as string | undefined }));
-vi.mock('next/navigation', () => ({ useParams: () => ({ pageId: route.pageId }) }));
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ pageId: route.pageId }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 // Не относящиеся к календарной ссылке ветви виджета не запускают свои запросы.
 vi.mock('./page-tree', () => ({ PageTree: () => null }));
 vi.mock('./sidebar-workspace-switcher', () => ({ SidebarWorkspaceSwitcher: () => null }));
