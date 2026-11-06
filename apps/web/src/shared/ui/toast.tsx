@@ -2,6 +2,7 @@
 import { Toast as ToastPrimitive } from '@base-ui/react/toast';
 import { cva } from 'class-variance-authority';
 import { X } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import { cn } from '@/src/shared/lib/utils';
 
@@ -21,11 +22,11 @@ const toastManager = ToastPrimitive.createToastManager();
 type ToastVariant = 'success' | 'danger' | 'info';
 
 const toast = {
-  success: (title: string, description?: string) =>
+  success: (title: string, description?: ReactNode) =>
     toastManager.add({ type: 'success', title, description }),
-  error: (title: string, description?: string) =>
+  error: (title: string, description?: ReactNode) =>
     toastManager.add({ type: 'danger', title, description }),
-  info: (title: string, description?: string) =>
+  info: (title: string, description?: ReactNode) =>
     toastManager.add({ type: 'info', title, description }),
 };
 
