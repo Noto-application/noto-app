@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { Calendar, Home, Inbox, Search, Settings, Trash2 } from 'lucide-react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 import { usePage } from '@/src/entities/page';
+import { getTrashHref, getTrashProjectId } from '@/src/shared/lib/trash-navigation';
 import { cn } from '@/src/shared/lib/utils';
 import { useSidebarStore } from '../model/use-sidebar-store';
 import { PageTree } from './page-tree';
@@ -13,20 +15,11 @@ import { SidebarNewPageButton } from './sidebar-new-page-button';
 import { SidebarUserBlock } from './sidebar-user-block';
 import { SidebarWorkspaceSwitcher } from './sidebar-workspace-switcher';
 
-/**
- * `projectId` дерева берётся из метаданных открытой страницы, не из URL
- * (ADR-002). Пока их нет — места дерева занимает распорка.
- */
-function SidebarPageTree({ pageId }: { pageId: string }) {
-  const { data: page } = usePage(pageId);
-
-  if (!page) return <div className="flex-1" />;
-
-  return <PageTree projectId={page.projectId} />;
-}
-
-export function Sidebar() {
+function SidebarContent() {
   const { pageId } = useParams<{ pageId?: string }>();
+  const { data: page } = usePage(pageId);
+  const searchParams = useSearchParams();
+  const projectId = page?.projectId ?? getTrashProjectId(searchParams.get('projectId'));
   const isDrawerOpen = useSidebarStore((state) => state.isDrawerOpen);
   const setDrawerOpen = useSidebarStore((state) => state.setDrawerOpen);
 
@@ -65,16 +58,26 @@ export function Sidebar() {
           <SidebarNavItem icon={<Calendar />} label="Календарь" />
         </nav>
 
-        {pageId ? <SidebarPageTree pageId={pageId} /> : <div className="flex-1" />}
+        {projectId ? <PageTree projectId={projectId} /> : <div className="flex-1" />}
 
         <div className="flex flex-col gap-0.5 border-t border-border pt-1">
           <SidebarNewPageButton />
-          <SidebarNavItem icon={<Trash2 />} label="Корзина" />
+          <SidebarNavItem icon={<Trash2 />} label="Корзина" href={getTrashHref(projectId)} />
           <SidebarNavItem icon={<Settings />} label="Настройки" href="/app/settings" />
         </div>
 
         <SidebarUserBlock />
       </aside>
     </>
+  );
+}
+
+export function Sidebar() {
+  return (
+    <Suspense
+      fallback={<aside className="hidden w-64 shrink-0 lg:block" aria-label="Загрузка навигации" />}
+    >
+      <SidebarContent />
+    </Suspense>
   );
 }
