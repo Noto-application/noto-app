@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from '@/src/shared/api';
 import { pageKeys } from '@/src/entities/page';
+import { calendarEntryKeys } from '@/src/entities/calendar-entry';
 
 import { AUTOSAVE_DEBOUNCE_MS } from './use-page-autosave';
 import { usePageTitleAutosave } from './use-page-title-autosave';
@@ -42,7 +43,10 @@ function setup() {
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 
-  return { ...renderHook(() => usePageTitleAutosave(pageId, projectId), { wrapper: Wrapper }), queryClient };
+  return {
+    ...renderHook(() => usePageTitleAutosave(pageId, projectId), { wrapper: Wrapper }),
+    queryClient,
+  };
 }
 
 beforeEach(() => {
@@ -161,7 +165,10 @@ describe('usePageTitleAutosave', () => {
     // на сервере до того, как content-PATCH успел закоммититься. Если бы мы
     // писали в кэш весь объект целиком, этот снимок откатил бы content.
     const parallelContent = [{ type: 'paragraph', content: 'сохранено параллельно' }];
-    queryClient.setQueryData(pageKeys.detail(pageId), { ...response.body.page, content: parallelContent });
+    queryClient.setQueryData(pageKeys.detail(pageId), {
+      ...response.body.page,
+      content: parallelContent,
+    });
 
     result.current.onChange('Noto');
     await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
@@ -170,5 +177,31 @@ describe('usePageTitleAutosave', () => {
       title: 'Noto',
       content: parallelContent,
     });
+  });
+
+  it('invalidates source-project ranges and point reads after a late rename, not the next project', async () => {
+    let resolve!: (value: UpdateResponse) => void;
+    vi.spyOn(apiClient.pages, 'update').mockReturnValue(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    const { result, unmount, queryClient } = setup();
+    const keys = [
+      calendarEntryKeys.range(projectId, '2026-10-26', '2026-12-07'),
+      calendarEntryKeys.range(projectId, '2026-11-30', '2027-01-11'),
+      ['calendar-entry', projectId, 'page', pageId],
+    ];
+    const other = ['calendar-entry', '00000000-0000-4000-8000-000000000003', 'page', pageId];
+    for (const key of [...keys, other]) queryClient.setQueryData(key, []);
+    result.current.onChange('Renamed');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    unmount();
+    resolve(updatedResponse('Renamed'));
+    await vi.advanceTimersByTimeAsync(1);
+    for (const key of keys) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(other)?.isInvalidated).toBe(false);
+    expect(queryClient.getQueryData(pageKeys.detail(pageId))).toMatchObject({ title: 'Renamed' });
+    queryClient.clear();
   });
 });

@@ -74,6 +74,7 @@ export function MonthGrid({
         dateClick={onDateClick ? (info) => onDateClick(info.dateStr) : undefined}
         eventInteractive={Boolean(onItemClick)}
         eventClick={onItemClick ? (info) => onItemClick(info.event.id) : undefined}
+        eventClass="noto-month-event"
         eventContent={(info) => <span className="noto-month-card">{info.event.title}</span>}
       />
     </div>

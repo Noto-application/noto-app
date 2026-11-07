@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '@/src/shared/api';
 
 import { calendarEntryKeys } from './calendar-entries';
-import { useCalendarEntries } from './use-calendar-entries';
+import { useCalendarEntries, useCalendarEntry } from './use-calendar-entries';
 
 type ListResponse = Awaited<ReturnType<typeof apiClient.calendar.list>>;
 const projectId = '00000000-0000-4000-8000-000000000002';
@@ -295,5 +295,82 @@ describe('useCalendarEntries', () => {
       await vi.advanceTimersByTimeAsync(120_000);
     });
     expect(list).toHaveBeenCalledTimes(unmountedCount);
+  });
+});
+
+describe('useCalendarEntry (#136)', () => {
+  it('keeps pending and failed reads unknown until an explicit retry verifies null', async () => {
+    let reject!: (error: Error) => void;
+    const get = vi.spyOn(apiClient.calendar, 'get').mockImplementationOnce(
+      () =>
+        new Promise((_, fail) => {
+          reject = fail;
+        }),
+    );
+    const { client, wrapper } = setup();
+    client.setQueryData(calendarEntryKeys.range(projectId, from, to), []);
+    const { result } = renderHook(() => useCalendarEntry(projectId, entry.pageId), { wrapper });
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+    expect(result.current.data).toBeUndefined();
+    act(() => reject(new TypeError('Network error')));
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
+    get.mockResolvedValue({ status: 200, body: { entry: null }, headers: new Headers() });
+    await act(async () => {
+      await result.current.refetch();
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBeNull();
+    expect(client.getQueryData(calendarEntryKeys.page(projectId, entry.pageId))).toBeNull();
+  });
+
+  it('isolates a late point response from the new project and page', async () => {
+    let resolve!: (value: {
+      status: 200;
+      body: { entry: CalendarEntry };
+      headers: Headers;
+    }) => void;
+    const old = new Promise<{ status: 200; body: { entry: CalendarEntry }; headers: Headers }>(
+      (done) => {
+        resolve = done;
+      },
+    );
+    const next = { ...entry, projectId: otherId, pageId: otherId, date: '2027-12-25' };
+    const get = vi
+      .spyOn(apiClient.calendar, 'get')
+      .mockImplementation(({ params }) =>
+        params.projectId === projectId
+          ? old
+          : Promise.resolve({ status: 200, body: { entry: next }, headers: new Headers() }),
+      );
+    const { wrapper } = setup();
+    const { result, rerender } = renderHook(
+      ({ project, page }) => useCalendarEntry(project, page),
+      { wrapper, initialProps: { project: projectId, page: entry.pageId } },
+    );
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith({ params: { projectId, pageId: entry.pageId } }),
+    );
+    rerender({ project: otherId, page: otherId });
+    await waitFor(() => expect(result.current.data).toEqual(next));
+    await act(async () => {
+      resolve({ status: 200, body: { entry }, headers: new Headers() });
+      await old;
+    });
+    expect(result.current.data).toEqual(next);
+  });
+
+  it.each([
+    [undefined, entry.pageId],
+    [projectId, undefined],
+    ['bad-id', entry.pageId],
+    [projectId, 'bad-id'],
+  ])('does not request unresolved or invalid context: %s / %s', async (project, page) => {
+    const get = vi.spyOn(apiClient.calendar, 'get');
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useCalendarEntry(project, page), { wrapper });
+    await act(async () => {});
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(get).not.toHaveBeenCalled();
   });
 });

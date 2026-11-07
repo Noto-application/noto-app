@@ -8,6 +8,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import { useCalendarEntries } from '@/src/entities/calendar-entry';
 import { useProjects } from '@/src/entities/project';
+import { CalendarEntryForm } from '@/src/features/calendar-entry';
 import { ApiClientError } from '@/src/shared/api';
 import { Button } from '@/src/shared/ui/button';
 import type { MonthGridRange } from '@/src/shared/ui/calendar/month-grid';
@@ -43,7 +44,19 @@ function CalendarLoading() {
   );
 }
 
-function CalendarRange({ projectId, month }: { projectId: string; month: string }) {
+function CalendarRange({
+  projectId,
+  month,
+  canWrite,
+  onCreate,
+  onEdit,
+}: {
+  projectId: string;
+  month: string;
+  canWrite: boolean;
+  onCreate: (date: string) => void;
+  onEdit: (pageId: string, date: string) => void;
+}) {
   const router = useRouter();
   const [range, setRange] = useState<MonthGridRange>();
   const query = useCalendarEntries(projectId, range?.from, range?.to);
@@ -102,7 +115,26 @@ function CalendarRange({ projectId, month }: { projectId: string; month: string 
         }))}
         onRangeChange={onRangeChange}
         onItemClick={(pageId) => router.push(`/app/${pageId}`)}
+        onDateClick={canWrite ? onCreate : undefined}
       />
+      {canWrite && query.data?.length ? (
+        <ul className="flex flex-wrap gap-2" aria-label="Изменение дат страниц">
+          {query.data.map((entry) => (
+            <li key={entry.pageId} className="min-w-0 max-w-full">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="max-w-full"
+                aria-label={`Изменить дату: ${entry.title}`}
+                onClick={() => onEdit(entry.pageId, entry.date)}
+              >
+                <span className="truncate">{entry.title}</span>
+                <span className="text-muted-foreground">{entry.date}</span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -114,6 +146,7 @@ function CalendarScreen() {
   const projects = useProjects();
   const rawProjectId = params.get('projectId');
   const rawMonth = params.get('month');
+  const [form, setForm] = useState<{ pageId?: string; date: string } | null>(null);
   const validProject =
     rawProjectId === null ||
     calendarContract.list.pathParams.safeParse({ projectId: rawProjectId }).success;
@@ -222,7 +255,14 @@ function CalendarScreen() {
           </Button>
         </div>
         {/* Новый URL-контекст не наследует диапазон или карточки предыдущей сетки. */}
-        <CalendarRange key={`${projectId}:${month}`} projectId={projectId} month={month} />
+        <CalendarRange
+          key={`${projectId}:${month}`}
+          projectId={projectId}
+          month={month}
+          canWrite={project?.currentUserRole === 'owner' || project?.currentUserRole === 'editor'}
+          onCreate={(date) => setForm({ date })}
+          onEdit={(pageId, date) => setForm({ pageId, date })}
+        />
       </>
     );
   }
@@ -234,6 +274,14 @@ function CalendarScreen() {
         Календарь
       </h1>
       {content}
+      {form && projectId ? (
+        <CalendarEntryForm
+          projectId={projectId}
+          pageId={form.pageId}
+          initialDate={form.date}
+          onClose={() => setForm(null)}
+        />
+      ) : null}
     </div>
   );
 }

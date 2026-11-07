@@ -20,6 +20,18 @@
   --fc-classic-now: var(--primary);
 }
 
+.noto-month-grid .noto-month-event {
+  margin: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background-color: var(--surface);
+  color: var(--foreground);
+}
+
+.noto-month-grid .noto-month-event:hover {
+  background-color: var(--surface-hover);
+}
+
 .noto-month-card {
   display: block;
   overflow: hidden;
