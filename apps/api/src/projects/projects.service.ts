@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { CreateProjectInput, Project, UpdateProjectInput } from '@noto/shared';
+import type { CreateProjectInput, Project, UpdateProjectInput, UserRole } from '@noto/shared';
 
 import { ApiErrors } from '../lib/errors';
 import { toPublicProject } from '../lib/utils';
@@ -22,7 +22,7 @@ export class ProjectsService {
       }),
     );
 
-    return toPublicProject(project);
+    return toPublicProject(project, 'owner');
   }
 
   async listForUser(userId: string): Promise<Project[]> {
@@ -35,22 +35,26 @@ export class ProjectsService {
       orderBy: { project: { createdAt: 'asc' } },
     });
 
-    return memberships.map((membership) => toPublicProject(membership.project));
+    return memberships.map((membership) => toPublicProject(membership.project, membership.role));
   }
 
-  async getById(projectId: string): Promise<Project> {
+  async getById(projectId: string, currentUserRole: UserRole): Promise<Project> {
     const project = await this.findActiveProject(projectId);
-    return toPublicProject(project);
+    return toPublicProject(project, currentUserRole);
   }
 
-  async update(projectId: string, input: UpdateProjectInput): Promise<Project> {
+  async update(
+    projectId: string,
+    input: UpdateProjectInput,
+    currentUserRole: UserRole,
+  ): Promise<Project> {
     try {
       const project = await this.prisma.project.update({
         where: { id: projectId, deletedAt: null },
         data: { name: input.name },
       });
 
-      return toPublicProject(project);
+      return toPublicProject(project, currentUserRole);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         throw ApiErrors.notFound('Project not found');

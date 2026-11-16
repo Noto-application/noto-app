@@ -4,9 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 
 import { getProject, projectKeys } from './projects';
 
-export function useProject(id: string) {
+export function useProject(id: string | undefined) {
   return useQuery({
-    queryKey: projectKeys.detail(id),
-    queryFn: async () => (await getProject(id)) ?? null,
+    queryKey: projectKeys.detail(id ?? ''),
+    queryFn: async () => (await getProject(id!)) ?? null,
+    enabled: Boolean(id),
   });
 }

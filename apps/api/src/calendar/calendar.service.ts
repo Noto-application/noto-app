@@ -29,6 +29,15 @@ function toEntry(entry: EntryWithPage): CalendarEntry {
 export class CalendarService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async get(projectId: string, pageId: string): Promise<CalendarEntry | null> {
+    const page = await this.prisma.page.findFirst({
+      where: { id: pageId, projectId, deletedAt: null },
+      include: { calendarEntry: true },
+    });
+    if (!page) throw ApiErrors.notFound('Page not found');
+    return page.calendarEntry ? toEntry({ ...page.calendarEntry, page }) : null;
+  }
+
   async list(projectId: string, from: string, to: string): Promise<CalendarEntry[]> {
     const entries = await this.prisma.calendarEntry.findMany({
       where: { date: { gte: from, lt: to }, page: { projectId, deletedAt: null } },

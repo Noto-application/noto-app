@@ -5,3 +5,5 @@ export { usePageTree } from './api/use-page-tree';
 export { usePagesList } from './api/use-pages';
 export { useDeletePageMutation } from './api/use-delete-page-mutation';
 export { buildPageTree, type PageTreeNode, type PageTreeSource } from './lib/build-page-tree';
+export { getTrashPages, restorePage, trashKeys, type TrashPage } from './api/trash';
+export { useTrashPages } from './api/use-trash-pages';

@@ -118,3 +118,30 @@ describe('useDeletePageMutation', () => {
     });
   });
 });
+
+it('invalidates cached trash even when page metadata was only loaded in the tree', async () => {
+  vi.mocked(deletePage).mockResolvedValue(undefined);
+  const queryClient = createTestQueryClient();
+  const trashKey = ['pages', 'trash', 'project-1'];
+  queryClient.setQueryData(pageKeys.list('project-1'), [{ id: 'page-42', projectId: 'project-1' }]);
+  queryClient.setQueryData(trashKey, { pages: [], pageParams: [] });
+  const { result } = renderHook(() => useDeletePageMutation(), {
+    wrapper: createWrapper(queryClient),
+  });
+  result.current.mutate('page-42');
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(queryClient.getQueryState(trashKey)?.isInvalidated).toBe(true);
+});
+
+it('invalidates existing trash caches when the deleted page has no cached metadata', async () => {
+  vi.mocked(deletePage).mockResolvedValue(undefined);
+  const queryClient = createTestQueryClient();
+  const trashKey = ['pages', 'trash', 'project-1'];
+  queryClient.setQueryData(trashKey, { pages: [], pageParams: [] });
+  const { result } = renderHook(() => useDeletePageMutation(), {
+    wrapper: createWrapper(queryClient),
+  });
+  result.current.mutate('page-42');
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(queryClient.getQueryState(trashKey)?.isInvalidated).toBe(true);
+});

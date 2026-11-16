@@ -38,6 +38,19 @@ export const calendarContract = c.router({
     },
     summary: 'List dated pages of a project in [from, to) (viewer+)',
   },
+  get: {
+    method: 'GET',
+    path: '/projects/:projectId/calendar-entries/:pageId',
+    pathParams: calendarEntryParamSchema,
+    responses: {
+      200: calendarEntryResponseSchema,
+      400: apiErrorSchema,
+      401: apiErrorSchema,
+      403: apiErrorSchema,
+      404: apiErrorSchema,
+    },
+    summary: 'Read the optional calendar entry of an active page (viewer+)',
+  },
   create: {
     method: 'POST',
     path: '/projects/:projectId/calendar-pages',
