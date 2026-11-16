@@ -152,6 +152,7 @@ export class UserAvatarService implements OnModuleInit, OnModuleDestroy {
     await this.storage.putObject(normalizedStorageKey, normalized, NORMALIZED_CONTENT_TYPE);
 
     const user = await this.prisma.$transaction(async (transaction) => {
+      await transaction.$queryRaw`SELECT "id" FROM "users" WHERE "id" = ${userId} FOR UPDATE`;
       const currentUser = await transaction.user.findUnique({
         where: { id: userId },
         select: { avatarId: true },
@@ -199,15 +200,16 @@ export class UserAvatarService implements OnModuleInit, OnModuleDestroy {
   }
 
   async remove(userId: string): Promise<PublicUser> {
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { avatarId: true },
-    });
-    if (!currentUser) {
-      throw ApiErrors.unauthorized('User not found');
-    }
-
     const user = await this.prisma.$transaction(async (transaction) => {
+      await transaction.$queryRaw`SELECT "id" FROM "users" WHERE "id" = ${userId} FOR UPDATE`;
+      const currentUser = await transaction.user.findUnique({
+        where: { id: userId },
+        select: { avatarId: true },
+      });
+      if (!currentUser) {
+        throw ApiErrors.unauthorized('User not found');
+      }
+
       const updatedUser = await transaction.user.update({
         where: { id: userId },
         data: { avatarId: null },

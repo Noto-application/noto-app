@@ -375,6 +375,58 @@ describe('User avatars (e2e)', () => {
       expect(decoded.data.some((value) => value !== 0)).toBe(true);
     });
 
+    it('serializes concurrent confirmations for different uploads by the same user', async () => {
+      const email = 'avatar-concurrent-confirm@example.com';
+      const agent = await registerUser(email);
+      const firstUploadResponse = await requestUpload(agent).expect(201);
+      const secondUploadResponse = await requestUpload(agent).expect(201);
+      const firstUploadId = parseString(
+        parseObject(parseObject(firstUploadResponse.body).upload).uploadId,
+      );
+      const secondUploadId = parseString(
+        parseObject(parseObject(secondUploadResponse.body).upload).uploadId,
+      );
+      await seedUploadedObject(firstUploadId);
+      await seedUploadedObject(secondUploadId);
+
+      const [firstConfirmation, secondConfirmation] = await Promise.all([
+        agent.post(`/api/users/me/avatar/uploads/${firstUploadId}/confirm`).expect(200),
+        agent.post(`/api/users/me/avatar/uploads/${secondUploadId}/confirm`).expect(200),
+      ]);
+      const sourceUploads = await prisma.userAvatar.findMany({
+        where: { id: { in: [firstUploadId, secondUploadId] } },
+      });
+      const normalizedAvatarIds = sourceUploads
+        .map((upload) => upload.resultAvatarId)
+        .filter((id): id is string => id !== null);
+      expect(normalizedAvatarIds).toHaveLength(2);
+
+      const user = await prisma.user.findUnique({
+        where: { email },
+        include: { avatar: true },
+      });
+      expect(user?.avatar).not.toBeNull();
+      expect(normalizedAvatarIds).toContain(user?.avatarId);
+
+      const normalizedAvatars = await prisma.userAvatar.findMany({
+        where: { id: { in: normalizedAvatarIds } },
+      });
+      expect(
+        normalizedAvatars.filter(
+          (avatar) => avatar.id === user?.avatarId && avatar.status === 'ready',
+        ),
+      ).toHaveLength(1);
+      expect(
+        normalizedAvatars.filter(
+          (avatar) => avatar.id !== user?.avatarId && avatar.status === 'deletePending',
+        ),
+      ).toHaveLength(1);
+
+      for (const confirmation of [firstConfirmation, secondConfirmation]) {
+        expect(parseObject(parseObject(confirmation.body).user).avatar).not.toBeNull();
+      }
+    });
+
     it('does not disclose or confirm another user’s upload', async () => {
       const owner = await registerUser('avatar-owner@example.com');
       const otherUser = await registerUser('avatar-other@example.com');
