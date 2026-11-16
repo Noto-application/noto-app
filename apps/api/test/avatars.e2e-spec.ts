@@ -341,14 +341,20 @@ describe('User avatars (e2e)', () => {
       if (!activeAvatar) {
         throw new Error('Expected an active avatar record');
       }
+      const confirmedUploadRecord = await prisma.userAvatar.findUnique({
+        where: { id: uploadId },
+      });
+      if (!confirmedUploadRecord) {
+        throw new Error('Expected the confirmed source upload record');
+      }
       const sourceStorageKey = uploadRecord.storageKey;
       expect(activeAvatar.id).not.toBe(uploadRecord.id);
       expect(activeAvatar.storageKey).not.toBe(sourceStorageKey);
-      expect(uploadRecord.resultAvatarId).toBe(activeAvatar.id);
-      expect(uploadRecord.status).toBe('deletePending');
+      expect(confirmedUploadRecord.resultAvatarId).toBe(activeAvatar.id);
+      expect(confirmedUploadRecord.status).toBe('deletePending');
 
       const normalizedObject = storedObjects.get(activeAvatar.storageKey);
-      expect(activeAvatar.status).toBe('active');
+      expect(activeAvatar.status).toBe('ready');
       if (!normalizedObject) {
         throw new Error('Normalized avatar object was not written to S3');
       }
