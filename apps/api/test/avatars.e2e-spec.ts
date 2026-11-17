@@ -116,6 +116,7 @@ describe('User avatars (e2e)', () => {
   const storedObjects = new Map<string, StoredObject>();
   const deleteFailures = new Map<string, number>();
   const deleteAttempts = new Map<string, number>();
+  const readFailures = new Map<string, number>();
   let s3Send: jest.SpyInstance;
 
   beforeAll(async () => {
@@ -127,7 +128,13 @@ describe('User avatars (e2e)', () => {
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     s3Send = jest.spyOn(s3Client, 'send').mockImplementation((command) => {
       if (command instanceof HeadObjectCommand || command instanceof GetObjectCommand) {
-        const object = storedObjects.get(command.input.Key ?? '');
+        const key = command.input.Key ?? '';
+        const failuresLeft = readFailures.get(key) ?? 0;
+        if (failuresLeft > 0) {
+          readFailures.set(key, failuresLeft - 1);
+          throw new Error('Simulated S3 read failure');
+        }
+        const object = storedObjects.get(key);
         if (!object) {
           throw Object.assign(new Error('Object not found'), { name: 'NoSuchKey' });
         }
@@ -182,6 +189,7 @@ describe('User avatars (e2e)', () => {
     storedObjects.clear();
     deleteFailures.clear();
     deleteAttempts.clear();
+    readFailures.clear();
     s3Send.mockClear();
   });
 
@@ -473,6 +481,41 @@ describe('User avatars (e2e)', () => {
       expect(parseObject(parseObject(profile.body).user).avatar).toBeNull();
     });
 
+    it('retries confirmation after a temporary S3 read failure without changing the existing avatar', async () => {
+      const email = 'avatar-confirm-retry@example.com';
+      const agent = await registerUser(email);
+      const previous = await uploadAndConfirm(agent, email);
+      const previousAvatar = stableAvatarProperties(previous.user.avatar);
+      const previousUser = await prisma.user.findUnique({
+        where: { email },
+        select: { avatarId: true },
+      });
+
+      const uploadResponse = await requestUpload(agent).expect(201);
+      const uploadId = parseString(parseObject(parseObject(uploadResponse.body).upload).uploadId);
+      const storageKey = await seedUploadedObject(uploadId);
+      readFailures.set(storageKey, 1);
+
+      await agent.post(`/api/users/me/avatar/uploads/${uploadId}/confirm`).expect(500);
+      const failedUpload = await prisma.userAvatar.findUnique({ where: { id: uploadId } });
+      expect(failedUpload?.status).toBe('pending');
+      const profileAfterFailure = await agent.get('/api/users/me').expect(200);
+      const userAfterFailure = parseObject(parseObject(profileAfterFailure.body).user);
+      expect(stableAvatarProperties(userAfterFailure.avatar)).toEqual(previousAvatar);
+      expect(
+        await prisma.user.findUnique({ where: { email }, select: { avatarId: true } }),
+      ).toEqual(previousUser);
+
+      const retry = await agent
+        .post(`/api/users/me/avatar/uploads/${uploadId}/confirm`)
+        .expect(200);
+      const userAfterRetry = parseObject(parseObject(retry.body).user);
+      expect(stableAvatarProperties(userAfterRetry.avatar)).not.toEqual(previousAvatar);
+      expect(await prisma.userAvatar.findUnique({ where: { id: uploadId } })).toMatchObject({
+        status: 'deletePending',
+      });
+    });
+
     it('replaces an avatar and removes it without deleting the user profile', async () => {
       const agent = await registerUser('avatar-replace@example.com');
       const first = await uploadAndConfirm(agent, 'avatar-replace@example.com');
@@ -536,7 +579,10 @@ describe('User avatars (e2e)', () => {
       expect(firstSource.status).toBe('deletePending');
       expect(firstSource.storageKey).toBe(firstSourceKey);
       expect(firstSource.resultAvatarId).toBe(firstNormalizedId);
-      expect(firstSource.deleteAfter?.getTime()).toBeLessThanOrEqual(Date.now());
+      expect(firstSource.deleteAfter?.getTime()).toBeGreaterThan(Date.now() + 15 * 60 * 1000);
+      expect(firstSource.expiresAt?.getTime()).toBeGreaterThan(
+        firstSource.deleteAfter?.getTime() ?? 0,
+      );
 
       await agent.delete('/api/users/me/avatar').expect(200);
       const profile = await agent.get('/api/users/me').expect(200);
@@ -558,13 +604,16 @@ describe('User avatars (e2e)', () => {
       expect(secondSource.status).toBe('deletePending');
       expect(secondSource.storageKey).toBe(secondSourceKey);
       expect(secondSource.resultAvatarId).toBe(secondNormalizedId);
-      expect(secondSource.deleteAfter?.getTime()).toBeLessThanOrEqual(Date.now());
+      expect(secondSource.deleteAfter?.getTime()).toBeGreaterThan(Date.now() + 15 * 60 * 1000);
+      expect(secondSource.expiresAt?.getTime()).toBeGreaterThan(
+        secondSource.deleteAfter?.getTime() ?? 0,
+      );
 
       await avatarService.runCleanup();
       expect(storedObjects.has(firstNormalizedKey)).toBe(true);
-      expect(storedObjects.has(firstSourceKey)).toBe(false);
+      expect(storedObjects.has(firstSourceKey)).toBe(true);
       expect(storedObjects.has(secondNormalizedKey)).toBe(true);
-      expect(storedObjects.has(secondSourceKey)).toBe(false);
+      expect(storedObjects.has(secondSourceKey)).toBe(true);
       expect(
         await prisma.userAvatar.findMany({
           where: { id: { in: [firstNormalizedId, secondNormalizedId] } },
@@ -574,9 +623,22 @@ describe('User avatars (e2e)', () => {
         await prisma.userAvatar.findMany({
           where: { id: { in: [first.uploadId, second.uploadId] } },
         }),
-      ).toHaveLength(0);
+      ).toHaveLength(2);
 
       const expiredAt = new Date(Date.now() - 1_000);
+      await prisma.userAvatar.updateMany({
+        where: { id: { in: [first.uploadId, second.uploadId] } },
+        data: { deleteAfter: expiredAt },
+      });
+      await avatarService.runCleanup();
+      expect(storedObjects.has(firstSourceKey)).toBe(false);
+      expect(storedObjects.has(secondSourceKey)).toBe(false);
+      expect(
+        await prisma.userAvatar.findMany({
+          where: { id: { in: [first.uploadId, second.uploadId] } },
+        }),
+      ).toHaveLength(2);
+
       await prisma.userAvatar.updateMany({
         where: { id: { in: [firstNormalizedId, secondNormalizedId] } },
         data: { deleteAfter: expiredAt },
@@ -596,6 +658,87 @@ describe('User avatars (e2e)', () => {
       expect(parseObject(parseObject(remainingProfile.body).user).email).toBe(
         'avatar-replace@example.com',
       );
+    });
+
+    it('keeps confirmation idempotent after source cleanup', async () => {
+      const email = 'avatar-confirm-receipt@example.com';
+      const agent = await registerUser(email);
+      const { uploadId, user } = await uploadAndConfirm(agent, email);
+      const upload = await prisma.userAvatar.findUnique({ where: { id: uploadId } });
+      if (!upload) {
+        throw new Error('Expected the confirmed upload receipt');
+      }
+
+      expect(upload.deleteAfter?.getTime()).toBeGreaterThan(Date.now() + 15 * 60 * 1000);
+      expect(upload.expiresAt?.getTime()).toBeGreaterThan(upload.deleteAfter?.getTime() ?? 0);
+
+      await avatarService.runCleanup();
+      expect(storedObjects.has(upload.storageKey)).toBe(true);
+      expect(await prisma.userAvatar.findUnique({ where: { id: uploadId } })).not.toBeNull();
+
+      await prisma.userAvatar.update({
+        where: { id: uploadId },
+        data: { deleteAfter: new Date(Date.now() - 1_000) },
+      });
+      await avatarService.runCleanup();
+
+      expect(storedObjects.has(upload.storageKey)).toBe(false);
+      const retainedReceipt = await prisma.userAvatar.findUnique({ where: { id: uploadId } });
+      if (!retainedReceipt) {
+        throw new Error('Expected the confirmation receipt to outlive source cleanup');
+      }
+      expect(typeof retainedReceipt.resultAvatarId).toBe('string');
+      expect(retainedReceipt.status).toBe('deletePending');
+      expect(retainedReceipt.expiresAt).toBeNull();
+
+      const repeated = await agent
+        .post(`/api/users/me/avatar/uploads/${uploadId}/confirm`)
+        .expect(200);
+      expect(stableAvatarProperties(parseObject(parseObject(repeated.body).user).avatar)).toEqual(
+        stableAvatarProperties(user.avatar),
+      );
+    });
+
+    it('performs a final source cleanup while retaining its confirmation receipt', async () => {
+      const email = 'avatar-final-source-cleanup@example.com';
+      const agent = await registerUser(email);
+      const uploadResponse = await requestUpload(agent).expect(201);
+      const uploadId = parseString(parseObject(parseObject(uploadResponse.body).upload).uploadId);
+      const sourceKey = await seedUploadedObject(uploadId);
+      await agent.post(`/api/users/me/avatar/uploads/${uploadId}/confirm`).expect(200);
+
+      await prisma.userAvatar.update({
+        where: { id: uploadId },
+        data: { deleteAfter: new Date(Date.now() - 1_000) },
+      });
+      await avatarService.runCleanup();
+      expect(storedObjects.has(sourceKey)).toBe(false);
+      expect(await prisma.userAvatar.findUnique({ where: { id: uploadId } })).not.toBeNull();
+
+      // Simulate an in-flight PUT completing after the first cleanup pass.
+      storedObjects.set(sourceKey, { body: PNG, contentType: 'image/png' });
+      await prisma.userAvatar.update({
+        where: { id: uploadId },
+        data: { deleteAfter: new Date(Date.now() - 1_000) },
+      });
+      await avatarService.runCleanup();
+
+      expect(storedObjects.has(sourceKey)).toBe(false);
+      const receipt = await prisma.userAvatar.findUnique({ where: { id: uploadId } });
+      if (!receipt?.resultAvatarId) {
+        throw new Error('Expected the confirmation receipt to remain with the active avatar');
+      }
+      expect(receipt.deleteAfter).toBeNull();
+
+      await agent.post(`/api/users/me/avatar/uploads/${uploadId}/confirm`).expect(200);
+      await agent.delete('/api/users/me/avatar').expect(200);
+      await prisma.userAvatar.update({
+        where: { id: receipt.resultAvatarId },
+        data: { deleteAfter: new Date(Date.now() - 1_000) },
+      });
+      await avatarService.runCleanup();
+
+      expect(await prisma.userAvatar.findUnique({ where: { id: uploadId } })).toBeNull();
     });
 
     it('cleans an expired pending upload from S3 and PostgreSQL', async () => {
@@ -650,13 +793,13 @@ describe('User avatars (e2e)', () => {
       await avatarService.runCleanup();
 
       expect(storedObjects.has(normalizedKey)).toBe(true);
-      expect(storedObjects.has(sourceKey)).toBe(false);
+      expect(storedObjects.has(sourceKey)).toBe(true);
       expect(await prisma.userAvatar.findUnique({ where: { id: normalizedId } })).toMatchObject({
         status: 'deletePending',
       });
-      expect(await prisma.userAvatar.findUnique({ where: { id: first.uploadId } })).toBeNull();
+      expect(await prisma.userAvatar.findUnique({ where: { id: first.uploadId } })).not.toBeNull();
       expect(deleteAttempts.get(normalizedKey)).toBe(1);
-      expect(deleteAttempts.get(sourceKey)).toBe(1);
+      expect(deleteAttempts.get(sourceKey)).toBeUndefined();
 
       const restartedWorker = new UserAvatarService(
         prisma,

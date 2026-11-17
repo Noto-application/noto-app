@@ -19,6 +19,8 @@ import { UsersService } from './users.service';
 
 const PRESIGNED_UPLOAD_TTL_SECONDS = 15 * 60;
 const UPLOAD_LIFETIME_MS = 24 * 60 * 60 * 1000;
+const UPLOAD_CLEANUP_GRACE_MS = 60 * 60 * 1000;
+const FINAL_SOURCE_CLEANUP_DELAY_MS = 24 * 60 * 60 * 1000;
 const DEFERRED_DELETE_MS = 24 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 const CLEANUP_BATCH_SIZE = 100;
@@ -109,6 +111,12 @@ export class UserAvatarService implements OnModuleInit, OnModuleDestroy {
 
     const now = new Date();
     const cleanupAt = new Date(now.getTime() + UPLOAD_LIFETIME_MS);
+    const sourceCleanupAt = new Date(
+      now.getTime() + PRESIGNED_UPLOAD_TTL_SECONDS * 1000 + UPLOAD_CLEANUP_GRACE_MS,
+    );
+    const finalSourceCleanupAt = new Date(
+      sourceCleanupAt.getTime() + FINAL_SOURCE_CLEANUP_DELAY_MS,
+    );
     const claimed = await this.prisma.userAvatar.updateMany({
       where: {
         id: upload.id,
@@ -132,71 +140,94 @@ export class UserAvatarService implements OnModuleInit, OnModuleDestroy {
       throw ApiErrors.validation('Avatar upload has expired or is already being processed');
     }
 
-    const sourceBytes = await this.readAndValidateUpload(upload.storageKey);
-    const normalized = await this.normalizeImage(sourceBytes);
-    if (normalized.length > AVATAR_MAX_NORMALIZED_SIZE) {
-      throw ApiErrors.validation('Normalized avatar exceeds the size limit');
-    }
-
-    const normalizedStorageKey = randomUUID();
-    const normalizedAvatar = await this.prisma.userAvatar.create({
-      data: {
-        ownerId: userId,
-        storageKey: normalizedStorageKey,
-        contentType: NORMALIZED_CONTENT_TYPE,
-        size: normalized.length,
-        status: 'processing',
-        expiresAt: cleanupAt,
-      },
-    });
-    await this.storage.putObject(normalizedStorageKey, normalized, NORMALIZED_CONTENT_TYPE);
-
-    const user = await this.prisma.$transaction(async (transaction) => {
-      await transaction.$queryRaw`SELECT "id" FROM "users" WHERE "id" = ${userId} FOR UPDATE`;
-      const currentUser = await transaction.user.findUnique({
-        where: { id: userId },
-        select: { avatarId: true },
-      });
-      if (!currentUser) {
-        throw ApiErrors.unauthorized('User not found');
+    try {
+      const sourceBytes = await this.readAndValidateUpload(upload.storageKey);
+      const normalized = await this.normalizeImage(sourceBytes);
+      if (normalized.length > AVATAR_MAX_NORMALIZED_SIZE) {
+        throw ApiErrors.validation('Normalized avatar exceeds the size limit');
       }
 
-      await transaction.userAvatar.update({
-        where: { id: normalizedAvatar.id },
+      const normalizedStorageKey = randomUUID();
+      const normalizedAvatar = await this.prisma.userAvatar.create({
         data: {
-          status: 'ready',
-          expiresAt: null,
-          deleteAfter: null,
+          ownerId: userId,
+          storageKey: normalizedStorageKey,
+          contentType: NORMALIZED_CONTENT_TYPE,
+          size: normalized.length,
+          status: 'processing',
+          expiresAt: cleanupAt,
         },
       });
-      await transaction.userAvatar.update({
-        where: { id: upload.id },
-        data: {
-          status: 'deletePending',
-          expiresAt: null,
-          deleteAfter: new Date(),
-          resultAvatarId: normalizedAvatar.id,
-        },
-      });
-      const updatedUser = await transaction.user.update({
-        where: { id: userId },
-        data: { avatarId: normalizedAvatar.id },
-        include: { avatar: true },
-      });
+      await this.storage.putObject(normalizedStorageKey, normalized, NORMALIZED_CONTENT_TYPE);
 
-      if (currentUser.avatarId && currentUser.avatarId !== normalizedAvatar.id) {
-        await transaction.userAvatar.updateMany({
-          where: { id: currentUser.avatarId, status: 'ready' },
+      const user = await this.prisma.$transaction(async (transaction) => {
+        await transaction.$queryRaw`SELECT "id" FROM "users" WHERE "id" = ${userId} FOR UPDATE`;
+        const currentUser = await transaction.user.findUnique({
+          where: { id: userId },
+          select: { avatarId: true },
+        });
+        if (!currentUser) {
+          throw ApiErrors.unauthorized('User not found');
+        }
+
+        await transaction.userAvatar.update({
+          where: { id: normalizedAvatar.id },
           data: {
-            status: 'deletePending',
-            deleteAfter: new Date(Date.now() + DEFERRED_DELETE_MS),
+            status: 'ready',
+            expiresAt: null,
+            deleteAfter: null,
           },
         });
-      }
-      return updatedUser;
-    });
+        await transaction.userAvatar.update({
+          where: { id: upload.id },
+          data: {
+            status: 'deletePending',
+            expiresAt: finalSourceCleanupAt,
+            deleteAfter: sourceCleanupAt,
+            resultAvatarId: normalizedAvatar.id,
+          },
+        });
+        const updatedUser = await transaction.user.update({
+          where: { id: userId },
+          data: { avatarId: normalizedAvatar.id },
+          include: { avatar: true },
+        });
 
-    return toPublicUserWithAvatar(user, (key) => this.storage.createReadUrl(key));
+        if (currentUser.avatarId && currentUser.avatarId !== normalizedAvatar.id) {
+          await transaction.userAvatar.updateMany({
+            where: { id: currentUser.avatarId, status: 'ready' },
+            data: {
+              status: 'deletePending',
+              deleteAfter: new Date(Date.now() + DEFERRED_DELETE_MS),
+            },
+          });
+        }
+        return updatedUser;
+      });
+
+      return toPublicUserWithAvatar(user, (key) => this.storage.createReadUrl(key));
+    } catch (error) {
+      try {
+        await this.prisma.userAvatar.updateMany({
+          where: {
+            id: upload.id,
+            ownerId: userId,
+            status: 'processing',
+            expiresAt: cleanupAt,
+          },
+          data: {
+            status: 'pending',
+            expiresAt: new Date(Date.now() + UPLOAD_LIFETIME_MS),
+          },
+        });
+      } catch (recoveryError) {
+        this.logger.error(
+          `Failed to restore avatar upload ${upload.id} after confirmation error`,
+          recoveryError,
+        );
+      }
+      throw error;
+    }
   }
 
   async remove(userId: string): Promise<PublicUser> {
@@ -323,6 +354,7 @@ export class UserAvatarService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.deleteExpiredUploads();
       await this.deleteExpiredAvatars();
+      await this.deleteConfirmedUploads();
       await this.deleteProcessedSources();
     } catch (error) {
       this.logger.error('Avatar cleanup batch failed', error);
@@ -361,6 +393,7 @@ export class UserAvatarService implements OnModuleInit, OnModuleDestroy {
     const expired = await this.prisma.userAvatar.findMany({
       where: {
         status: 'deletePending',
+        resultAvatarId: null,
         deleteAfter: { lte: new Date() },
       },
       take: CLEANUP_BATCH_SIZE,
@@ -372,15 +405,76 @@ export class UserAvatarService implements OnModuleInit, OnModuleDestroy {
         if (avatar.sourceStorageKey) {
           await this.storage.deleteObject(avatar.sourceStorageKey);
         }
-        await this.prisma.userAvatar.deleteMany({
-          where: {
-            id: avatar.id,
-            status: 'deletePending',
-            deleteAfter: { lte: new Date() },
-          },
+        const receipts = await this.prisma.userAvatar.findMany({
+          where: { resultAvatarId: avatar.id },
+        });
+        for (const receipt of receipts) {
+          await this.storage.deleteObject(receipt.storageKey);
+          if (receipt.sourceStorageKey) {
+            await this.storage.deleteObject(receipt.sourceStorageKey);
+          }
+        }
+        await this.prisma.$transaction(async (transaction) => {
+          await transaction.userAvatar.deleteMany({ where: { resultAvatarId: avatar.id } });
+          await transaction.userAvatar.deleteMany({
+            where: {
+              id: avatar.id,
+              status: 'deletePending',
+              resultAvatarId: null,
+              deleteAfter: { lte: new Date() },
+            },
+          });
         });
       } catch (error) {
         this.logger.error(`Failed to delete retired avatar ${avatar.id}`, error);
+      }
+    }
+  }
+
+  private async deleteConfirmedUploads(): Promise<void> {
+    const now = new Date();
+    const expired = await this.prisma.userAvatar.findMany({
+      where: {
+        status: 'deletePending',
+        resultAvatarId: { not: null },
+        deleteAfter: { lte: now },
+      },
+      take: CLEANUP_BATCH_SIZE,
+    });
+
+    for (const upload of expired) {
+      try {
+        await this.storage.deleteObject(upload.storageKey);
+        if (upload.sourceStorageKey) {
+          await this.storage.deleteObject(upload.sourceStorageKey);
+        }
+
+        if (upload.expiresAt && upload.expiresAt > now) {
+          await this.prisma.userAvatar.updateMany({
+            where: {
+              id: upload.id,
+              status: 'deletePending',
+              resultAvatarId: upload.resultAvatarId,
+              deleteAfter: { lte: now },
+            },
+            data: {
+              deleteAfter: upload.expiresAt,
+              expiresAt: null,
+            },
+          });
+        } else {
+          await this.prisma.userAvatar.updateMany({
+            where: {
+              id: upload.id,
+              status: 'deletePending',
+              resultAvatarId: upload.resultAvatarId,
+              deleteAfter: { lte: now },
+            },
+            data: { deleteAfter: null, expiresAt: null },
+          });
+        }
+      } catch (error) {
+        this.logger.error(`Failed to clean confirmed avatar upload ${upload.id}`, error);
       }
     }
   }
