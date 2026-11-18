@@ -22,7 +22,6 @@
 | Календарь страниц — frontend (#132)       | [apps/web/src/entities/calendar-entry/calendar.spec.md](../../apps/web/src/entities/calendar-entry/calendar.spec.md)                 | In progress |
 | Настройки профиля — имя (#125)            | [apps/web/src/features/update-username/update-username.spec.md](../../apps/web/src/features/update-username/update-username.spec.md) | Draft       |
 | Корзина страниц — frontend (#128)         | [apps/web/src/widgets/page-trash/page-trash.spec.md](../../apps/web/src/widgets/page-trash/page-trash.spec.md)                       | Draft       |
-
 ## Кросс-модульные (в `docs/specs/`)
 
 | Фича                                      | Спека                                                                 | Статус |

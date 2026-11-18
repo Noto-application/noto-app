@@ -18,6 +18,15 @@ export type AuthUserResponse = Extract<
 
 export type UpdateUserInput = ServerInferRequest<typeof usersContract.update>['body'];
 
+export type CreateAvatarUploadInput = ServerInferRequest<
+  typeof usersContract.createAvatarUpload
+>['body'];
+
+export type AvatarUploadResponse = Extract<
+  ServerInferResponses<typeof usersContract.createAvatarUpload>,
+  { status: 201 }
+>['body'];
+
 export type UserResponse = Extract<
   ServerInferResponses<typeof usersContract.me>,
   { status: 200 }

@@ -4,6 +4,18 @@ export { calendarContract } from './contract/calendar';
 export { pagesContract, restoreConflictSchema } from './contract/pages';
 export { projectsContract } from './contract/projects';
 export { usersContract } from './contract/users';
+export {
+  AVATAR_CONTENT_TYPES,
+  AVATAR_MAX_NORMALIZED_SIZE,
+  AVATAR_MAX_UPLOAD_SIZE,
+  avatarContentTypeSchema,
+  avatarSchema,
+  avatarUploadResponseSchema,
+  avatarUploadSchema,
+  createAvatarUploadSchema,
+  type Avatar,
+  type AvatarUpload,
+} from './schemas/avatar';
 export { apiErrorCodeSchema, apiErrorSchema, type ApiError, type ApiErrorCode } from './errors';
 export {
   AUTH_PASSWORD_MIN_LENGTH,
@@ -68,12 +80,14 @@ export {
   type CalendarEntry,
 } from './schemas/calendar';
 export type {
+  AvatarUploadResponse,
   AuthCredentials,
   AuthUserResponse,
   CalendarCreatedPageResponse,
   CalendarEntriesResponse,
   CalendarEntryResponse,
   CalendarPageResponse,
+  CreateAvatarUploadInput,
   CreateCalendarPageInput,
   CreatePageInput,
   CreateProjectInput,

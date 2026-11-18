@@ -20,10 +20,52 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  avatarId     String?         @unique
+  avatar       UserAvatar?     @relation("CurrentUserAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
+  avatars      UserAvatar[]    @relation("AvatarOwner")
   memberships  ProjectMember[]
   createdPages Page[]          @relation("PageAuthor")
 
   @@map("users")
+}
+
+/// Объект загрузки/аватар пользователя с сохранённым состоянием жизненного
+/// цикла для подтверждения и фоновой очистки (ADR-017, users.spec.md).
+model UserAvatar {
+  id               String           @id @default(uuid())
+  ownerId          String
+  storageKey       String           @unique
+  sourceStorageKey String?          @unique
+  resultAvatarId   String?          @unique
+  contentType      String
+  size             Int
+  status           UserAvatarStatus @default(pending)
+  expiresAt        DateTime?
+  deleteAfter      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  owner        User        @relation("AvatarOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  currentFor   User?       @relation("CurrentUserAvatar")
+  resultAvatar UserAvatar? @relation("AvatarUploadResult", fields: [resultAvatarId], references: [id], onDelete: SetNull)
+  sourceUpload UserAvatar? @relation("AvatarUploadResult")
+
+  @@index([ownerId, status])
+  @@index([status, expiresAt])
+  @@index([status, deleteAfter])
+  @@map("user_avatars")
+}
+
+/// Состояния объекта аватара, сохраняемые между запусками API. `ready`
+/// означает, что объект проверен и обработан; назначение профилю определяется
+/// только связью User.avatarId.
+enum UserAvatarStatus {
+  pending
+  processing
+  ready
+  deletePending
+
+  @@map("user_avatar_status")
 }
 
 /// Роли участника проекта (ADR-011). Иерархия: owner > editor > viewer.

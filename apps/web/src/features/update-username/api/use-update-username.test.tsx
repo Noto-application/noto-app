@@ -19,6 +19,7 @@ const user: User = {
   email: 'dasha@example.com',
   username: 'Dasha',
   createdAt: '2026-10-01T00:00:00.000Z',
+  avatar: null,
 };
 
 /**
