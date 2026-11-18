@@ -132,7 +132,7 @@ describe('User avatars (e2e)', () => {
         const failuresLeft = readFailures.get(key) ?? 0;
         if (failuresLeft > 0) {
           readFailures.set(key, failuresLeft - 1);
-          throw new Error('Simulated S3 read failure');
+          throw Object.assign(new Error('Simulated S3 read failure'), { code: 'ECONNRESET' });
         }
         const object = storedObjects.get(key);
         if (!object) {
@@ -477,8 +477,28 @@ describe('User avatars (e2e)', () => {
       });
 
       await agent.post(`/api/users/me/avatar/uploads/${uploadId}/confirm`).expect(400);
+      const failedUpload = await prisma.userAvatar.findUnique({ where: { id: uploadId } });
+      if (!failedUpload?.expiresAt) {
+        throw new Error('Expected the invalid upload to remain scheduled for cleanup');
+      }
+      expect(failedUpload.status).toBe('processing');
+      const originalCleanupAt = failedUpload.expiresAt;
+
+      await agent.post(`/api/users/me/avatar/uploads/${uploadId}/confirm`).expect(400);
+      const retriedUpload = await prisma.userAvatar.findUnique({ where: { id: uploadId } });
+      expect(retriedUpload?.status).toBe('processing');
+      expect(retriedUpload?.expiresAt).toEqual(originalCleanupAt);
+
       const profile = await agent.get('/api/users/me').expect(200);
       expect(parseObject(parseObject(profile.body).user).avatar).toBeNull();
+
+      await prisma.userAvatar.update({
+        where: { id: uploadId },
+        data: { expiresAt: new Date(Date.now() - 1_000) },
+      });
+      await avatarService.runCleanup();
+      expect(await prisma.userAvatar.findUnique({ where: { id: uploadId } })).toBeNull();
+      expect(storedObjects.has(failedUpload.storageKey)).toBe(false);
     });
 
     it('retries confirmation after a temporary S3 read failure without changing the existing avatar', async () => {
@@ -490,6 +510,9 @@ describe('User avatars (e2e)', () => {
         where: { email },
         select: { avatarId: true },
       });
+      if (!previousUser?.avatarId) {
+        throw new Error('Expected the previous avatar to be assigned');
+      }
 
       const uploadResponse = await requestUpload(agent).expect(201);
       const uploadId = parseString(parseObject(parseObject(uploadResponse.body).upload).uploadId);
@@ -502,18 +525,35 @@ describe('User avatars (e2e)', () => {
       const profileAfterFailure = await agent.get('/api/users/me').expect(200);
       const userAfterFailure = parseObject(parseObject(profileAfterFailure.body).user);
       expect(stableAvatarProperties(userAfterFailure.avatar)).toEqual(previousAvatar);
-      expect(
-        await prisma.user.findUnique({ where: { email }, select: { avatarId: true } }),
-      ).toEqual(previousUser);
+      const userRecordAfterFailure = await prisma.user.findUnique({
+        where: { email },
+        select: { avatarId: true },
+      });
+      expect(userRecordAfterFailure?.avatarId).toBe(previousUser.avatarId);
 
       const retry = await agent
         .post(`/api/users/me/avatar/uploads/${uploadId}/confirm`)
         .expect(200);
       const userAfterRetry = parseObject(parseObject(retry.body).user);
-      expect(stableAvatarProperties(userAfterRetry.avatar)).not.toEqual(previousAvatar);
-      expect(await prisma.userAvatar.findUnique({ where: { id: uploadId } })).toMatchObject({
-        status: 'deletePending',
+      const retriedUser = await prisma.user.findUnique({
+        where: { email },
+        include: { avatar: true },
       });
+      if (!retriedUser?.avatarId || !retriedUser.avatar) {
+        throw new Error('Expected the retried avatar to be assigned');
+      }
+      expect(retriedUser.avatarId).not.toBe(previousUser.avatarId);
+      expect(parseObject(userAfterRetry.avatar)).toMatchObject({
+        contentType: retriedUser.avatar.contentType,
+        size: retriedUser.avatar.size,
+      });
+
+      const confirmedUpload = await prisma.userAvatar.findUnique({ where: { id: uploadId } });
+      expect(confirmedUpload).toMatchObject({
+        status: 'deletePending',
+        resultAvatarId: retriedUser.avatarId,
+      });
+      expect(retriedUser.avatar.status).toBe('ready');
     });
 
     it('replaces an avatar and removes it without deleting the user profile', async () => {
@@ -654,6 +694,13 @@ describe('User avatars (e2e)', () => {
           where: { id: { in: [firstNormalizedId, secondNormalizedId] } },
         }),
       ).toHaveLength(0);
+      expect(
+        await prisma.userAvatar.findMany({
+          where: { id: { in: [first.uploadId, second.uploadId] } },
+        }),
+      ).toHaveLength(0);
+      await agent.post(`/api/users/me/avatar/uploads/${first.uploadId}/confirm`).expect(404);
+      await agent.post(`/api/users/me/avatar/uploads/${second.uploadId}/confirm`).expect(404);
       const remainingProfile = await agent.get('/api/users/me').expect(200);
       expect(parseObject(parseObject(remainingProfile.body).user).email).toBe(
         'avatar-replace@example.com',

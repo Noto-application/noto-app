@@ -11,7 +11,7 @@ import type {
   User as PublicUser,
 } from '@noto/shared';
 
-import { ApiErrors } from '../lib/errors';
+import { ApiErrors, ApiException } from '../lib/errors';
 import { toPublicUserWithAvatar } from '../lib/utils/to-public-user';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -25,6 +25,30 @@ const DEFERRED_DELETE_MS = 24 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 const CLEANUP_BATCH_SIZE = 100;
 const NORMALIZED_CONTENT_TYPE = 'image/webp';
+const RETRYABLE_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ECONNREFUSED',
+  'EPIPE',
+  'ENETUNREACH',
+  'EAI_AGAIN',
+  'P1001',
+  'P1002',
+  'P1008',
+  'P1017',
+  'P2024',
+  'P2034',
+]);
+const RETRYABLE_ERROR_NAMES = new Set([
+  'TimeoutError',
+  'RequestTimeout',
+  'RequestTimeoutException',
+  'Throttling',
+  'ThrottlingException',
+  'SlowDown',
+  'InternalError',
+  'ServiceUnavailable',
+]);
 
 @Injectable()
 export class UserAvatarService implements OnModuleInit, OnModuleDestroy {
@@ -207,24 +231,26 @@ export class UserAvatarService implements OnModuleInit, OnModuleDestroy {
 
       return toPublicUserWithAvatar(user, (key) => this.storage.createReadUrl(key));
     } catch (error) {
-      try {
-        await this.prisma.userAvatar.updateMany({
-          where: {
-            id: upload.id,
-            ownerId: userId,
-            status: 'processing',
-            expiresAt: cleanupAt,
-          },
-          data: {
-            status: 'pending',
-            expiresAt: new Date(Date.now() + UPLOAD_LIFETIME_MS),
-          },
-        });
-      } catch (recoveryError) {
-        this.logger.error(
-          `Failed to restore avatar upload ${upload.id} after confirmation error`,
-          recoveryError,
-        );
+      if (isRetryableConfirmationError(error)) {
+        try {
+          await this.prisma.userAvatar.updateMany({
+            where: {
+              id: upload.id,
+              ownerId: userId,
+              status: 'processing',
+              expiresAt: cleanupAt,
+            },
+            data: {
+              status: 'pending',
+              expiresAt: new Date(Date.now() + UPLOAD_LIFETIME_MS),
+            },
+          });
+        } catch (recoveryError) {
+          this.logger.error(
+            `Failed to restore avatar upload ${upload.id} after confirmation error`,
+            recoveryError,
+          );
+        }
       }
       throw error;
     }
@@ -508,4 +534,37 @@ function isMissingStorageObject(error: unknown): boolean {
     return error.name === 'NotFound' || error.name === 'NoSuchKey';
   }
   return false;
+}
+
+function isRetryableConfirmationError(error: unknown): boolean {
+  if (error instanceof ApiException) {
+    return false;
+  }
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const properties = error as Record<string, unknown>;
+  const code = properties.code;
+  const name = properties.name;
+  if (typeof code === 'string' && RETRYABLE_ERROR_CODES.has(code)) {
+    return true;
+  }
+
+  if (typeof name === 'string' && RETRYABLE_ERROR_NAMES.has(name)) {
+    return true;
+  }
+
+  const metadata = properties.$metadata;
+  if (metadata && typeof metadata === 'object') {
+    const statusCode = (metadata as Record<string, unknown>).httpStatusCode;
+    if (
+      typeof statusCode === 'number' &&
+      (statusCode === 408 || statusCode === 429 || statusCode >= 500)
+    ) {
+      return true;
+    }
+  }
+
+  return Boolean(properties.$retryable);
 }
