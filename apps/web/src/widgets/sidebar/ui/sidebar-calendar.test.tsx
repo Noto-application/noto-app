@@ -10,6 +10,8 @@ import { Sidebar } from './sidebar';
 
 const route = vi.hoisted(() => ({ pageId: undefined as string | undefined }));
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => (route.pageId ? `/app/${route.pageId}` : '/app/settings'),
   useParams: () => ({ pageId: route.pageId }),
   useSearchParams: () => new URLSearchParams(),
 }));

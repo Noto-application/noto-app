@@ -1,15 +1,17 @@
 'use client';
 
 import { calendarContract } from '@noto/shared';
+import { useQueryClient } from '@tanstack/react-query';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import { useCalendarEntries } from '@/src/entities/calendar-entry';
-import { useProjects } from '@/src/entities/project';
+import { projectKeys, useProjects } from '@/src/entities/project';
 import { CalendarEntryForm } from '@/src/features/calendar-entry';
 import { ApiClientError } from '@/src/shared/api';
+import { useCurrentNavigationIntent } from '@/src/shared/lib/navigation-intent';
 import { Button } from '@/src/shared/ui/button';
 import type { MonthGridRange } from '@/src/shared/ui/calendar/month-grid';
 import { InlineAlert } from '@/src/shared/ui/inline-alert';
@@ -144,16 +146,22 @@ function CalendarScreen() {
   const pathname = usePathname();
   const params = useSearchParams();
   const projects = useProjects();
+  const queryClient = useQueryClient();
+  const navigation = useCurrentNavigationIntent();
   const rawProjectId = params.get('projectId');
   const rawMonth = params.get('month');
   const [form, setForm] = useState<{ pageId?: string; date: string } | null>(null);
   const validProject =
     rawProjectId === null ||
-    calendarContract.list.pathParams.safeParse({ projectId: rawProjectId }).success;
+    (params.getAll('projectId').every((value) => value === rawProjectId) &&
+      calendarContract.list.pathParams.safeParse({ projectId: rawProjectId }).success);
   const validMonth =
-    rawMonth === null || (/^\d{4}-(0[1-9]|1[0-2])$/.test(rawMonth) && !rawMonth.startsWith('0000'));
+    rawMonth === null ||
+    (params.getAll('month').every((value) => value === rawMonth) &&
+      /^\d{4}-(0[1-9]|1[0-2])$/.test(rawMonth) &&
+      !rawMonth.startsWith('0000'));
   const invalid = !validProject || !validMonth;
-  const firstProject = projects.data?.[0];
+  const firstProject = projects.isSuccess ? projects.data[0] : undefined;
   const projectId = rawProjectId ?? firstProject?.id;
   const month = rawMonth ?? currentMonth();
 
@@ -168,10 +176,28 @@ function CalendarScreen() {
       ? calendarUrl(projectId, month)
       : null;
   const lastCanonical = useRef<string | null>(null);
+  const canonicalIntent = useRef<{ url: string; isCurrent: () => boolean } | null>(null);
   useEffect(() => {
-    if (canonical && canonical !== lastCanonical.current) router.replace(canonical);
+    if (!canonicalIntent.current || canonicalIntent.current.url !== navigation.url) {
+      const request = projects.isPending
+        ? queryClient.getQueryCache().find({ queryKey: projectKeys.all(), exact: true })?.promise
+        : undefined;
+      canonicalIntent.current = {
+        url: navigation.url,
+        isCurrent: navigation.captureRequest(request),
+      };
+    }
+    if (
+      pathname === '/app/calendar' &&
+      canonical &&
+      canonical !== lastCanonical.current &&
+      canonicalIntent.current.isCurrent()
+    ) {
+      navigation.markCanonical(canonical);
+      router.replace(canonical);
+    }
     lastCanonical.current = canonical;
-  }, [canonical, router]);
+  }, [canonical, router, pathname, navigation, projects.isPending, queryClient]);
 
   const projectError = (
     <div className="space-y-3 py-4">

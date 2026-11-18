@@ -1,12 +1,10 @@
 'use client';
 
-import Link from 'next/link';
 import { Calendar, Home, Inbox, Search, Settings, Trash2 } from 'lucide-react';
-import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
-import { usePage } from '@/src/entities/page';
-import { getTrashHref, getTrashProjectId } from '@/src/shared/lib/trash-navigation';
+import { useProjectContext } from '@/src/features/create-page';
+import { Button } from '@/src/shared/ui/button';
 import { cn } from '@/src/shared/lib/utils';
 import { useSidebarStore } from '../model/use-sidebar-store';
 import { PageTree } from './page-tree';
@@ -16,10 +14,14 @@ import { SidebarUserBlock } from './sidebar-user-block';
 import { SidebarWorkspaceSwitcher } from './sidebar-workspace-switcher';
 
 function SidebarContent() {
-  const { pageId } = useParams<{ pageId?: string }>();
-  const { data: page } = usePage(pageId);
-  const searchParams = useSearchParams();
-  const projectId = page?.projectId ?? getTrashProjectId(searchParams.get('projectId'));
+  const context = useProjectContext();
+  const { projectId } = context;
+  const href = (path: string) =>
+    context.linksBlocked
+      ? undefined
+      : projectId
+        ? `${path}?projectId=${encodeURIComponent(projectId)}`
+        : path;
   const isDrawerOpen = useSidebarStore((state) => state.isDrawerOpen);
   const setDrawerOpen = useSidebarStore((state) => state.setDrawerOpen);
 
@@ -41,36 +43,45 @@ function SidebarContent() {
           isDrawerOpen && 'translate-x-0',
         )}
       >
-        <SidebarWorkspaceSwitcher />
+        <SidebarWorkspaceSwitcher context={context} />
 
         <nav aria-label="Разделы" className="flex flex-col gap-0.5">
-          <Link
-            href="/app"
-            className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-body-compact text-foreground hover:bg-surface-hover"
-          >
-            <span aria-hidden="true" className="text-muted-foreground [&_svg]:size-4">
-              <Home />
-            </span>
-            <span className="flex-1 truncate text-left">Домой</span>
-          </Link>
+          <SidebarNavItem icon={<Home />} label="Домой" href={href('/app')} />
           <SidebarNavItem icon={<Search />} label="Поиск" shortcut="⌘K" />
           <SidebarNavItem icon={<Inbox />} label="Входящие" />
-          <SidebarNavItem
-            icon={<Calendar />}
-            label="Календарь"
-            href={
-              page
-                ? `/app/calendar?projectId=${encodeURIComponent(page.projectId)}`
-                : '/app/calendar'
-            }
-          />
+          <SidebarNavItem icon={<Calendar />} label="Календарь" href={href('/app/calendar')} />
         </nav>
 
-        {projectId ? <PageTree projectId={projectId} /> : <div className="flex-1" />}
+        {projectId ? (
+          <PageTree projectId={projectId} />
+        ) : (
+          <div className="flex-1 p-2 text-body-compact" role="status">
+            {
+              (
+                {
+                  pending: 'Загрузка проекта…',
+                  invalid: 'Невалидный проект',
+                  forbidden: 'Доступ запрещён',
+                  unavailable: 'Проект недоступен',
+                  'page-missing': 'Страница недоступна',
+                  error: 'Не удалось загрузить проект',
+                  'no-projects': 'Нет проектов',
+                  chooser: 'Выберите проект',
+                  global: '',
+                } as const
+              )[context.status as Exclude<typeof context.status, 'ready'>]
+            }
+            {context.status === 'error' ? (
+              <Button variant="ghost" onClick={context.retry}>
+                Повторить
+              </Button>
+            ) : null}
+          </div>
+        )}
 
         <div className="flex flex-col gap-0.5 border-t border-border pt-1">
           <SidebarNewPageButton />
-          <SidebarNavItem icon={<Trash2 />} label="Корзина" href={getTrashHref(projectId)} />
+          <SidebarNavItem icon={<Trash2 />} label="Корзина" href={href('/app/trash')} />
           <SidebarNavItem icon={<Settings />} label="Настройки" href="/app/settings" />
         </div>
 

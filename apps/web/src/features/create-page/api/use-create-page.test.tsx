@@ -18,8 +18,10 @@ const push = vi.fn();
 const paramsRef: { current: { pageId?: string } } = { current: {} };
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, replace: vi.fn() }),
   useParams: () => paramsRef.current,
+  usePathname: () => (paramsRef.current.pageId ? `/app/${paramsRef.current.pageId}` : '/app'),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 type ProjectsResponse = Awaited<ReturnType<typeof apiClient.projects.list>>;
@@ -163,7 +165,7 @@ describe('useCreatePage', () => {
     resolveList({ status: 200, body: { projects: [] }, headers: new Headers() });
   });
 
-  it('если открытая страница не найдена, при создании страницы использует список проектов', async () => {
+  it('does not fall back to the project list when the open Page is missing (#172)', async () => {
     paramsRef.current = { pageId: page.id };
     vi.spyOn(apiClient.pages, 'get').mockResolvedValue({
       status: 404,
@@ -180,21 +182,18 @@ describe('useCreatePage', () => {
       body: { page },
       headers: new Headers(),
     } satisfies CreatePageResponse);
-    const { Wrapper } = createWrapper();
+    const { Wrapper, queryClient } = createWrapper();
 
-    const { result } = renderHook(() => useCreatePage(), { wrapper: Wrapper });
-
-    await waitFor(() => expect(result.current.isActiveProjectPending).toBe(false));
-    expect(result.current.isActiveProjectError).toBe(false);
-
-    act(() => result.current.mutate(undefined));
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(create).toHaveBeenCalledWith({
-      params: { projectId: project.id },
-      body: { title: 'Без названия' },
-    });
+    render(
+      <Wrapper>
+        <CreatePageProvider>
+          <CreatePageButton>Create page</CreatePageButton>
+        </CreatePageProvider>
+      </Wrapper>,
+    );
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(screen.getByRole('button', { name: 'Create page' })).toBeDisabled();
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('создаёт страницу с названием по умолчанию, инвалидирует список и переходит к ней', async () => {

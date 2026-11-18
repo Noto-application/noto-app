@@ -5,23 +5,24 @@
 
 ## Co-located (рядом с модулем)
 
-| Фича                                      | Спека                                                                                                                                | Статус      |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
-| Auth (register/login/refresh/logout/me)   | [apps/api/src/auth/auth.spec.md](../../apps/api/src/auth/auth.spec.md)                                                               | Ready       |
-| Users (профиль / username)                | [apps/api/src/users/users.spec.md](../../apps/api/src/users/users.spec.md)                                                           | Draft       |
-| Projects CRUD                             | [apps/api/src/projects/projects.spec.md](../../apps/api/src/projects/projects.spec.md)                                               | Draft       |
-| Pages data layer                          | [apps/web/src/entities/page/page.spec.md](../../apps/web/src/entities/page/page.spec.md)                                             | Ready       |
-| Pages CRUD                                | [apps/api/src/pages/pages.spec.md](../../apps/api/src/pages/pages.spec.md)                                                           | Draft       |
-| Корзина страниц — список и restore (#156) | [apps/api/src/pages/trash.spec.md](../../apps/api/src/pages/trash.spec.md)                                                           | Ready       |
-| Поиск страниц по заголовкам (#157)        | [apps/api/src/pages/search.spec.md](../../apps/api/src/pages/search.spec.md)                                                         | Draft       |
-| Дерево страниц в сайдбаре (PageTree)      | [apps/web/src/widgets/sidebar/page-tree.spec.md](../../apps/web/src/widgets/sidebar/page-tree.spec.md)                               | Draft       |
-| Строка дерева страниц (SidebarTreeItem)   | [apps/web/src/shared/ui/sidebar-tree-item.spec.md](../../apps/web/src/shared/ui/sidebar-tree-item.spec.md)                           | Draft       |
-| Создание страницы                         | [apps/web/src/features/create-page/create-page.spec.md](../../apps/web/src/features/create-page/create-page.spec.md)                 | Draft       |
-| Collab persistence · Yjs-снапшоты (#109)  | [apps/api/src/collab/persistence.spec.md](../../apps/api/src/collab/persistence.spec.md)                                             | Draft       |
-| Календарь страниц — API (#132)            | [apps/api/src/calendar/calendar.spec.md](../../apps/api/src/calendar/calendar.spec.md)                                               | In progress |
-| Календарь страниц — frontend (#132)       | [apps/web/src/entities/calendar-entry/calendar.spec.md](../../apps/web/src/entities/calendar-entry/calendar.spec.md)                 | In progress |
-| Настройки профиля — имя (#125)            | [apps/web/src/features/update-username/update-username.spec.md](../../apps/web/src/features/update-username/update-username.spec.md) | Draft       |
-| Корзина страниц — frontend (#128)         | [apps/web/src/widgets/page-trash/page-trash.spec.md](../../apps/web/src/widgets/page-trash/page-trash.spec.md)                       | Draft       |
+| Фича                                      | Спека                                                                                                                                | Статус                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| Auth (register/login/refresh/logout/me)   | [apps/api/src/auth/auth.spec.md](../../apps/api/src/auth/auth.spec.md)                                                               | Ready                                    |
+| Users (профиль / username)                | [apps/api/src/users/users.spec.md](../../apps/api/src/users/users.spec.md)                                                           | Draft                                    |
+| Projects CRUD                             | [apps/api/src/projects/projects.spec.md](../../apps/api/src/projects/projects.spec.md)                                               | Draft                                    |
+| Pages data layer                          | [apps/web/src/entities/page/page.spec.md](../../apps/web/src/entities/page/page.spec.md)                                             | Ready                                    |
+| Проектный контекст и выбор проекта (#172) | [apps/web/src/entities/project/project-context.spec.md](../../apps/web/src/entities/project/project-context.spec.md)                 | Approved (2026-11-08; код не реализован) |
+| Pages CRUD                                | [apps/api/src/pages/pages.spec.md](../../apps/api/src/pages/pages.spec.md)                                                           | Draft                                    |
+| Корзина страниц — список и restore (#156) | [apps/api/src/pages/trash.spec.md](../../apps/api/src/pages/trash.spec.md)                                                           | Ready                                    |
+| Поиск страниц по заголовкам (#157)        | [apps/api/src/pages/search.spec.md](../../apps/api/src/pages/search.spec.md)                                                         | Draft                                    |
+| Дерево страниц в сайдбаре (PageTree)      | [apps/web/src/widgets/sidebar/page-tree.spec.md](../../apps/web/src/widgets/sidebar/page-tree.spec.md)                               | Draft                                    |
+| Строка дерева страниц (SidebarTreeItem)   | [apps/web/src/shared/ui/sidebar-tree-item.spec.md](../../apps/web/src/shared/ui/sidebar-tree-item.spec.md)                           | Draft                                    |
+| Создание страницы                         | [apps/web/src/features/create-page/create-page.spec.md](../../apps/web/src/features/create-page/create-page.spec.md)                 | Draft                                    |
+| Collab persistence · Yjs-снапшоты (#109)  | [apps/api/src/collab/persistence.spec.md](../../apps/api/src/collab/persistence.spec.md)                                             | Draft                                    |
+| Календарь страниц — API (#132)            | [apps/api/src/calendar/calendar.spec.md](../../apps/api/src/calendar/calendar.spec.md)                                               | In progress                              |
+| Календарь страниц — frontend (#132)       | [apps/web/src/entities/calendar-entry/calendar.spec.md](../../apps/web/src/entities/calendar-entry/calendar.spec.md)                 | In progress                              |
+| Настройки профиля — имя (#125)            | [apps/web/src/features/update-username/update-username.spec.md](../../apps/web/src/features/update-username/update-username.spec.md) | Draft                                    |
+| Корзина страниц — frontend (#128)         | [apps/web/src/widgets/page-trash/page-trash.spec.md](../../apps/web/src/widgets/page-trash/page-trash.spec.md)                       | Draft                                    |
 
 ## Кросс-модульные (в `docs/specs/`)
 

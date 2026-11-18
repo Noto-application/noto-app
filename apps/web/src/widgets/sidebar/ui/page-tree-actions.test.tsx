@@ -123,7 +123,11 @@ beforeEach(() => {
   mocks.usePagesList.mockReturnValue({ data: pages, isLoading: false });
   mocks.usePageTree.mockReturnValue({ data: buildPageTree(pages), isError: false });
   mocks.useDeletePageMutation.mockReturnValue({ isPending: false, mutate: mocks.deletePage });
-  mocks.useCreatePage.mockReturnValue({ isPending: false, mutate: mocks.createPage });
+  mocks.useCreatePage.mockReturnValue({
+    isPending: false,
+    mutate: mocks.createPage,
+    resolved: { navigation: { setActive: () => {} } },
+  });
 });
 
 async function openDelete(user: ReturnType<typeof userEvent.setup>, title = 'Обзор') {
@@ -351,6 +355,7 @@ describe('PageTree actions', () => {
             isActiveProjectPending: false,
             isActiveProjectError: false,
             mutate: createRoot,
+            resolved: { navigation: { setActive: () => {} } },
           },
     );
     const view = () => (

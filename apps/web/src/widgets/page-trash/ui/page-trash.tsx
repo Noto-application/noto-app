@@ -93,7 +93,9 @@ export function PageTrash() {
   const router = useRouter();
   const projects = useProjects();
   const rawProjectId = searchParams.get('projectId');
-  const projectId = getTrashProjectId(rawProjectId);
+  const projectId = searchParams.getAll('projectId').every((value) => value === rawProjectId)
+    ? getTrashProjectId(rawProjectId)
+    : null;
 
   return (
     <section

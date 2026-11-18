@@ -3,7 +3,7 @@
 **Статус:** Draft
 **Автор:** daria-z
 **Дата:** 2026-08-23
-**Связанные:** [ADR-002](../../../../../docs/adr/002-routing-and-domains.md), [ADR-005](../../../../../docs/adr/005-state-management.md), [ADR-008](../../../../../docs/adr/008-fsd-structure.md); issue #54 (первая половина — дерево; создание страницы — в `features/create-page`); issue #84 (кнопка «+» вложенного создания, контракт — [create-page.spec.md](../../features/create-page/create-page.spec.md)); зависит от #53 (`buildPageTree`, `usePagesList`) и #62 (`SidebarTreeItem`, спека — [sidebar-tree-item.spec.md](../../shared/ui/sidebar-tree-item.spec.md))
+**Связанные:** [ADR-002](../../../../../docs/adr/002-routing-and-domains.md), [ADR-005](../../../../../docs/adr/005-state-management.md), [ADR-008](../../../../../docs/adr/008-fsd-structure.md); issue #54 (первая половина — дерево; создание страницы — в `features/create-page`); issue #84 (кнопка «+» вложенного создания, контракт — [create-page.spec.md](../../features/create-page/create-page.spec.md)); issue #172 (единый проектный контекст — [project-context.spec.md](../../entities/project/project-context.spec.md)); зависит от #53 (`buildPageTree`, `usePagesList`) и #62 (`SidebarTreeItem`, спека — [sidebar-tree-item.spec.md](../../shared/ui/sidebar-tree-item.spec.md))
 
 ## Цель
 
@@ -38,8 +38,11 @@ export function PageTree({ projectId }: { projectId: string }): ReactNode;
 ключи `pages.list(projectId)` — целевые после #53; в `main` сейчас `usePages` и
 `pageKeys.byProject`. Мержится после #53.
 
-- `projectId` — пропс, родитель берёт его из `usePage(pageId).projectId`
-  (ADR-002).
+- `projectId` — пропс, родитель берёт его из единого разрешённого контекста
+  (#172, [project-context.spec.md](../../entities/project/project-context.spec.md)):
+  на `/app/[pageId]` — из `Page.projectId`, на экранах без Page — из
+  `projectId` URL (включая fallback по контракту #172). Отдельного
+  fallback-правила дерево не создаёт.
 - Активную страницу компонент читает сам: `useParams<{ pageId?: string }>()` —
   на `/app` параметра нет.
 - Данные — `usePagesList(projectId)`, дерево — `buildPageTree(pages)`, узлы —
@@ -114,19 +117,29 @@ export function PageTree({ projectId }: { projectId: string }): ReactNode;
     ([create-page.spec.md](../../features/create-page/create-page.spec.md)).
 13. Пока вложенная мутация в полёте, все «+» дерева заблокированы — повторный
     клик второго запроса не шлёт. Меню «…» остаются рабочими.
-14. Успех: список страниц инвалидируется, родитель раскрыт идемпотентно (уже
-    раскрытый не меняется), затем переход на новую страницу.
-15. Ошибка: строка не раскрывается и перехода нет; тост — по
+14. Успех: список страниц исходного проекта инвалидируется. Раскрытие родителя
+    (идемпотентно) и переход на новую страницу — только пока актуально исходное
+    навигационное намерение по контракту create-page; после ухода, смены контекста
+    или back/forward поздний ответ не раскрывает дерево и не возвращает пользователя.
+15. Ошибка: строка не раскрывается и перехода нет; тост только при актуальном
+    исходном намерении — по
     features/create-page, после завершения «+» снова доступны.
 
 ## Крайние случаи
+
+Строки об успехе создания ниже предполагают актуальное исходное навигационное
+намерение. После ухода/смены контекста/back/forward обновляется только исходный
+кэш без раскрытия, перехода и тоста (контракт create-page).
 
 | Случай                                                       | Ожидание                                                                                                                                                         |
 | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `usePagesList` в загрузке                                    | `Skeleton`, не пустой список и не дерево                                                                                                                         |
 | `isError` или `data === undefined` при `isLoading === false` | Дерево не строится, `InlineAlert` `variant="danger"` «Не удалось загрузить страницы»; тост и 401-редирект — на общем error-handler (FE-4)                        |
-| Нет активной страницы (`/app` без `pageId`)                  | Родитель не рендерит `PageTree`: `projectId` неизвестен                                                                                                          |
-| `usePage(pageId)` ещё грузится                               | То же: не смонтирован, пока нет `projectId`                                                                                                                      |
+| Нет активной страницы, но есть `projectId` URL               | Дерево рендерится для разрешённого проекта #172; первый проект не подставляется вместо явного                                                                    |
+| Нет активной страницы и нет контекста                        | Родитель не рендерит `PageTree`: `projectId` не разрешён                                                                                                         |
+| `usePage(pageId)` или контекст ещё грузится                  | То же: не смонтирован, пока нет разрешённого `projectId`                                                                                                         |
+| Явный проект невалиден/недоступен                            | Дерево не монтируется; видимое состояние контекста #172, fallback на другой проект отсутствует                                                                   |
+| Выбран пустой проект                                         | `EmptyState` этого проекта; первый непустой проект не подставляется                                                                                              |
 | Проект без страниц                                           | `EmptyState` как в story `Default`: «Нет страниц» + «Создайте первую страницу в этом проекте»; кнопка в слоте `action` — вместе с созданием страницы (подзадача) |
 | Все страницы на одном уровне                                 | Плоский список, `depth=0`, без шевронов                                                                                                                          |
 | 2+ уровня вложенности                                        | `depth` растёт на каждом уровне, шеврон — только у узлов с детьми                                                                                                |
@@ -142,8 +155,10 @@ export function PageTree({ projectId }: { projectId: string }): ReactNode;
 ## Взаимодействия
 
 Состояние по матрице [ADR-005](../../../../../docs/adr/005-state-management.md):
-`pageId`/`projectId` — URL, список страниц — TanStack Query, свёрнутые узлы —
-Zustand (`useSidebarStore`).
+`pageId`/`projectId` — URL (на `/app/[pageId]` проект — из метаданных Page),
+список страниц — TanStack Query, свёрнутые узлы — Zustand (`useSidebarStore`).
+Выбранный проект в стор не попадает; дерево получает уже разрешённый `projectId`
+пропсом (#172).
 
 `togglePage` и `expandPages` покрываются отдельными тестами (тест-первым) в
 `use-sidebar-store.test.ts`.

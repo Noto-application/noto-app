@@ -7,8 +7,10 @@ import { apiClient } from '@/src/shared/api';
 import AppLayout from './layout';
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   useParams: () => ({}),
+  usePathname: () => '/app',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock('@/src/widgets/sidebar', () => ({
