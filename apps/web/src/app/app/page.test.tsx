@@ -9,8 +9,10 @@ import { apiClient } from '@/src/shared/api';
 import AppPage from './page';
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   useParams: () => ({}),
+  usePathname: () => '/app',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 afterEach(() => {

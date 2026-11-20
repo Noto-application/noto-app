@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 
 import { CreatePageProvider, useCreatePageAction } from '@/src/features/create-page';
 import { QueryProvider } from '@/src/shared/api';
@@ -42,10 +42,12 @@ function AppShell({ children }: AppLayoutProps) {
 export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <QueryProvider>
-      <CreatePageProvider>
-        <Toaster />
-        <AppShell>{children}</AppShell>
-      </CreatePageProvider>
+      <Suspense fallback={<p role="status">Загрузка приложения…</p>}>
+        <CreatePageProvider>
+          <Toaster />
+          <AppShell>{children}</AppShell>
+        </CreatePageProvider>
+      </Suspense>
     </QueryProvider>
   );
 }

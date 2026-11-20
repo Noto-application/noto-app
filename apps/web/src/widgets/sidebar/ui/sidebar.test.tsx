@@ -10,6 +10,8 @@ import { Sidebar } from './sidebar';
 
 const navigation = vi.hoisted(() => ({ pageId: undefined as string | undefined, search: '' }));
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => (navigation.pageId ? `/app/${navigation.pageId}` : '/app/trash'),
   useParams: () => ({ pageId: navigation.pageId }),
   useSearchParams: () => new URLSearchParams(navigation.search),
 }));
@@ -59,11 +61,24 @@ describe('Sidebar trash navigation', () => {
       `/app/trash?projectId=${projectId}`,
     );
   });
-  it('preserves the URL project and tree when no live page is open', () => {
+  it('preserves the URL project and tree when no live page is open', async () => {
     navigation.pageId = undefined;
     navigation.search = `projectId=${projectId}`;
+    vi.spyOn(apiClient.projects, 'get').mockResolvedValue({
+      status: 200,
+      body: {
+        project: {
+          id: projectId,
+          name: 'Project',
+          currentUserRole: 'owner',
+          createdAt: '2026-11-01T00:00:00.000Z',
+          updatedAt: '2026-11-01T00:00:00.000Z',
+        },
+      },
+      headers: new Headers(),
+    });
     setup();
-    expect(screen.getByTestId('tree')).toHaveTextContent(projectId);
+    expect(await screen.findByTestId('tree')).toHaveTextContent(projectId);
     expect(screen.getByRole('link', { name: 'Корзина' })).toHaveAttribute(
       'href',
       `/app/trash?projectId=${projectId}`,
